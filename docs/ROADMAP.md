@@ -44,7 +44,7 @@ Each is a future self-extension (build → gate → human-approved adopt).
 | Capability | What it is | Status |
 |---|---|---|
 | **Config/policy spine** | Declarative `borromeo.toml`: declare required checks + context → enforced on every run (config-compliance). First iteration: required-check set + `[context]` | 🟦 in review (ADR-0010) |
-| **Prompt rewriting + multi-prompting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeo enforces it's done per best agentic+SE practices + the spine's declared context. **Next build.** | 🔜 next |
+| **Prompt rewriting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeo enforces it via a UserPromptSubmit hook using the spine's `[context]`; shows the rewrite; toggle in `borromeo.toml`. Multi-prompting deferred. | 🟦 in review (ADR-0011) |
 | **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⏳ |
 | **Mathematical verification (code & claims)** | Code: Hypothesis → CrossHair (SMT) → mutation → formal (Lean/Dafny, opt-in). Claims: verify factual assertions, distinct from code | ⏳ |
 | **Preserve wrapped-agent autonomy** | Enforce invariants on *outcomes*, never dictate the agent's planning/decisions (red line, VISION §6) | ✅ principle locked |

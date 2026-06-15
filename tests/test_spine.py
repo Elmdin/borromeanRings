@@ -34,3 +34,12 @@ def test_context_defaults_to_empty(tmp_path: Path) -> None:
     loaded = load_config(config)
     assert loaded.required_checks == ("00_build",)
     assert dict(loaded.context) == {}
+    assert loaded.prompt_rewriting_enabled is False
+
+
+def test_prompt_rewriting_toggle(tmp_path: Path) -> None:
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[prompt_rewriting]\nenabled = true\n',
+    )
+    assert load_config(config).prompt_rewriting_enabled is True

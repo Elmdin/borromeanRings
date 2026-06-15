@@ -22,6 +22,7 @@ class Config:
     required_checks: tuple[str, ...]
     context: Mapping[str, Any]
     prompt_rewriting_enabled: bool = False
+    hygiene_requires: tuple[str, ...] = ()
 
 
 def load_config(path: str | Path = "borromeo.toml") -> Config:
@@ -48,8 +49,10 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
         )
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
+    hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
     return Config(
         required_checks=tuple(required),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
+        hygiene_requires=hygiene_requires,
     )

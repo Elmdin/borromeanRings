@@ -4,18 +4,14 @@
 > [`MANIFESTO.md`](MANIFESTO.md); *what is built vs. deferred and in what order* is in
 > [`ROADMAP.md`](ROADMAP.md); v0 specifics are in `PLAN-v0.md` and the rest of `docs/`.
 
-## 0. borromeo is Layer 1 of a three-layer stack
-Per the [Manifesto](MANIFESTO.md), borromeo is built bottom-up as three mutually-reinforcing tools:
+## 0. Scope — borromeo is the meta-harness, only
+Per the [Manifesto](MANIFESTO.md), **borromeo is the meta-harness**: it enhances any existing AI
+agent so it builds software better. That is its entire scope.
 
-| Layer | Tool | "The best way to…" |
-|---|---|---|
-| **1** | **The SWE harness** *(this document)* | build **pristine software** |
-| **2** | **Deep Research tool** | **find & synthesize information** (deterministic, visualized, cited) |
-| **3** | **Borromeo Kernel** | **organize notes/plans into tasks, roadmaps, visual maps** (a second brain) |
-
-The harness builds Layers 2 and 3; the research tool informs what to build; the kernel organizes it
-all and feeds priorities back. This document specifies **Layer 1**. Layers 2–3 are scoped in
-`ROADMAP.md`.
+The other tools the broader mission needs — a **Deep Research** tool and a **notes/Kernel** — are
+**separate products built *with* borromeo**, not part of it. This document specifies borromeo (the
+harness). Those products get their own repos/specs; borromeo's job is to make building them (and any
+software) better.
 
 ## 1. Thesis (Layer 1)
 borromeo is a **model- and harness-agnostic meta-harness**: a governing quality layer that wraps

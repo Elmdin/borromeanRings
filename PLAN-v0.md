@@ -4,8 +4,8 @@
 > Scope of this document: v0 only (Build Brief §9 step 1). Everything past the v0 gate is listed under "Explicitly deferred" and is NOT built now.
 >
 > **Companion docs** (the why/vision, plus the requirements/design/decision artifacts this plan is realized through):
-> - [`docs/MANIFESTO.md`](docs/MANIFESTO.md) — **the north star**: why borromeo exists and the three-layer stack (harness → deep research → kernel). borromeo (this plan) is Layer 1.
-> - [`docs/VISION.md`](docs/VISION.md) — the whole product borromeo (Layer 1) is meant to become: thesis, the 7 target components, full harness feature set, the self-extension loop, the verification ladder, the red lines.
+> - [`docs/MANIFESTO.md`](docs/MANIFESTO.md) — **the north star**: why borromeo exists. borromeo is the **meta-harness**; the deep-research and notes tools are separate products built *with* it.
+> - [`docs/VISION.md`](docs/VISION.md) — the whole product borromeo (the meta-harness) is meant to become: thesis, the 7 target components, full harness feature set, the self-extension loop, the verification ladder, the red lines.
 > - [`docs/ROADMAP.md`](docs/ROADMAP.md) — **every feature, with status** (shipped / in-review / next / deferred). Start here to see the full feature set.
 > - [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) — user stories (INVEST) + Given/When/Then ACs + Quality Attribute Scenarios. These ACs/QAS *are* the v0 gate's acceptance tests.
 > - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — drivers, style, module secrets (information hiding), views, Change Impact Analysis.

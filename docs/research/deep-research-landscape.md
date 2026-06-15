@@ -1,5 +1,8 @@
 # Research — How existing deep-research systems work (and where they fall short)
 
+> **Scope note:** research for the **Deep Research product** — a *separate product built with
+> borromeo*, not part of borromeo's meta-harness scope. Kept here as a seed pending extraction.
+
 > Layer 2, step 1 (per the Manifesto): study existing deep-research before building ours. This is
 > the input to [`../SPEC-deep-research.md`](../SPEC-deep-research.md). Researched June 2026.
 

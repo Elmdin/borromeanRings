@@ -1,5 +1,9 @@
-# SPEC — Deep Research tool (Layer 2)
+# SPEC — Deep Research tool
 
+> **Scope note:** the Deep Research tool is a **separate product built *with* borromeo**, not part of
+> borromeo's meta-harness scope. This spec + the Phase-1 prototype (`meta_harness/deep_research.py`)
+> live here as a seed pending extraction to their own repo. See [`MANIFESTO.md`](MANIFESTO.md).
+>
 > Status: spec, derived from [`research/deep-research-landscape.md`](research/deep-research-landscape.md).
 > Awaiting sign-off before implementation. The first tool borromeo builds *through* the harness and
 > then **adopts** (self-extension). The "best way to find & synthesize information."

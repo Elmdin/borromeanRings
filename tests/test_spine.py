@@ -63,3 +63,11 @@ def test_project_targeting_loaded_with_defaults(tmp_path: Path) -> None:
 
     default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
     assert (load_config(default).package, load_config(default).src_dir) == ("", "src")
+    assert load_config(default).language == "python"  # default
+
+
+def test_language_selects_check_set(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path, '[checks]\nrequired = ["00_build"]\n[project]\nlanguage = "typescript"\n'
+    )
+    assert load_config(declared).language == "typescript"

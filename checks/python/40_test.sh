@@ -4,7 +4,7 @@
 # receipt. Mutation testing (the real oracle-strength signal) is deferred.
 # See docs/REQUIREMENTS.md QAS-7 and docs/TEST-PLAN.md §5.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
 
 id="40_test"
 log="$RECEIPT_DIR/$id.log"

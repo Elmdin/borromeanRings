@@ -14,7 +14,6 @@ BORROMEO_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEO_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 export BORROMEO_HOME PROJECT_ROOT
-CHECKS_DIR="$BORROMEO_HOME/checks"
 CONFIG="$PROJECT_ROOT/borromeo.toml"
 
 if [ ! -f "$CONFIG" ]; then
@@ -22,17 +21,31 @@ if [ ! -f "$CONFIG" ]; then
   exit 1
 fi
 
+# borromeo adjusts to the project: run the language-agnostic 'shared' checks plus the
+# per-language set selected by [project].language (default python).
+language="$(PYTHONPATH="$BORROMEO_HOME/src" python3 -c \
+  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
+case "$language" in
+  "" | *[!a-z0-9_-]*)
+    echo "borromeo: invalid [project].language: '$language' (use [a-z0-9_-])." >&2
+    exit 1
+    ;;
+esac
+
 # Per-run, append-only evidence — stored with the GOVERNED project, not borromeo.
 run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 RECEIPT_DIR="$PROJECT_ROOT/.meta-harness/receipts/$run_id"
 export RECEIPT_DIR
 mkdir -p "$RECEIPT_DIR"
 
-# Run every check (borromeo's checks, operating on PROJECT_ROOT). Each writes its
-# own receipt; the verdict is computed from receipts, never a check's exit alone.
-for check in "$CHECKS_DIR"/[0-9]*.sh; do
-  [ -e "$check" ] || continue
-  bash "$check" || true
+# Run shared (language-agnostic) checks + the selected language's checks. Each writes
+# its own receipt; the verdict is computed from receipts, never a check's exit alone.
+for dir in "$BORROMEO_HOME/checks/shared" "$BORROMEO_HOME/checks/$language"; do
+  [ -d "$dir" ] || continue
+  for check in "$dir"/[0-9]*.sh; do
+    [ -e "$check" ] || continue
+    bash "$check" || true
+  done
 done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the

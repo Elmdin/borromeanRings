@@ -27,6 +27,7 @@ class Config:
     package: str = ""  # importable package name (optional; "" → skip import check)
     src_dir: str = "src"
     tests_dir: str = "tests"
+    language: str = "python"  # selects checks/<language>/ — the per-language check set
 
 
 def load_config(path: str | Path = "borromeo.toml") -> Config:
@@ -63,4 +64,5 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
         package=str(project.get("package", "")),
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
+        language=str(project.get("language", "python")),
     )

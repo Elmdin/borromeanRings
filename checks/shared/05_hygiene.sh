@@ -2,7 +2,7 @@
 # Project hygiene: the engineering surround declared in borromeo.toml ([hygiene].requires)
 # must exist (docs, CI, containerization, license, …). Fail-closed if any is missing.
 set -uo pipefail
-source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
 
 id="05_hygiene"
 log="$RECEIPT_DIR/$id.log"

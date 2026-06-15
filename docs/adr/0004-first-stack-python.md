@@ -22,3 +22,15 @@ real checks against, chosen for mature, fast, widely-installed deterministic too
 - (+) `bandit`-only security in v0 keeps install light; `semgrep` is a future check (DD-2).
 - (−) Other stacks aren't governed yet — by design; each becomes a new set of checks behind the
   same contract.
+
+## Decision review (2026-06-15, Maintainer-confirmed)
+This choice was originally a near-default, not a researched rational decision. On review the
+Maintainer **confirmed Python** as a deliberate **low-stakes** choice, with honest rationale rather
+than exhaustive alternative-research:
+- borromeo is **stack-agnostic for the projects it governs** (any language via the check contract,
+  ADR-0005), so its *own* implementation language has **low blast radius** — not a load-bearing
+  decision in CS130 terms.
+- Python's check toolchain (ruff/mypy/pytest/bandit) is mature and already wired and green.
+- A full TS/Go/Rust comparison would be effort out of proportion to the low stakes; deliberately
+  **not** done (rational decision-making includes deciding when *more* analysis isn't worth it —
+  CS130 "bounded rationality / satisficing").

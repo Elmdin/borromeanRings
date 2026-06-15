@@ -16,6 +16,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0004](0004-first-stack-python.md) | First governed stack = Python | Accepted |
 | [0005](0005-checks-registry-and-adapter-seam.md) | Checks as a uniform-contract registry; substrate Adapter seam | Accepted |
 | 0006 | Coverage = ratchet, no absolute % | **Proposed** (pending DD-1) |
+| [0007](0007-gated-explicit-merge.md) | Gated, explicitly-requested merge (no autonomous self-merge) | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

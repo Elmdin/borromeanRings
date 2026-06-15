@@ -10,8 +10,8 @@ htmlcov/
 .venv/
 venv/
 
-# borromeo audit plumbing — receipts are per-run artifacts, not source
-.meta-harness/receipts/
+# borromeo audit plumbing — per-run artifacts (receipts, stop counters, merge logs), not source
+.meta-harness/
 
 # CS130 knowledge base — reference material that informed the build, not borromeo's product code.
 # Untracked by default; remove this line if you want it versioned with the repo.

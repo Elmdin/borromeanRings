@@ -71,8 +71,13 @@ Target properties (upgrade existing deep-research to be):
 | **Referencing** | Every claim cited to its source |
 | **Synthesizing** | Combine sources into a focused answer, not a link dump |
 | **Focusing** | Stay on the question; avoid drift |
-| **Clean & safe** | Avoid ads, BS/low-quality content, viruses |
+| **Clean & safe** | Avoid ads, BS/low-quality content, viruses (sandboxed fetch) |
 | **Substrate-agnostic** | Works on any browser/search engine, with any AI agent or a bare LLM |
+| **Augments the agent's own research** | Enhances (not replaces) the wrapped agent's existing deep-research tool |
+| **Multi-engine + comprehensive** | Federated search across engines; reads all relevant sites |
+| **Query mutation** | Diverse multi-query rewriting + pseudo-answer to widen recall (verified) |
+| **Completeness critic ("don't miss anything")** | Gap detection; flags wrong query/place/missed detail; loops until coverage saturates (best existing agent only ~21% recall) |
+| **Fact-check + output gate** | Deterministic gate on the synthesis — no unverified claim survives |
 
 ## Phase 4 — Layer 3: the Borromeo Kernel (⏳)
 The second brain. Organize **all** notes/thoughts/plans into a visually navigable, modifiable

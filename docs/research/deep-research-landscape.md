@@ -30,6 +30,17 @@ Each gap maps directly to a property the Manifesto demands:
 | **Clean & safe** | No explicit ad / SEO-spam / low-quality / virus filtering; source-quality judgment is ad hoc. |
 | **Substrate-agnostic** | Each is locked to its own model/platform; not "any browser/engine, any agent or bare LLM." |
 
+## Additional research — coverage, query mutation, multi-engine (the features we're adding)
+- **Recall is the unsolved problem.** The best deep-research agent achieves only **~20.92% recall**
+  — it misses ~80% of expert-cited sources. "RAG cannot retrieve what isn't there." This is the
+  measured justification for a **completeness critic** ("don't miss anything").
+- **Query mutation works (with care).** *Diverse Multi-Query Rewriting* (DMQR-RAG, 4 strategies at
+  different granularities) and **pseudo-answer / Query2doc** (generate a hypothetical answer, search
+  with it) materially improve recall. *But* LLM query expansion **degrades** on unfamiliar/ambiguous
+  queries → mutations must be **verified, diversified, and reversible**, never blindly trusted.
+- **Federated / metasearch** is a solved pattern: distribute one query to many engines → aggregate →
+  **dedup + result fusion (merge/normalize/rank)**. No single engine is authoritative.
+
 ## Implications for borromeo's design
 - **Favor an orchestrated, inspectable pipeline** (like GPT Researcher / STORM), **not** an opaque end-to-end agent — determinism and visibility require seams you can observe.
 - **Citation verification is the killer feature.** Every claim must be checked against the *actually fetched source text*, not the model's memory. This is exactly borromeo's **"mathematical verification of claims"** (Layer 1 critic) applied to research — and adversarial verification is borromeo's strength.
@@ -43,3 +54,5 @@ Each gap maps directly to a property the Manifesto demands:
 - [Stanford STORM (GitHub)](https://github.com/stanford-oval/storm) · [STORM project](https://storm-project.stanford.edu/research/storm/)
 - [Introducing Perplexity Deep Research](https://www.perplexity.ai/hub/blog/introducing-perplexity-deep-research)
 - [AI Hallucinations in Research Citations (Enago)](https://www.enago.com/academy/ai-hallucinations-research-citations/) · [Fabricated references study (StudyFinds)](https://studyfinds.org/chatgpts-hallucination-problem-fabricated-references/) · [Synthesis Gap (arXiv 2601.12369)](https://arxiv.org/pdf/2601.12369)
+- [Query Expansion by Prompting LLMs (arXiv 2305.03653)](https://arxiv.org/pdf/2305.03653) · [LLM query expansion fails for ambiguous queries (arXiv 2505.12694)](https://arxiv.org/html/2505.12694v1) · [Query optimization survey (arXiv 2412.17558)](https://arxiv.org/html/2412.17558v3)
+- [Federated search (Wikipedia)](https://en.wikipedia.org/wiki/Federated_search) · [Result merging for metasearch (Springer)](https://link.springer.com/chapter/10.1007/11581062_5) · [How LLMs improve precision & recall (Research Solutions)](https://www.researchsolutions.com/blog/how-llms-can-improve-search-precision-and-recall)

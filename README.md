@@ -34,6 +34,8 @@ a manifest cross-check: a check that never ran (crash/skip) ⇒ overall fail.
 - `checks/` — one script per check under a uniform contract (`manifest.json` lists the set)
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate
 - `src/`, `tests/` — the governed code
+- `docs/VISION.md` — the whole product borromeo is meant to become
+- `docs/ROADMAP.md` — **every feature, with status** (start here for the full feature set)
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
 

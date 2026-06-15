@@ -10,24 +10,22 @@ best information, (b) **organize** what you find, and (c) decide **what to do** 
 attention are scarce — you cannot be part of everything — so the real task is to **minimize waste**
 and spend yourself only on the highest-value things, while still having a hand in the rest.
 
-## borromeo's scope: the meta-harness, and nothing more
-There is an optimal way to **find** information, an optimal way to **organize** it, and an optimal
-way to **act** on it. Solving all of that needs *software* — and the prerequisite is **the best way
-to build software**. **That is borromeo, and only that:** a meta-harness that enhances any existing
-AI agent so it builds software better.
+## borromeo's scope: the meta-harness that enhances agents
+**borromeo is a meta-harness: it enhances any existing AI agent so it builds software better** — and
+so it does *everything* it already does, better. Most agents/harnesses already ship capabilities like
+code-writing, prompting, and **deep research**; borromeo's job is to **improve those built-in
+capabilities**, not to rebuild them. So borromeo *enhances*:
 
-The other tools the broader mission needs are **separate products you build *with* borromeo** — not
-parts of borromeo:
+| Agent capability | borromeo's enhancement |
+|---|---|
+| writing code | best-practice **gates** (a change can't pass until it's correct/clean/safe) |
+| the user's prompt | **prompt rewriting** (the agent refines intent; borromeo enforces it well) |
+| **deep research** (built into most agents) | **multi-engine + comprehensive coverage, query mutation, a completeness critic ("don't miss anything"), full visibility, and fact-check + deterministic gates** on what it finds |
 
-| Product | "The best way to…" | Relationship to borromeo |
-|---|---|---|
-| **borromeo** (this repo) | build **pristine software** — model/harness-agnostic, gates best practices, ever-growing | **is** the meta-harness |
-| Deep Research tool | **find & synthesize information** | *built with* borromeo (separate product) |
-| Notes/Kernel | **organize notes/plans into tasks, roadmaps, visual maps** | *built with* borromeo (separate product) |
-
-Keeping borromeo narrow is the discipline: it must do one thing — make agents build software well —
-so everything else can be built on top of it cleanly. Conflating the harness with the end-user tools
-is scope creep.
+What borromeo does **not** do is become an end-user application. The **notes/Kernel** — organizing
+all your plans/documents/social media into a navigable second brain — is a **separate product built
+*with* borromeo**, not part of it. Keeping borromeo to "make agents build software better (incl.
+their research)" is the scope discipline; building end-user apps into it is scope creep.
 
 ## Why borromeo first (the bootstrap)
 Build **the best way to build software** first, because every other product depends on it. borromeo
@@ -50,8 +48,7 @@ exists and what's truly best.
   merges; it never autonomously rewrites its own core (see `adr/0007`).
 
 ## The near-term mission
-Make **borromeo** genuinely good at its one job: enhancing existing agents to build software better
-(the gate, CI, gated auto-merge, config spine, and prompt rewriting already work). Then *use*
-borromeo to build the separate products the broader mission needs — starting with a deep-research
-tool and a notes/kernel — each in its own right, on top of a harness that's proven to make building
-software better.
+Make **borromeo** genuinely good at its job: enhancing existing agents (the gate, CI, gated
+auto-merge, config spine, and prompt rewriting already work; **deep-research enhancement** is the
+active workstream). Then *use* borromeo to build the **notes/Kernel** as a separate product, on top
+of a harness proven to make building software — and research — better.

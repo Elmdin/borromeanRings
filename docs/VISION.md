@@ -4,14 +4,15 @@
 > [`MANIFESTO.md`](MANIFESTO.md); *what is built vs. deferred and in what order* is in
 > [`ROADMAP.md`](ROADMAP.md); v0 specifics are in `PLAN-v0.md` and the rest of `docs/`.
 
-## 0. Scope — borromeo is the meta-harness, only
+## 0. Scope — borromeo is the meta-harness that enhances agents
 Per the [Manifesto](MANIFESTO.md), **borromeo is the meta-harness**: it enhances any existing AI
-agent so it builds software better. That is its entire scope.
+agent so it builds software — and does everything it already does — better. It *enhances* agent
+capabilities (code → gates; prompts → rewriting; **deep research → coverage + verification**); it
+does not rebuild them.
 
-The other tools the broader mission needs — a **Deep Research** tool and a **notes/Kernel** — are
-**separate products built *with* borromeo**, not part of it. This document specifies borromeo (the
-harness). Those products get their own repos/specs; borromeo's job is to make building them (and any
-software) better.
+The one thing borromeo is **not** is an end-user application: the **notes/Kernel** (organize all your
+plans/docs/social media into a second brain) is a **separate product built *with* borromeo**, with
+its own repo. This document specifies borromeo (the harness), including its deep-research enhancement.
 
 ## 1. Thesis (Layer 1)
 borromeo is a **model- and harness-agnostic meta-harness**: a governing quality layer that wraps
@@ -53,10 +54,14 @@ with **any LLM + any harness combination**, plug-and-play with existing skills/t
   borromeo; borromeo **enforces that it happens well** — per best agentic-engineering + SE practices,
   the declared context (the spine), and anything that improves results. Plus the ability to drive
   multiple prompts/passes.
+- **Deep-research enhancement** — most agents already do deep research; borromeo **improves their
+  built-in research**: multi-engine + comprehensive coverage, query mutation, a completeness critic
+  ("don't miss anything"), full step-by-step visibility, and **fact-check + deterministic gates** on
+  the findings (no unverified claim survives). See `SPEC-deep-research.md`. *(Active workstream.)*
 - **Tool access + MCP + plug-and-play** — reach external/internal tools and MCP servers; plug in any
   existing feature, skill, or tool; compose with other harnesses.
 - **Ever-growing & research-driven** — can apply existing or new research; **adopts the tools it
-  builds** when asked (e.g. the Layer-2 Deep Research tool becomes usable *by* the harness).
+  builds** when asked.
 - **Multi-prompt / multi-model / multi-harness agnosticism** — never bound to one model or harness.
 
 ## 3. The self-extension loop (a core feature, not a nice-to-have)

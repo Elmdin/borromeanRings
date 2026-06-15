@@ -284,3 +284,55 @@ def research_until_saturated(
             break
         queries = [q for q in gap_finder(query, tuple(sources)) if q.strip()]
     return Report(query=query, sources=tuple(sources), trail=tuple(trail))
+
+
+@dataclass(frozen=True)
+class CitedReport:
+    """A synthesized answer: only verified claims, each with its citation."""
+
+    query: str
+    statements: tuple[tuple[str, str], ...]  # (verified claim, source_url)
+    rejected: tuple[str, ...]  # claims dropped because unverified
+
+
+def synthesize(query: str, findings: Sequence[tuple[str, Verdict]]) -> CitedReport:
+    """The deterministic output gate: assemble a report from claim→Verdict findings,
+    admitting **only** verified claims (each with its source). Unverified claims are
+    dropped into ``rejected`` — they never appear as stated facts (fail-closed). The
+    prose may be elaborated by the agent later; what borromeo guarantees is that no
+    unverified claim survives into the output.
+    """
+    statements = tuple(
+        (claim, verdict.source_url) for claim, verdict in findings if verdict.supported
+    )
+    rejected = tuple(claim for claim, verdict in findings if not verdict.supported)
+    return CitedReport(query=query, statements=statements, rejected=rejected)
+
+
+def render_report(report: CitedReport) -> str:
+    """Render a CitedReport as human-readable, fully-cited text."""
+    lines = [f"# {report.query}", ""]
+    for claim, url in report.statements:
+        lines.append(f"- {claim}  [source: {url}]")
+    if report.rejected:
+        lines.append("")
+        lines.append("Rejected (unverified — deliberately not stated):")
+        lines.extend(f"- {claim}" for claim in report.rejected)
+    return "\n".join(lines)
+
+
+def report_findings(
+    query: str,
+    claims: Sequence[str],
+    sources: Sequence[Source],
+    judges: Sequence[Judge],
+    *,
+    min_agree: int,
+) -> CitedReport:
+    """End-to-end gated reporting: adversarially verify each claim against the
+    sources, then synthesize a report containing only the verified ones."""
+    findings = [
+        (claim, verify_claim_adversarial(claim, sources, judges, min_agree=min_agree))
+        for claim in claims
+    ]
+    return synthesize(query, findings)

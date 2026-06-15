@@ -7,13 +7,17 @@ false-positives, so the judge (agent/LLM) must decide entailment.
 
 from meta_harness.deep_research import (
     Source,
+    Verdict,
     candidate_passages,
     federated_search,
     make_entailment_judge,
     multi_query_search,
     mutate_queries,
+    render_report,
+    report_findings,
     research,
     research_until_saturated,
+    synthesize,
     verify_claim,
     verify_claim_adversarial,
 )
@@ -159,6 +163,49 @@ def test_saturation_bounded_by_max_rounds() -> None:
         "q", search_fn, lambda _u: "txt", gap_finder, dry_rounds=99, max_rounds=2, max_sources=99
     )
     assert len(report.sources) == 2  # one per round, capped by max_rounds=2
+
+
+def test_synthesize_gate_admits_only_verified_claims() -> None:
+    findings = [
+        ("Eiffel Tower completed 1889", Verdict(True, "https://ex/eiffel", "…completed in 1889…")),
+        ("Eiffel Tower completed 1925", Verdict(False, "", "")),
+    ]
+    report = synthesize("When was the Eiffel Tower completed?", findings)
+    assert report.statements == (("Eiffel Tower completed 1889", "https://ex/eiffel"),)
+    assert report.rejected == ("Eiffel Tower completed 1925",)
+
+
+def test_render_report_cites_and_lists_rejected() -> None:
+    report = synthesize(
+        "q",
+        [
+            ("verified claim", Verdict(True, "https://ex/a", "p")),
+            ("bogus claim", Verdict(False, "", "")),
+        ],
+    )
+    text = render_report(report)
+    assert "verified claim  [source: https://ex/a]" in text
+    assert "Rejected (unverified" in text
+    assert "bogus claim" in text
+
+
+def test_render_report_without_rejected_omits_section() -> None:
+    report = synthesize("q", [("ok", Verdict(True, "https://ex/a", "p"))])
+    assert "Rejected" not in render_report(report)
+
+
+def test_report_findings_end_to_end_gates_unverified() -> None:
+    # _judge requires "completed" AND the claim's year in the passage → rejects 1925
+    # even though "1925" appears elsewhere in the source (the year-coincidence trap).
+    report = report_findings(
+        "Eiffel Tower",
+        ["Eiffel Tower completed 1889", "Eiffel Tower completed 1925"],
+        _SOURCES,
+        [_judge, _judge],
+        min_agree=2,
+    )
+    assert [claim for claim, _ in report.statements] == ["Eiffel Tower completed 1889"]
+    assert report.rejected == ("Eiffel Tower completed 1925",)
 
 
 def test_research_dedupes_and_records_trail() -> None:

@@ -35,16 +35,17 @@ improves the agent's *built-in* deep research; it does not build a research prod
 The only thing **out of scope** is an end-user app: the **notes/Kernel** is a separate product built
 *with* borromeo (its own repo when built). See [`MANIFESTO.md`](MANIFESTO.md).
 
-## Deep-research enhancement — ✅ COMPLETE (8/8, issues #12–19)
-borromeo improves the wrapped agent's existing deep research (`meta_harness/deep_research.py`). All
-shipped, each gate-green + proven live on real web sources:
-- ✅ #12 retrieval + injected semantic judge · ✅ #13 federated multi-engine · ✅ #14 query mutation
-- ✅ #15 adversarial citation verification · ✅ #16 completeness critic (loop-until-saturated)
-- ✅ #17 synthesis + deterministic output gate · ✅ #18 live visibility · ✅ #19 augment agent's research
+## Research enhancement — steer the agent's own search (ADR-0014)
+borromeo does **not** search itself — it *steers the wrapped agent's existing search* to be
+far more thorough and trustworthy. Delivered as a **user-invoked skill**
+(`.claude/skills/borromeo-research/`): the agent shows a steerable search plan, runs many
+query mutations across multiple engines + dorking + platforms, goes beyond the top results
+(result graph, citation chains, handles ads/paywalls/anti-bot), synthesizes across all, and
+**verifies every claim against its source (fail-closed)**, visibly. borromeo enforces; the
+agent performs (with its own tools).
 
-Entry point: `enhanced_research(query, agent_search_fn, fetch_fn, gap_finder, …)` augments the agent's
-own search; everything is injected (agent/engine/LLM-agnostic). Spec:
-[`SPEC-deep-research.md`](SPEC-deep-research.md); research: [`research/`](research/).
+The earlier Python search pipeline (`meta_harness/deep_research.py` + runners) is a
+**testbed** for the concepts (retrieval/verification/completeness/visibility), not the product.
 
 ## Phase 2 — other advanced harness features (⏳ build when directed)
 Each is a future self-extension (build → gate → human-approved adopt).

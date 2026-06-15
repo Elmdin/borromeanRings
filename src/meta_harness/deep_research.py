@@ -1,4 +1,11 @@
-"""Deep Research — Phase 1 vertical slice (Layer 2).
+"""Deep Research — TESTBED (not the product).
+
+> SCOPE NOTE (ADR-0014): borromeo's real research enhancement does NOT search by
+> itself — it *steers the wrapped agent's own search* (see the `borromeo-research`
+> skill in `.claude/skills/`). This module is a **testbed/reference** exercising the
+> *concepts* (retrieval, adversarial verification, completeness, synthesis, the
+> visible event trail) with borromeo doing the searching — useful for testing the
+> ideas, not how borromeo enhances research in production.
 
 A thin, end-to-end, runnable pipeline: search a query, fetch real sources, and
 **verify a claim against the actually-fetched source text** (not the model's

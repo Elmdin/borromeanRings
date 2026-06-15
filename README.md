@@ -17,6 +17,16 @@ governs its own repo from commit one (it must pass its own gate).
 Each run writes one receipt per check to `.meta-harness/receipts/<run-id>/`, plus
 a manifest cross-check: a check that never ran (crash/skip) ⇒ overall fail.
 
+## Merge (gated, explicitly requested)
+
+```bash
+./merge.sh [base]   # default base = main
+```
+
+Run from a feature branch: borromeo runs the gate and merges into `base` **only**
+if it passes. It executes your merge decision — it never merges on its own, and
+there is no standing auto-merge mode (see `docs/adr/0007-gated-explicit-merge.md`).
+
 ## The checks (v0)
 
 | # | Check | Tool |

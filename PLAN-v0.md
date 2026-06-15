@@ -3,7 +3,9 @@
 > Status: **DRAFT — awaiting human approval.** No code is written until this plan is approved (§12, principle: plan → approve → implement).
 > Scope of this document: v0 only (Build Brief §9 step 1). Everything past the v0 gate is listed under "Explicitly deferred" and is NOT built now.
 >
-> **CS130 companion docs** (the requirements/design/decision artifacts this plan is realized through):
+> **Companion docs** (the vision, plus the requirements/design/decision artifacts this plan is realized through):
+> - [`docs/VISION.md`](docs/VISION.md) — the whole product borromeo is meant to become (the consolidated Build Brief): thesis, the 7 target components, the self-extension loop, the verification ladder, the red lines.
+> - [`docs/ROADMAP.md`](docs/ROADMAP.md) — **every feature, with status** (shipped / in-review / next / deferred). Start here to see the full feature set.
 > - [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) — user stories (INVEST) + Given/When/Then ACs + Quality Attribute Scenarios. These ACs/QAS *are* the v0 gate's acceptance tests.
 > - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — drivers, style, module secrets (information hiding), views, Change Impact Analysis.
 > - [`docs/adr/`](docs/adr/README.md) — Architecture Decision Records for the load-bearing decisions (substrate, hosting, hardware, stack, the registry/adapter seam).

@@ -39,7 +39,7 @@ The product is **not** a monolithic verifier; it is a **registry of independent 
 
 | Promoted | Inhibited / cost |
 |---|---|
-| **Extensibility** — add a check = drop in a file + manifest line (QAS-3) | **Latency** — checks run; a large suite is as slow as its slowest checks (acceptable: correctness > speed for a gate) |
+| **Extensibility** — add a check = drop in a file + a line in `borromeo.toml` (QAS-3) | **Latency** — checks run; a large suite is as slow as its slowest checks (acceptable: correctness > speed for a gate) |
 | **Modifiability** — replace a check's tool without touching the gate | **No cross-check reasoning** — by design; a check can't depend on another's result |
 | **Reusability** — the gate is substrate-neutral; any caller reuses it | |
 
@@ -55,7 +55,7 @@ put only **stable** assumptions in interfaces.
 | **Which tool implements a check** (ruff/mypy/bandit; later semgrep, DD-2) | the individual `checks/NN_*.sh` | "run → exit non-zero on failure → emit a receipt" | Strategy / Single Choice |
 | **Which harness/substrate drives the loop** (Claude Code today; OpenCode/Hermes later) | `.claude/hooks/*` | `verify.sh`'s exit-code contract | **Adapter** |
 | **Receipt format & storage layout** | the receipt emitter (`checks/_lib.sh`) | "a receipt exists per check with status" | — |
-| **The exhaustive list of expected checks** | `manifest.json` (one place only) | "every expected check emitted a pass receipt" | **Single Choice Principle** |
+| **The exhaustive list of expected checks** | `borromeo.toml` (one place only) | "every expected check emitted a pass receipt" | **Single Choice Principle** |
 
 **The Adapter is the keystone.** `verify.sh` knows nothing about Claude Code; the `.claude/`
 hooks are thin adapters translating Stop / PostToolUse / PreToolUse events into calls on the
@@ -63,9 +63,9 @@ substrate-neutral gate. *This adapter seam is what makes borromeo "harness-agnos
 a future OpenCode adapter is a new directory with zero edits to `checks/` or `verify.sh`.
 
 **Deep modules, not shallow:** `verify.sh` hides a lot (ordering, receipt aggregation, fail-closed
-logic, manifest cross-check) behind a tiny interface (run it; read the exit code). Good ratio.
+logic, config cross-check) behind a tiny interface (run it; read the exit code). Good ratio.
 
-**Single Choice Principle:** exactly one module — `manifest.json` — knows the full set of checks.
+**Single Choice Principle:** exactly one place — `borromeo.toml` (the policy spine) — declares the full set of checks.
 Adding/removing a check touches that one place plus the check file; the gate code is untouched.
 
 ---
@@ -77,7 +77,7 @@ Adding/removing a check touches that one place plus the check file; the gate cod
 - **Cohesion:** each check does exactly one thing (format, lint, type, test, security) — **high
   cohesion.** The gate's single concern is *aggregate-and-decide*.
 - **Semantic-dependency watch (Part 2 L5):** the most dangerous coupling would be a check that
-  silently assumes another ran first. The manifest + fail-closed-on-missing-receipt rule converts
+  silently assumes another ran first. The `borromeo.toml` required set + fail-closed-on-missing-receipt rule converts
   that latent semantic dependency into a detectable failure.
 
 ---
@@ -92,7 +92,7 @@ Adding/removing a check touches that one place plus the check file; the gate cod
 - **Behavioral view:** the Stop-hook loop — run gate → (pass ⇒ allow stop) / (fail & under cap ⇒
   feed back, block stop) / (fail & at cap ⇒ escalate, stop). Bounded; see US-4.
 - **Data view:** receipts — per-run directory of `{check, command, exit_code, log, status}` JSON +
-  a manifest of expected checks. The seed of the future audit/self-assurance layer.
+  the `borromeo.toml` required-check set. The seed of the future audit/self-assurance layer.
 
 ---
 
@@ -101,7 +101,7 @@ Adding/removing a check touches that one place plus the check file; the gate cod
 | Anticipated change | Likely? | Effort under this design |
 |---|---|---|
 | Swap a check's tool (bandit→semgrep) | High | 1 file (the check); gate untouched ✔ |
-| Add a new check | High | 1 file + 1 manifest line ✔ |
+| Add a new check | High | 1 file + 1 line in `borromeo.toml` ✔ |
 | Target a new harness/substrate | Medium | new adapter dir; gate + checks untouched ✔ |
 | Change receipt schema | Medium | `_lib.sh` only ✔ |
 | Add the external critic / config spine | Medium (deferred) | new caller of the gate; the registry pattern already supports plug-in growth ✔ |

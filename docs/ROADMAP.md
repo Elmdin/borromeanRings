@@ -43,10 +43,11 @@ Each is a future self-extension (build → gate → human-approved adopt).
 
 | Capability | What it is | Status |
 |---|---|---|
-| **Config/policy spine** | Declarative engine: declare an account/constraint/requirement → enforced on every run, always; v0's manifest+receipts are the seed | ⏳ |
+| **Config/policy spine** | Declarative `borromeo.toml`: declare required checks + context → enforced on every run (config-compliance). First iteration: required-check set + `[context]` | 🟦 in review (ADR-0010) |
+| **Prompt rewriting + multi-prompting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeo enforces it's done per best agentic+SE practices + the spine's declared context. **Next build.** | 🔜 next |
 | **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⏳ |
 | **Mathematical verification (code & claims)** | Code: Hypothesis → CrossHair (SMT) → mutation → formal (Lean/Dafny, opt-in). Claims: verify factual assertions, distinct from code | ⏳ |
-| **Prompt rewriting + multi-prompting** | Context-aware / agent-aware prompt refinement; multi-pass prompting | ⏳ |
+| **Preserve wrapped-agent autonomy** | Enforce invariants on *outcomes*, never dictate the agent's planning/decisions (red line, VISION §6) | ✅ principle locked |
 | **Tools + MCP + plug-and-play** | External/internal tools, MCP servers, plug in any skill/tool, compose with other harnesses | ⏳ |
 | **Multi-harness substrate** | Adapters for OpenCode / Hermes / others (the Adapter seam already exists) | ⏳ |
 | **Multi-language stacks** | TS, Go, etc. behind the same uniform check contract | ⏳ |

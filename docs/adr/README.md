@@ -19,6 +19,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0007](0007-gated-explicit-merge.md) | Gated, explicitly-requested merge (no autonomous self-merge) | Accepted |
 | [0008](0008-ci-runs-the-gate.md) | CI runs the gate as the required status check | Accepted |
 | [0009](0009-command-orchestrated-auto-merge.md) | Command-orchestrated auto-merge (free private repo) | Accepted |
+| [0010](0010-config-policy-spine.md) | Config/policy spine (`borromeo.toml`) | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

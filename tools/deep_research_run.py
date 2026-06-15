@@ -138,7 +138,8 @@ def main() -> None:
         cited = report_findings(query, claims, report.sources, [judge, judge, judge], min_agree=2)
         print("\n" + render_report(cited))
     print(
-        "\n(Wikipedia-API HTTP calls, not a browser. LLM steps are stand-ins; the agent is the real judge.)"
+        "\n(Wikipedia-API HTTP calls, not a browser. LLM steps are stand-ins; "
+        "the agent is the real judge.)"
     )
 
 

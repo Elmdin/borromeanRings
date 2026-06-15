@@ -243,6 +243,28 @@ def research(query: str, search_fn: SearchFn, fetch_fn: FetchFn, max_sources: in
 GapFinder = Callable[[str, Sequence[Source]], Sequence[str]]
 
 
+@dataclass(frozen=True)
+class ResearchEvent:
+    """A step the research process emits live, so the user can watch it work."""
+
+    step: str  # "source" | "round" | "saturated" | "max_sources"
+    detail: str
+
+
+# An event sink receives events as they happen (e.g. print them for a live view).
+EventSink = Callable[[ResearchEvent], None]
+
+
+def _emit(sink: EventSink | None, step: str, detail: str) -> None:
+    if sink is not None:
+        sink(ResearchEvent(step=step, detail=detail))
+
+
+def render_event(event: ResearchEvent) -> str:
+    """Format an event for a live CLI view."""
+    return f"[{event.step}] {event.detail}"
+
+
 def research_until_saturated(
     query: str,
     search_fn: SearchFn,
@@ -252,6 +274,7 @@ def research_until_saturated(
     dry_rounds: int = 2,
     max_rounds: int = 6,
     max_sources: int = 20,
+    on_event: EventSink | None = None,
 ) -> Report:
     """The completeness critic ("don't miss anything"): research, then keep asking
     the gap-finder for unexplored angles and researching those, until coverage
@@ -270,17 +293,23 @@ def research_until_saturated(
             for url, title in search_fn(variant):
                 if url not in seen and len(sources) < max_sources:
                     seen.add(url)
-                    sources.append(Source(url=url, title=title, text=fetch_fn(url)))
+                    text = fetch_fn(url)
+                    sources.append(Source(url=url, title=title, text=text))
                     added += 1
-        trail.append(
-            f"round {round_no}: {len(queries)} queries -> +{added} new (total {len(sources)})"
-        )
+                    _emit(on_event, "source", f"{title} <- {url} ({len(text)} chars)")
+        summary = f"round {round_no}: {len(queries)} queries -> +{added} new (total {len(sources)})"
+        trail.append(summary)
+        _emit(on_event, "round", summary)
         dry = dry + 1 if added == 0 else 0
         if dry >= dry_rounds:
-            trail.append(f"saturated: {dry} dry round(s) added nothing new -- stopping")
+            done = f"saturated: {dry} dry round(s) added nothing new -- stopping"
+            trail.append(done)
+            _emit(on_event, "saturated", done)
             break
         if len(sources) >= max_sources:
-            trail.append(f"hit max_sources={max_sources} -- stopping")
+            done = f"hit max_sources={max_sources} -- stopping"
+            trail.append(done)
+            _emit(on_event, "max_sources", done)
             break
         queries = [q for q in gap_finder(query, tuple(sources)) if q.strip()]
     return Report(query=query, sources=tuple(sources), trail=tuple(trail))

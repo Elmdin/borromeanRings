@@ -290,6 +290,7 @@ def research_until_saturated(
     for round_no in range(1, max_rounds + 1):
         added = 0
         for variant in queries:
+            _emit(on_event, "query", f"searching {variant!r}")
             for url, title in search_fn(variant):
                 if url not in seen and len(sources) < max_sources:
                     seen.add(url)

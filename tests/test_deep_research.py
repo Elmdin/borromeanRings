@@ -221,6 +221,7 @@ def test_live_event_stream_emits_sources_round_and_saturation() -> None:
         "q", search_fn, lambda _u: "text", lambda _q, _s: [], dry_rounds=1, on_event=events.append
     )
     steps = [e.step for e in events]
+    assert "query" in steps  # the actual query sent is streamed live
     assert "source" in steps  # a source was streamed live
     assert "round" in steps
     assert "saturated" in steps

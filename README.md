@@ -47,8 +47,9 @@ standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
 - `checks/` — one script per check under a uniform contract (`manifest.json` lists the set)
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate
 - `src/`, `tests/` — the governed code
-- `docs/VISION.md` — the whole product borromeo is meant to become
-- `docs/ROADMAP.md` — **every feature, with status** (start here for the full feature set)
+- `docs/MANIFESTO.md` — **the why**: the north star, and the three-layer stack (harness → deep research → kernel)
+- `docs/VISION.md` — the whole product borromeo (Layer 1) is meant to become
+- `docs/ROADMAP.md` — **every feature, with status** (start here for the full feature set + Layers 2–3)
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
 

@@ -13,6 +13,7 @@ from meta_harness.deep_research import (
     multi_query_search,
     mutate_queries,
     research,
+    research_until_saturated,
     verify_claim,
     verify_claim_adversarial,
 )
@@ -119,6 +120,45 @@ def test_multi_query_search_fans_out_and_fuses() -> None:
 
     merged = multi_query_search("q", mutator, search_fn)
     assert {url for url, _ in merged} == {"orig-hit", "broad-hit"}  # both queries' sources
+
+
+def test_saturation_stops_after_dry_rounds_and_dedupes() -> None:
+    def search_fn(q: str) -> list[tuple[str, str]]:
+        return [("u1", "A"), ("u2", "B")] if q == "q" else []
+
+    def gap_finder(_q: str, _sources: object) -> list[str]:
+        return ["q", ""]  # re-search original (all dup) + an empty (filtered out)
+
+    report = research_until_saturated("q", search_fn, lambda _u: "txt", gap_finder, dry_rounds=2)
+    assert {s.url for s in report.sources} == {"u1", "u2"}  # added once, dups ignored
+    assert any("saturated" in step for step in report.trail)
+
+
+def test_saturation_respects_max_sources() -> None:
+    def search_fn(_q: str) -> list[tuple[str, str]]:
+        return [(f"u{i}", f"T{i}") for i in range(5)]
+
+    report = research_until_saturated(
+        "q", search_fn, lambda _u: "txt", lambda _q, _s: [], max_sources=2
+    )
+    assert len(report.sources) == 2
+    assert any("max_sources" in step for step in report.trail)
+
+
+def test_saturation_bounded_by_max_rounds() -> None:
+    counter = {"n": 0}
+
+    def search_fn(q: str) -> list[tuple[str, str]]:
+        return [(f"src-{q}", q)]  # every distinct query yields one fresh source
+
+    def gap_finder(_q: str, _s: object) -> list[str]:
+        counter["n"] += 1
+        return [f"angle-{counter['n']}"]  # always a brand-new query → never saturates
+
+    report = research_until_saturated(
+        "q", search_fn, lambda _u: "txt", gap_finder, dry_rounds=99, max_rounds=2, max_sources=99
+    )
+    assert len(report.sources) == 2  # one per round, capped by max_rounds=2
 
 
 def test_research_dedupes_and_records_trail() -> None:

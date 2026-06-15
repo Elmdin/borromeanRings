@@ -51,3 +51,15 @@ def test_hygiene_requires_loaded(tmp_path: Path) -> None:
         '[checks]\nrequired = ["00_build"]\n[hygiene]\nrequires = ["README.md", "LICENSE"]\n',
     )
     assert load_config(config).hygiene_requires == ("README.md", "LICENSE")
+
+
+def test_project_targeting_loaded_with_defaults(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[project]\npackage = "widget"\nsrc_dir = "lib"\n',
+    )
+    cfg = load_config(declared)
+    assert (cfg.package, cfg.src_dir, cfg.tests_dir) == ("widget", "lib", "tests")
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert (load_config(default).package, load_config(default).src_dir) == ("", "src")

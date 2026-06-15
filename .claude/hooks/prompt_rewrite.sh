@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook — borromeo prompt rewriting (ENFORCED by borromeo, PERFORMED by the agent).
 #
-# If enabled in borromeo.toml ([prompt_rewriting].enabled), this injects a directive (built from
-# the spine's [context]) instructing the wrapped agent to rewrite the user's prompt — preserve and
-# improve intent per the declared context + best practices — and show the rewrite before acting.
-# borromeo never rewrites the prompt itself; it enforces that the agent does it well. It asks the
-# agent to refine the prompt, not to follow a fixed plan (agent autonomy preserved).
+# If enabled in the governed project's borromeo.toml ([prompt_rewriting].enabled), injects a
+# directive (built from that project's [context]) telling the agent to rewrite the user's prompt
+# and show the rewrite before acting. Works referenced from another project: meta_harness comes
+# from $BORROMEO_HOME; the config + context come from the governed project (CLAUDE_PROJECT_DIR).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$HERE/../.." && pwd)}"
+BORROMEO_HOME="$(cd "$HERE/../.." && pwd)"
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 
-# stdout of a UserPromptSubmit hook is added to the agent's context.
-PYTHONPATH="$ROOT/src" python3 - "$ROOT/borromeo.toml" <<'PY'
+[ -f "$PROJECT_DIR/borromeo.toml" ] || exit 0
+
+PYTHONPATH="$BORROMEO_HOME/src" python3 - "$PROJECT_DIR/borromeo.toml" <<'PY'
 import sys
 
 try:

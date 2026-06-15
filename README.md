@@ -30,6 +30,21 @@ waits for the PR's CI checks too, but is still explicitly invoked per-merge (no
 standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
 `docs/adr/0009-command-orchestrated-auto-merge.md`.
 
+## Govern another project (portable, by reference)
+
+borromeo can govern *any* project without being copied into it — its code stays here,
+the target just references it:
+
+```bash
+./init.sh /path/to/your-project       # writes borromeo.toml + .claude/settings.json there
+# edit your-project/borromeo.toml ([project] package/src_dir, required checks, hygiene)
+cd /path/to/your-project && /path/to/borromeo/verify.sh    # borromeo governs it
+```
+
+Any agent prompted in that project is now governed (its `.claude/settings.json` hooks
+point back at this borromeo). `BORROMEO_HOME` = where borromeo lives; `PROJECT_ROOT` =
+the project being governed. See `docs/adr/0013-portability-reference-model.md`.
+
 ## The checks (v0)
 
 | # | Check | Tool |

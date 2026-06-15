@@ -1,41 +1,50 @@
 #!/usr/bin/env bash
 # borromeo — THE GATE.
 #
-# Runs every declared check in checks/, captures one receipt per check, and
-# exits 0 only if EVERY expected check produced a receipt with status "pass".
-# Fail-closed: a missing receipt (crashed/skipped check) is a failure, never a
-# pass-on-trust. Identical behavior whether invoked by a human, CI, or the
-# Claude Code Stop hook (the verifier is external to the generator).
+# Governs the project at PROJECT_ROOT (the repo/folder you're working in) using
+# borromeo's own code at BORROMEO_HOME (where this script lives). They are the same
+# when borromeo governs itself; they differ when borromeo is *referenced* from
+# another project — set BORROMEO_PROJECT (or CLAUDE_PROJECT_DIR), or run from that
+# project's directory. Fail-closed: exits 0 only if every required check (declared
+# in the project's borromeo.toml) produced a pass receipt. Identical verdict for any
+# author (human / CI / agent hook).
 set -uo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export PROJECT_ROOT
-CHECKS_DIR="$PROJECT_ROOT/checks"
+BORROMEO_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${BORROMEO_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
+export BORROMEO_HOME PROJECT_ROOT
+CHECKS_DIR="$BORROMEO_HOME/checks"
 CONFIG="$PROJECT_ROOT/borromeo.toml"
 
-# Per-run, append-only evidence directory (monotonic run id; no shared state).
+if [ ! -f "$CONFIG" ]; then
+  echo "borromeo: no borromeo.toml in $PROJECT_ROOT — run borromeo's init.sh there first." >&2
+  exit 1
+fi
+
+# Per-run, append-only evidence — stored with the GOVERNED project, not borromeo.
 run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 RECEIPT_DIR="$PROJECT_ROOT/.meta-harness/receipts/$run_id"
 export RECEIPT_DIR
 mkdir -p "$RECEIPT_DIR"
 
-# Run every check in filename order. Each writes its own receipt; a check's
-# exit code is NOT trusted on its own — the verdict is computed from receipts.
+# Run every check (borromeo's checks, operating on PROJECT_ROOT). Each writes its
+# own receipt; the verdict is computed from receipts, never a check's exit alone.
 for check in "$CHECKS_DIR"/[0-9]*.sh; do
   [ -e "$check" ] || continue
   bash "$check" || true
 done
 
-# Fail-closed verdict + human-readable summary. Single source of the expected
-# check set is the policy spine, borromeo.toml (Single Choice Principle).
-PYTHONPATH="$PROJECT_ROOT/src" python3 - "$CONFIG" "$RECEIPT_DIR" <<'PY'
+# Fail-closed verdict + summary. Single source of the expected check set is the
+# project's borromeo.toml (the policy spine). meta_harness is borromeo's own code.
+PYTHONPATH="$BORROMEO_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" <<'PY'
 import json
 import os
 import sys
 
 from meta_harness.spine import load_config
 
-config_path, receipt_dir = sys.argv[1], sys.argv[2]
+config_path, receipt_dir, project_root = sys.argv[1], sys.argv[2], sys.argv[3]
 expected = load_config(config_path).required_checks
 
 rows = []
@@ -55,7 +64,7 @@ for cid in expected:
 
 width = max(len(c) for c, _ in rows)
 print()
-print(f"  borromeo gate  ({receipt_dir})")
+print(f"  borromeo gate  (project: {project_root})")
 print("  " + "-" * (width + 14))
 for cid, status in rows:
     print(f"  {cid.ljust(width)}   {status}")

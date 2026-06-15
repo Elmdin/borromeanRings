@@ -23,6 +23,10 @@ class Config:
     context: Mapping[str, Any]
     prompt_rewriting_enabled: bool = False
     hygiene_requires: tuple[str, ...] = ()
+    # [project] — what borromeo targets in the GOVERNED project (portability).
+    package: str = ""  # importable package name (optional; "" → skip import check)
+    src_dir: str = "src"
+    tests_dir: str = "tests"
 
 
 def load_config(path: str | Path = "borromeo.toml") -> Config:
@@ -50,9 +54,13 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
+    project = raw.get("project", {})
     return Config(
         required_checks=tuple(required),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
         hygiene_requires=hygiene_requires,
+        package=str(project.get("package", "")),
+        src_dir=str(project.get("src_dir", "src")),
+        tests_dir=str(project.get("tests_dir", "tests")),
     )

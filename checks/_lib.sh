@@ -9,6 +9,19 @@ set -uo pipefail
 
 : "${PROJECT_ROOT:?_lib.sh: PROJECT_ROOT must be exported by verify.sh}"
 : "${RECEIPT_DIR:?_lib.sh: RECEIPT_DIR must be exported by verify.sh}"
+: "${BORROMEO_HOME:?_lib.sh: BORROMEO_HOME must be exported by verify.sh}"
+
+# borromeo_project_cfg <Config-attr> — print a [project] value from the GOVERNED
+# project's borromeo.toml (meta_harness is borromeo's own code at BORROMEO_HOME).
+borromeo_project_cfg() {
+  PYTHONPATH="$BORROMEO_HOME/src" python3 - "$PROJECT_ROOT/borromeo.toml" "$1" <<'PY'
+import sys
+
+from meta_harness.spine import load_config
+
+print(getattr(load_config(sys.argv[1]), sys.argv[2]))
+PY
+}
 
 # emit_receipt <id> <command> <exit_code> <log> <status> [extra_json]
 emit_receipt() {

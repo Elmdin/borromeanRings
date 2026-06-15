@@ -9,7 +9,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 id="40_test"
 log="$RECEIPT_DIR/$id.log"
 covjson="$RECEIPT_DIR/coverage.json"
-baseline_file="$PROJECT_ROOT/checks/coverage-baseline.txt"
+baseline_file="$PROJECT_ROOT/.borromeo-coverage-baseline"
 cmd="pytest --cov (ratchet vs baseline)"
 
 if ! python3 -m pytest --version >/dev/null 2>&1; then

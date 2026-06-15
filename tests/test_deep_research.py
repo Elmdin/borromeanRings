@@ -8,8 +8,10 @@ false-positives, so the judge (agent/LLM) must decide entailment.
 from meta_harness.deep_research import (
     Source,
     candidate_passages,
+    make_entailment_judge,
     research,
     verify_claim,
+    verify_claim_adversarial,
 )
 
 _SOURCES = (
@@ -53,6 +55,31 @@ def test_verify_rejects_fabricated_year_even_if_year_appears_elsewhere() -> None
 
 def test_verify_no_candidates_is_unsupported() -> None:
     assert verify_claim("the of in", _SOURCES, _judge).supported is False
+
+
+def test_adversarial_supported_when_enough_judges_agree() -> None:
+    yes, no = (lambda _c, _p: True), (lambda _c, _p: False)
+    verdict = verify_claim_adversarial(
+        "Eiffel Tower completed 1889", _SOURCES, [yes, yes, no], min_agree=2
+    )
+    assert verdict.supported is True
+    assert verdict.votes == (True, True, False)
+
+
+def test_adversarial_rejects_when_too_few_agree_fail_closed() -> None:
+    yes, no = (lambda _c, _p: True), (lambda _c, _p: False)
+    verdict = verify_claim_adversarial(
+        "Eiffel Tower completed 1889", _SOURCES, [yes, no, no], min_agree=2
+    )
+    assert verdict.supported is False
+    assert verdict.source_url == ""
+
+
+def test_entailment_judge_is_fail_closed() -> None:
+    # Only an explicit "yes" passes; "unsure"/anything else is rejected.
+    judge = make_entailment_judge(lambda prompt: "yes" if "1889" in prompt else "I'm not sure")
+    assert judge("completed 1889", "completed in 1889") is True
+    assert judge("completed 1925", "sold for scrap") is False
 
 
 def test_research_dedupes_and_records_trail() -> None:

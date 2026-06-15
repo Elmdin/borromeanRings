@@ -65,11 +65,15 @@ class Source:
 
 @dataclass(frozen=True)
 class Verdict:
-    """The result of verifying a claim against fetched sources."""
+    """The result of verifying a claim against fetched sources.
+
+    ``votes`` records each adversarial judge's call (auditable in the receipt).
+    """
 
     supported: bool
     source_url: str
     passage: str
+    votes: tuple[bool, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -123,8 +127,42 @@ def verify_claim(claim: str, sources: Sequence[Source], judge: Judge) -> Verdict
     """
     for url, passage in candidate_passages(claim, sources):
         if judge(claim, passage):
-            return Verdict(supported=True, source_url=url, passage=passage)
+            return Verdict(supported=True, source_url=url, passage=passage, votes=(True,))
     return Verdict(supported=False, source_url="", passage="")
+
+
+def verify_claim_adversarial(
+    claim: str, sources: Sequence[Source], judges: Sequence[Judge], *, min_agree: int
+) -> Verdict:
+    """Adversarial, fail-closed verification: a claim is supported only if at least
+    ``min_agree`` of the (independent, skeptical) judges affirm entailment for the
+    *same* candidate passage. No qualifying passage ⇒ rejected. More judges that
+    must agree = stricter. The judges are the semantic step (agent/LLM); borromeo
+    structures the panel and records the votes.
+    """
+    for url, passage in candidate_passages(claim, sources):
+        votes = tuple(judge(claim, passage) for judge in judges)
+        if sum(votes) >= min_agree:
+            return Verdict(supported=True, source_url=url, passage=passage, votes=votes)
+    return Verdict(supported=False, source_url="", passage="")
+
+
+def make_entailment_judge(ask: Callable[[str], str]) -> Judge:
+    """Build a skeptical entailment judge from an LLM/agent ``ask(prompt) -> answer``.
+
+    This is how the wrapped agent or an API performs the judgment. Fail-closed:
+    only an explicit affirmative counts; anything else (incl. "unsure") is a no.
+    """
+
+    def judge(claim: str, passage: str) -> bool:
+        prompt = (
+            "You are a strict fact-checker. Does the PASSAGE explicitly support the "
+            "CLAIM (not merely share words or mention the topic)? Reply 'yes' or 'no'; "
+            f"if unsure, reply 'no'.\nCLAIM: {claim}\nPASSAGE: {passage}\nAnswer:"
+        )
+        return ask(prompt).strip().lower().startswith("y")
+
+    return judge
 
 
 def research(query: str, search_fn: SearchFn, fetch_fn: FetchFn, max_sources: int = 5) -> Report:

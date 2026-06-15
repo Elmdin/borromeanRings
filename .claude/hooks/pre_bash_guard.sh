@@ -4,6 +4,9 @@
 # engine; the normal permission prompt still applies to everything else.
 set -uo pipefail
 
+# Safe to install globally: do nothing unless this workspace is borromeo-governed.
+[ -f "${CLAUDE_PROJECT_DIR:-$PWD}/borromeo.toml" ] || exit 0
+
 input="$(cat)"
 cmd="$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo '')"
 

@@ -10,6 +10,9 @@ BORROMEO_HOME="$(cd "$HERE/../.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 CAP=3   # max retry attempts before escalating to the human
 
+# Safe to install globally: do nothing unless this workspace is borromeo-governed.
+[ -f "$PROJECT_DIR/borromeo.toml" ] || exit 0
+
 input="$(cat)"
 read -r stop_active session_id <<EOF
 $(printf '%s' "$input" | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('stop_hook_active', False)).lower(), d.get('session_id','default'))" 2>/dev/null || echo "false default")

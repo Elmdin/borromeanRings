@@ -47,6 +47,7 @@ standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
 - `checks/` — one script per check under a uniform contract (`borromeo.toml` declares the required set)
 - `borromeo.toml` — the policy spine: declared invariants enforced on every run
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate
+- prompt rewriting: `.claude/hooks/prompt_rewrite.sh` (UserPromptSubmit) injects a spine-driven rewrite directive; toggle in `borromeo.toml`
 - `src/`, `tests/` — the governed code
 - `docs/MANIFESTO.md` — **the why**: the north star, and the three-layer stack (harness → deep research → kernel)
 - `docs/VISION.md` — the whole product borromeo (Layer 1) is meant to become

@@ -20,3 +20,9 @@ required = [
 account = "Elmdin/borromeo"
 # Value priorities guide trade-offs, highest first. Consumed by prompt rewriting.
 value_priorities = ["correctness", "security", "maintainability", "performance"]
+
+[prompt_rewriting]
+# When enabled, borromeo's UserPromptSubmit hook injects a directive asking the wrapped
+# agent to rewrite the user's prompt (preserve+improve intent) using the context above,
+# and to SHOW the rewrite before proceeding. borromeo enforces it; the agent performs it.
+enabled = true

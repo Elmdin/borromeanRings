@@ -8,6 +8,7 @@ false-positives, so the judge (agent/LLM) must decide entailment.
 from meta_harness.deep_research import (
     Source,
     candidate_passages,
+    federated_search,
     make_entailment_judge,
     research,
     verify_claim,
@@ -80,6 +81,22 @@ def test_entailment_judge_is_fail_closed() -> None:
     judge = make_entailment_judge(lambda prompt: "yes" if "1889" in prompt else "I'm not sure")
     assert judge("completed 1889", "completed in 1889") is True
     assert judge("completed 1925", "sold for scrap") is False
+
+
+def test_federated_search_fuses_and_dedupes_by_rank() -> None:
+    def engine_a(_q: str) -> list[tuple[str, str]]:
+        return [("u1", "A1"), ("shared", "A2"), ("u3", "A3")]  # longer engine
+
+    def engine_b(_q: str) -> list[tuple[str, str]]:
+        return [("u2", "B1"), ("shared", "B2")]  # shorter → exercises rank >= len branch
+
+    merged = federated_search("q", [engine_a, engine_b])
+    # rank0: u1,u2 · rank1: shared(A2), B's shared dup→skip · rank2: u3 (B exhausted)
+    assert merged == [("u1", "A1"), ("u2", "B1"), ("shared", "A2"), ("u3", "A3")]
+
+
+def test_federated_search_empty() -> None:
+    assert federated_search("q", []) == []
 
 
 def test_research_dedupes_and_records_trail() -> None:

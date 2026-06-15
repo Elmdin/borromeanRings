@@ -1,11 +1,12 @@
-"""Live runner for the Phase-1 deep-research slice (real sources via Wikipedia).
+"""Live runner for the deep-research enhancement (real sources via Wikipedia).
 
 Usage: python tools/deep_research_demo.py "<query>" "<claim>"
 
-This is the runnable demo: it really searches and fetches, then verifies the
-claim against the fetched text. Wikipedia is the Phase-1 search/fetch adapter
-(one engine; federated multi-engine is Phase 2). Not part of the gated package
-(it lives outside src), so network code stays out of the tested core.
+It really searches and fetches, then surfaces candidate passages for the claim.
+Two engines are federated (English + Simple Wikipedia) to show multi-engine
+coverage; real search engines plug in via the same SearchFn adapter. The semantic
+verdict is performed by the wrapped agent / an LLM (borromeo structures it). Lives
+outside src, so network code stays out of the tested core.
 """
 
 import json
@@ -13,53 +14,64 @@ import sys
 import urllib.parse
 import urllib.request
 
-from meta_harness.deep_research import candidate_passages, research
-
-_API = "https://en.wikipedia.org/w/api.php"
-
+from meta_harness.deep_research import candidate_passages, federated_search, research
 
 _UA = "borromeo-deep-research/0.0 (https://github.com/Elmdin/borromeo)"
+_ENGINES = ("en.wikipedia.org", "simple.wikipedia.org")
 
 
-def _api(params: dict[str, str]) -> dict:
-    url = _API + "?" + urllib.parse.urlencode(params)
+def _api(host: str, params: dict[str, str]) -> dict:
+    url = f"https://{host}/w/api.php?" + urllib.parse.urlencode(params)
     request = urllib.request.Request(url, headers={"User-Agent": _UA})
     with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 (trusted host)
         return json.load(response)
 
 
-def search_fn(query: str) -> list[tuple[str, str]]:
-    data = _api(
-        {"action": "query", "list": "search", "srsearch": query, "srlimit": "5", "format": "json"}
-    )
-    results = []
-    for hit in data["query"]["search"]:
-        title = hit["title"]
-        results.append((f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title)}", title))
-    return results
+def _engine(host: str):
+    def search(query: str) -> list[tuple[str, str]]:
+        data = _api(
+            host,
+            {
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "srlimit": "5",
+                "format": "json",
+            },
+        )
+        out = []
+        for hit in data["query"]["search"]:
+            title = hit["title"]
+            out.append((f"https://{host}/wiki/{urllib.parse.quote(title)}", title))
+        return out
+
+    return search
 
 
 def fetch_fn(url: str) -> str:
-    title = urllib.parse.unquote(url.rsplit("/", 1)[-1])
+    parts = url.split("/")
+    host, title = parts[2], urllib.parse.unquote(parts[-1])
     data = _api(
+        host,
         {
             "action": "query",
             "prop": "extracts",
             "explaintext": "1",
             "titles": title,
             "format": "json",
-        }
+        },
     )
-    pages = data["query"]["pages"]
-    page = next(iter(pages.values()))
+    page = next(iter(data["query"]["pages"].values()))
     return page.get("extract", "")
 
 
 def main() -> None:
     query, claim = sys.argv[1], sys.argv[2]
-    report = research(query, search_fn, fetch_fn, max_sources=3)
+    engines = [_engine(host) for host in _ENGINES]
+    report = research(query, lambda q: federated_search(q, engines), fetch_fn, max_sources=4)
 
-    print("TRAIL (what borromeo did, step by step):")
+    print(f"ENGINES FEDERATED: {', '.join(_ENGINES)}")
+    print("TRAIL (step by step):")
     for step in report.trail:
         print(f"  - {step}")
     print(f"\nSOURCES READ ({len(report.sources)}):")
@@ -74,9 +86,9 @@ def main() -> None:
     for url, passage in candidates:
         print(f"  • {url}\n    {passage[:240]}")
     print(
-        "\nVERDICT: the semantic entailment check (does a passage actually support the claim?) "
-        "is performed by the wrapped agent / an LLM — borromeo structures and enforces it. "
-        "Lexical retrieval only narrows; it never decides truth."
+        "\nVERDICT: semantic entailment (does a passage actually support the claim?) "
+        "is performed by the wrapped agent / an LLM via verify_claim_adversarial — "
+        "borromeo structures + records it, fail-closed. Lexical retrieval only narrows."
     )
 
 

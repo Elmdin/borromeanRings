@@ -6,6 +6,7 @@ false-positives, so the judge (agent/LLM) must decide entailment.
 """
 
 from meta_harness.deep_research import (
+    ResearchEvent,
     Source,
     Verdict,
     candidate_passages,
@@ -13,6 +14,7 @@ from meta_harness.deep_research import (
     make_entailment_judge,
     multi_query_search,
     mutate_queries,
+    render_event,
     render_report,
     report_findings,
     research,
@@ -206,6 +208,26 @@ def test_report_findings_end_to_end_gates_unverified() -> None:
     )
     assert [claim for claim, _ in report.statements] == ["Eiffel Tower completed 1889"]
     assert report.rejected == ("Eiffel Tower completed 1925",)
+
+
+def test_live_event_stream_emits_sources_round_and_saturation() -> None:
+    events: list[ResearchEvent] = []
+
+    def search_fn(q: str) -> list[tuple[str, str]]:
+        return [("u1", "A")] if q == "q" else []
+
+    report = research_until_saturated(
+        "q", search_fn, lambda _u: "text", lambda _q, _s: [], dry_rounds=1, on_event=events.append
+    )
+    steps = [e.step for e in events]
+    assert "source" in steps  # a source was streamed live
+    assert "round" in steps
+    assert "saturated" in steps
+    assert report.sources[0].url == "u1"
+
+
+def test_render_event_formats() -> None:
+    assert render_event(ResearchEvent(step="source", detail="X <- u")) == "[source] X <- u"
 
 
 def test_research_dedupes_and_records_trail() -> None:

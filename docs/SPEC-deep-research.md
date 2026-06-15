@@ -99,6 +99,21 @@ merged, it registers as a capability borromeo can use, and it **augments** the a
 7. **Live visibility** — stream receipts as events; render site-selection/reading/synthesis in real time.
 8. **Augment + substrate polish** — wrap the agent's existing research tool; swappable engine/LLM.
 
+## 5a. Who is the judge — two execution modes
+The semantic steps (entailment judging, query mutation, gap-finding) are **performed by an LLM**;
+borromeo provides the deterministic parts (search, retrieval, the gate) and *injects* the LLM step.
+Two modes:
+
+- **In a borromeo-governed session (primary): the wrapped agent IS the judge.** borromeo's Python
+  does search → candidate retrieval → the output gate; the **agent** reads each candidate passage,
+  judges entailment in its own reasoning (fail-closed), and synthesizes only verified claims. No API
+  key needed — same enforce/agent-performs pattern as prompt-rewriting. *Demonstrated:* for "Who
+  created Python and when?", the agent correctly verified "Guido van Rossum"/"1991" (incl. the
+  coreference "it = Python") and rejected "James Gosling"/"2005".
+- **Standalone / autonomous:** plug a real LLM judge via `make_entailment_judge(ask)` (an API), or
+  use the deterministic lexical **stand-in** in `tools/deep_research_run.py` (intentionally simple,
+  honest — it can false-negative on coreference; for testing the *research/coverage* path).
+
 ## 6. Open design decisions (for sign-off)
 1. **Repo placement** — build in-repo as a `meta_harness` capability/plugin *(recommended — reuses the
    registry + receipt patterns; it's meant to be adopted)* vs. a separate package.

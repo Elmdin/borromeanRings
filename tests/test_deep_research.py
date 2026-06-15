@@ -10,6 +10,7 @@ from meta_harness.deep_research import (
     Source,
     Verdict,
     candidate_passages,
+    enhanced_research,
     federated_search,
     make_entailment_judge,
     multi_query_search,
@@ -228,6 +229,28 @@ def test_live_event_stream_emits_sources_round_and_saturation() -> None:
 
 def test_render_event_formats() -> None:
     assert render_event(ResearchEvent(step="source", detail="X <- u")) == "[source] X <- u"
+
+
+def test_enhanced_research_uses_agent_search_directly_without_mutator() -> None:
+    def agent_search(q: str) -> list[tuple[str, str]]:
+        return [("a1", "A")] if q == "q" else []
+
+    report = enhanced_research("q", agent_search, lambda _u: "t", lambda _q, _s: [], dry_rounds=1)
+    assert [s.url for s in report.sources] == ["a1"]
+
+
+def test_enhanced_research_widens_agent_search_with_mutator() -> None:
+    def agent_search(q: str) -> list[tuple[str, str]]:
+        return {"q": [("a1", "A")], "q+": [("a2", "B")]}.get(q, [])
+
+    def mutator(_q: str) -> list[str]:
+        return ["q+"]  # the agent/LLM proposes a widened query
+
+    report = enhanced_research(
+        "q", agent_search, lambda _u: "t", lambda _q, _s: [], mutator=mutator, dry_rounds=1
+    )
+    # augmented: the agent's own hit (a1) PLUS the widened query's hit (a2)
+    assert {s.url for s in report.sources} == {"a1", "a2"}
 
 
 def test_research_dedupes_and_records_trail() -> None:

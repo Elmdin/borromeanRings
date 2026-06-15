@@ -365,3 +365,42 @@ def report_findings(
         for claim in claims
     ]
     return synthesize(query, findings)
+
+
+def enhanced_research(
+    query: str,
+    agent_search_fn: SearchFn,
+    fetch_fn: FetchFn,
+    gap_finder: GapFinder,
+    *,
+    mutator: QueryMutator | None = None,
+    dry_rounds: int = 2,
+    max_rounds: int = 6,
+    max_sources: int = 20,
+    on_event: EventSink | None = None,
+) -> Report:
+    """Augment the wrapped agent's *own* research (don't replace it).
+
+    The agent's search (``agent_search_fn``) is the base; borromeo *enhances* it:
+    optionally widens each query (query mutation), runs the completeness loop until
+    coverage saturates, and streams live events. Verification + gated synthesis are
+    applied to extracted claims via :func:`report_findings`. Everything is injected
+    (search, fetch, mutator, gap-finder, judges), so it works with any agent, engine,
+    or bare LLM — borromeo enhances, the agent performs.
+    """
+
+    def search_fn(q: str) -> Sequence[tuple[str, str]]:
+        if mutator is None:
+            return agent_search_fn(q)
+        return multi_query_search(q, mutator, agent_search_fn)
+
+    return research_until_saturated(
+        query,
+        search_fn,
+        fetch_fn,
+        gap_finder,
+        dry_rounds=dry_rounds,
+        max_rounds=max_rounds,
+        max_sources=max_sources,
+        on_event=on_event,
+    )

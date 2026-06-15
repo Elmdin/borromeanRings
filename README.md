@@ -20,12 +20,15 @@ a manifest cross-check: a check that never ran (crash/skip) ⇒ overall fail.
 ## Merge (gated, explicitly requested)
 
 ```bash
-./merge.sh [base]   # default base = main
+./merge.sh [base]          # run the gate, then merge immediately if green
+./merge.sh --auto [base]   # run the gate, then WAIT for the PR's CI to pass, then merge
 ```
 
 Run from a feature branch: borromeo runs the gate and merges into `base` **only**
-if it passes. It executes your merge decision — it never merges on its own, and
-there is no standing auto-merge mode (see `docs/adr/0007-gated-explicit-merge.md`).
+if it passes. It executes your merge decision — it never merges on its own. `--auto`
+waits for the PR's CI checks too, but is still explicitly invoked per-merge (no
+standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
+`docs/adr/0009-command-orchestrated-auto-merge.md`.
 
 ## The checks (v0)
 

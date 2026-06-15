@@ -20,13 +20,13 @@
 | Spec/context layer (`AGENTS.md`) | ✅ | `AGENTS.md` |
 | CS130 planning docs (requirements, architecture, ADRs, test plan, process) | ✅ | `docs/` |
 
-## Phase 1 — gated merge + CI (in progress)
+## Phase 1 — gated merge + CI (✅ complete)
 | Feature | Status | Where |
 |---|---|---|
 | Gated, explicitly-requested merge command (`merge.sh` + tested policy) | ✅ | `merge.sh`, `meta_harness/merge_policy.py`, ADR-0007 |
-| CI: GitHub Action running `verify.sh` on every PR (gate runs server-side) | 🟦 in review | `.github/workflows/verify.yml`, ADR-0008 |
-| Branch protection: make the CI gate a required status check on `main` | 🔜 next | repo settings |
-| GitHub-native auto-merge (`gh pr merge --auto` gated by the required CI check) | 🔜 next | `merge.sh --auto` (planned) |
+| CI: GitHub Action running `verify.sh` on every PR | ✅ | `.github/workflows/verify.yml`, ADR-0008 |
+| Auto-merge: `merge.sh --auto` waits for the PR's CI to pass, then merges | 🟦 in review | `merge.sh`, ADR-0009 |
+| ~~Server-side branch protection / native `--auto`~~ | ⛔ blocked | needs GitHub Pro/Team or a public repo (private+free can't require checks); command-orchestrated instead (ADR-0009) |
 
 ## Phase 2+ — the deferred vision (⏳ planned, build only when directed)
 From Build Brief §9 / `PLAN-v0.md` §10 — each is a future self-extension (build → gate → human-approved adopt).

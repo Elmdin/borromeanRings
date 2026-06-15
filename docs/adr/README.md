@@ -21,6 +21,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0009](0009-command-orchestrated-auto-merge.md) | Command-orchestrated auto-merge (free private repo) | Accepted |
 | [0010](0010-config-policy-spine.md) | Config/policy spine (`borromeo.toml`) | Accepted |
 | [0011](0011-prompt-rewriting.md) | Prompt rewriting: enforced by borromeo, performed by the agent | Accepted |
+| [0012](0012-engineering-process.md) | Engineering process = risk-driven + TDD | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

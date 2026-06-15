@@ -165,6 +165,25 @@ def make_entailment_judge(ask: Callable[[str], str]) -> Judge:
     return judge
 
 
+def federated_search(query: str, search_fns: Sequence[SearchFn]) -> list[tuple[str, str]]:
+    """Run several search backends and fuse their results — no single engine is
+    authoritative. Round-robin by rank (engine A's #1, engine B's #1, A's #2 …)
+    and dedup by URL, so coverage is broader than any one engine. The result is a
+    drop-in `SearchFn` body: ``lambda q: federated_search(q, [engine_a, engine_b])``.
+    """
+    per_engine = [list(search_fn(query)) for search_fn in search_fns]
+    seen: set[str] = set()
+    merged: list[tuple[str, str]] = []
+    for rank in range(max((len(results) for results in per_engine), default=0)):
+        for results in per_engine:
+            if rank < len(results):
+                url, title = results[rank]
+                if url not in seen:
+                    seen.add(url)
+                    merged.append((url, title))
+    return merged
+
+
 def research(query: str, search_fn: SearchFn, fetch_fn: FetchFn, max_sources: int = 5) -> Report:
     """Run the Phase-1 pipeline: search → dedup → fetch, recording a trail."""
     trail: list[str] = [f"search: {query!r}"]

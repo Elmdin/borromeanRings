@@ -42,8 +42,10 @@ cd /path/to/your-project && /path/to/borromeo/verify.sh    # borromeo governs it
 ```
 
 Any agent prompted in that project is now governed (its `.claude/settings.json` hooks
-point back at this borromeo). `BORROMEO_HOME` = where borromeo lives; `PROJECT_ROOT` =
-the project being governed. See `docs/adr/0013-portability-reference-model.md`.
+point back at this borromeo, and the `borromeo-research` skill is installed). `BORROMEO_HOME`
+= where borromeo lives; `PROJECT_ROOT` = the project being governed.
+See `docs/adr/0013-portability-reference-model.md`, and **`docs/TESTING.md`** for a full
+step-by-step way to exercise every feature on a fresh project.
 
 ## The checks (v0)
 

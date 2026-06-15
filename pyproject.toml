@@ -8,6 +8,17 @@ version = "0.0.0"
 description = "borromeo — a model- and harness-agnostic meta-harness that enforces engineering standards as deterministic gates."
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+# The check toolchain. Installed in CI via `pip install -e ".[dev]"` so the gate
+# runs the same checks on GitHub's servers as it does locally.
+dev = [
+  "ruff>=0.6",
+  "mypy>=1.10",
+  "pytest>=8",
+  "pytest-cov>=5",
+  "bandit>=1.7",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

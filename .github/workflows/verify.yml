@@ -1,0 +1,23 @@
+name: borromeo gate
+
+# Runs borromeo's own gate on GitHub's servers for every PR and every push to
+# main. This is the SAME verify.sh a human runs locally — proving the verdict is
+# author- and environment-agnostic (QAS-2), and providing the required status
+# check that GitHub-native auto-merge will gate on (Phase 1).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the check toolchain
+        run: pip install -e ".[dev]"
+      - name: Run borromeo gate
+        run: bash verify.sh

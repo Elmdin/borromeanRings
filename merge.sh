@@ -62,7 +62,20 @@ if [ "$AUTO" = "1" ]; then
     echo "borromeo merge --auto: needs an open PR for '$branch' (and gh)." >&2
     exit 1
   fi
-  echo "borromeo merge: local gate green — waiting for the PR's CI checks to pass…"
+  # Wait for CI to REGISTER at least one check before watching — otherwise a
+  # freshly-created PR reports "no checks" and we'd refuse by mistake (a race).
+  echo "borromeo merge: local gate green — waiting for the PR's CI checks to register…"
+  registered=0
+  for _ in $(seq 1 24); do
+    n="$(gh pr view "$branch" --json statusCheckRollup -q '.statusCheckRollup | length' 2>/dev/null || echo 0)"
+    if [ "${n:-0}" -gt 0 ]; then registered=1; break; fi
+    sleep 5
+  done
+  if [ "$registered" -ne 1 ]; then
+    echo "borromeo merge: REFUSED — no CI checks registered after waiting. Nothing merged." >&2
+    exit 1
+  fi
+  echo "borromeo merge: checks registered — waiting for them to pass…"
   if ! gh pr checks "$branch" --watch --fail-fast; then
     echo "borromeo merge: REFUSED — CI checks did not pass. Nothing merged." >&2
     exit 1

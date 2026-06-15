@@ -235,3 +235,52 @@ def research(query: str, search_fn: SearchFn, fetch_fn: FetchFn, max_sources: in
         if len(sources) >= max_sources:
             break
     return Report(query=query, sources=tuple(sources), trail=tuple(trail))
+
+
+# Gap-finder: (original query, sources found so far) -> more queries / angles to try.
+# The completeness critic's semantic step — the agent/LLM proposes where ELSE to look
+# (a weak query, the wrong place, a barely-missed detail). borromeo runs the loop.
+GapFinder = Callable[[str, Sequence[Source]], Sequence[str]]
+
+
+def research_until_saturated(
+    query: str,
+    search_fn: SearchFn,
+    fetch_fn: FetchFn,
+    gap_finder: GapFinder,
+    *,
+    dry_rounds: int = 2,
+    max_rounds: int = 6,
+    max_sources: int = 20,
+) -> Report:
+    """The completeness critic ("don't miss anything"): research, then keep asking
+    the gap-finder for unexplored angles and researching those, until coverage
+    **saturates** — ``dry_rounds`` consecutive rounds that add no new source. Always
+    bounded by ``max_rounds`` and ``max_sources`` (never an unbounded loop). The
+    gap-finder is the agent/LLM; borromeo runs the loop and decides saturation.
+    """
+    seen: set[str] = set()
+    sources: list[Source] = []
+    trail: list[str] = []
+    queries: list[str] = [query]
+    dry = 0
+    for round_no in range(1, max_rounds + 1):
+        added = 0
+        for variant in queries:
+            for url, title in search_fn(variant):
+                if url not in seen and len(sources) < max_sources:
+                    seen.add(url)
+                    sources.append(Source(url=url, title=title, text=fetch_fn(url)))
+                    added += 1
+        trail.append(
+            f"round {round_no}: {len(queries)} queries -> +{added} new (total {len(sources)})"
+        )
+        dry = dry + 1 if added == 0 else 0
+        if dry >= dry_rounds:
+            trail.append(f"saturated: {dry} dry round(s) added nothing new -- stopping")
+            break
+        if len(sources) >= max_sources:
+            trail.append(f"hit max_sources={max_sources} -- stopping")
+            break
+        queries = [q for q in gap_finder(query, tuple(sources)) if q.strip()]
+    return Report(query=query, sources=tuple(sources), trail=tuple(trail))

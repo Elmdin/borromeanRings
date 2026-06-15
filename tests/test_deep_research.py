@@ -10,6 +10,8 @@ from meta_harness.deep_research import (
     candidate_passages,
     federated_search,
     make_entailment_judge,
+    multi_query_search,
+    mutate_queries,
     research,
     verify_claim,
     verify_claim_adversarial,
@@ -97,6 +99,26 @@ def test_federated_search_fuses_and_dedupes_by_rank() -> None:
 
 def test_federated_search_empty() -> None:
     assert federated_search("q", []) == []
+
+
+def test_mutate_queries_keeps_original_dedupes_and_caps() -> None:
+    def mutator(q: str) -> list[str]:
+        return [q, "Q", "", "q2", "q3", "q4", "q5"]  # dup of original, empty, then variants
+
+    out = mutate_queries("q", mutator, max_variants=3)
+    assert out[0] == "q"  # original always first, never lost
+    assert out == ["q", "q2", "q3"]  # "Q" dedup (case-insensitive), "" skipped, capped at 3
+
+
+def test_multi_query_search_fans_out_and_fuses() -> None:
+    def mutator(_q: str) -> list[str]:
+        return ["broad"]
+
+    def search_fn(q: str) -> list[tuple[str, str]]:
+        return [("orig-hit", q)] if q == "q" else [("broad-hit", q)]
+
+    merged = multi_query_search("q", mutator, search_fn)
+    assert {url for url, _ in merged} == {"orig-hit", "broad-hit"}  # both queries' sources
 
 
 def test_research_dedupes_and_records_trail() -> None:

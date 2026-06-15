@@ -2,6 +2,12 @@
 # Declared once here, enforced on every gate run (config-compliance: every required
 # check must produce a pass receipt). See docs/SPEC-spine.md and docs/adr/0010-*.md.
 
+[project]
+# What borromeo targets in THIS governed project (portability — see ADR-0013).
+package = "meta_harness"
+src_dir = "src"
+tests_dir = "tests"
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [

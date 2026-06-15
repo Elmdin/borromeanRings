@@ -4,14 +4,31 @@
 #
 # It executes a human's merge decision; it never originates one. A merge happens
 # only if (a) you ran this command AND (b) ./verify.sh exits 0 (fail-closed).
-# There is no standing auto-merge mode — that would be self-rewriting, which
-# borromeo forbids. Policy is in meta_harness.merge_policy; this is the plumbing.
-# See docs/SPEC-merge.md and docs/adr/0007-gated-explicit-merge.md.
+#
+# Usage:  ./merge.sh [--auto] [base]      (base defaults to main)
+#   default : run the local gate, then merge immediately.
+#   --auto  : run the local gate, then WAIT for the PR's CI checks to pass, then
+#             merge. Still explicitly invoked per-merge — there is no standing,
+#             unattended auto-merge mode (that would be self-rewriting, forbidden).
+#             Used because server-side required checks need a paid plan on a
+#             private repo; borromeo orchestrates the wait itself. See ADR-0009.
+#
+# Policy is in meta_harness.merge_policy; this is the plumbing.
+# See docs/SPEC-merge.md and docs/adr/{0007,0009}-*.md.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
-BASE="${1:-main}"
+
+AUTO=0
+positional=()
+for arg in "$@"; do
+  case "$arg" in
+    --auto) AUTO=1 ;;
+    *) positional+=("$arg") ;;
+  esac
+done
+BASE="${positional[0]:-main}"
 branch="$(git rev-parse --abbrev-ref HEAD)"
 
 # --- Preconditions ----------------------------------------------------------
@@ -38,35 +55,55 @@ if [ "${decision%% *}" != "ALLOW" ]; then
   exit 1
 fi
 
-# --- Merge (prefer the PR trail; else local merge + push) -------------------
-echo "borromeo merge: gate green — merging '$branch' into '$BASE'."
-if command -v gh >/dev/null 2>&1 && gh pr view "$branch" >/dev/null 2>&1; then
-  gh pr merge "$branch" --merge --delete-branch || {
-    echo "borromeo merge: 'gh pr merge' failed; nothing merged." >&2
-    exit 1
-  }
-else
-  git checkout "$BASE" || exit 1
-  if ! git merge --no-ff "$branch" -m "merge: $branch into $BASE (gated by borromeo)"; then
-    git merge --abort 2>/dev/null || true
-    echo "borromeo merge: merge conflict — aborted, nothing changed." >&2
+# --- Merge --------------------------------------------------------------------
+if [ "$AUTO" = "1" ]; then
+  # Command-orchestrated auto-merge: wait for the PR's CI to pass, then merge.
+  if ! command -v gh >/dev/null 2>&1 || ! gh pr view "$branch" >/dev/null 2>&1; then
+    echo "borromeo merge --auto: needs an open PR for '$branch' (and gh)." >&2
     exit 1
   fi
-  git push origin "$BASE" || exit 1
+  echo "borromeo merge: local gate green — waiting for the PR's CI checks to pass…"
+  if ! gh pr checks "$branch" --watch --fail-fast; then
+    echo "borromeo merge: REFUSED — CI checks did not pass. Nothing merged." >&2
+    exit 1
+  fi
+  gh pr merge "$branch" --merge --delete-branch || {
+    echo "borromeo merge: 'gh pr merge' failed after CI passed; nothing merged." >&2
+    exit 1
+  }
+  mode="auto (local gate + CI)"
+else
+  echo "borromeo merge: gate green — merging '$branch' into '$BASE'."
+  if command -v gh >/dev/null 2>&1 && gh pr view "$branch" >/dev/null 2>&1; then
+    gh pr merge "$branch" --merge --delete-branch || {
+      echo "borromeo merge: 'gh pr merge' failed; nothing merged." >&2
+      exit 1
+    }
+  else
+    git checkout "$BASE" || exit 1
+    if ! git merge --no-ff "$branch" -m "merge: $branch into $BASE (gated by borromeo)"; then
+      git merge --abort 2>/dev/null || true
+      echo "borromeo merge: merge conflict — aborted, nothing changed." >&2
+      exit 1
+    fi
+    git push origin "$BASE" || exit 1
+  fi
+  mode="immediate (local gate)"
 fi
 
 # --- Audit receipt ----------------------------------------------------------
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p .meta-harness/merges
-PYTHONPATH=src python3 - "$branch" "$BASE" "$ts" <<'PY'
+PYTHONPATH=src python3 - "$branch" "$BASE" "$ts" "$mode" <<'PY'
 import json
 import subprocess
 import sys
 
-branch, base, ts = sys.argv[1:4]
+branch, base, ts, mode = sys.argv[1:5]
 sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
 receipt = {
     "action": "merge",
+    "mode": mode,
     "branch": branch,
     "base": base,
     "gate": "pass",

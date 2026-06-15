@@ -11,7 +11,7 @@ set -uo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROJECT_ROOT
 CHECKS_DIR="$PROJECT_ROOT/checks"
-MANIFEST="$CHECKS_DIR/manifest.json"
+CONFIG="$PROJECT_ROOT/borromeo.toml"
 
 # Per-run, append-only evidence directory (monotonic run id; no shared state).
 run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
@@ -27,15 +27,16 @@ for check in "$CHECKS_DIR"/[0-9]*.sh; do
 done
 
 # Fail-closed verdict + human-readable summary. Single source of the expected
-# check set is the manifest (Single Choice Principle).
-python3 - "$MANIFEST" "$RECEIPT_DIR" <<'PY'
+# check set is the policy spine, borromeo.toml (Single Choice Principle).
+PYTHONPATH="$PROJECT_ROOT/src" python3 - "$CONFIG" "$RECEIPT_DIR" <<'PY'
 import json
 import os
 import sys
 
-manifest_path, receipt_dir = sys.argv[1], sys.argv[2]
-with open(manifest_path) as fh:
-    expected = json.load(fh)["checks"]
+from meta_harness.spine import load_config
+
+config_path, receipt_dir = sys.argv[1], sys.argv[2]
+expected = load_config(config_path).required_checks
 
 rows = []
 ok = True

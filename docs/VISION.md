@@ -52,8 +52,11 @@ with **any LLM + any harness combination**, plug-and-play with existing skills/t
 - **Mathematical verification of code *and* claims** — code via the verification ladder
   (mypy → Hypothesis → CrossHair/SMT → mutation → formal); **claims** (factual assertions, e.g. from
   research) verified too — distinct from code correctness.
-- **Prompt rewriting + multi-prompting** — context-aware and agent-aware prompt refinement, and the
-  ability to drive multiple prompts/passes.
+- **Prompt rewriting + multi-prompting** — improve the **user's in-the-moment prompt** to preserve
+  its intent and make it better. The rewriting is **performed by the wrapped agent**, not by
+  borromeo; borromeo **enforces that it happens well** — per best agentic-engineering + SE practices,
+  the declared context (the spine), and anything that improves results. Plus the ability to drive
+  multiple prompts/passes.
 - **Tool access + MCP + plug-and-play** — reach external/internal tools and MCP servers; plug in any
   existing feature, skill, or tool; compose with other harnesses.
 - **Ever-growing & research-driven** — can apply existing or new research; **adopts the tools it
@@ -91,3 +94,6 @@ only the **receipt/audit plumbing** so this can be added later without re-archit
 - Never autonomously rewrite its own core/gates — **human-approved merges only**.
 - Never run an **unbounded** retry loop — bounded, then escalate to a human.
 - Never weaken/disable a check to make the gate pass.
+- **Never suppress the wrapped agent's autonomy.** Many harnesses plan/decide better than borromeo
+  would; borromeo enforces *declared invariants on outcomes* (gates + config-compliance), never *how*
+  the agent thinks. It governs the *what*, defers the *how* to the agent where the agent is better.

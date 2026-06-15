@@ -15,7 +15,7 @@ governs its own repo from commit one (it must pass its own gate).
 ```
 
 Each run writes one receipt per check to `.meta-harness/receipts/<run-id>/`, plus
-a manifest cross-check: a check that never ran (crash/skip) ⇒ overall fail.
+a config cross-check against `borromeo.toml`: a required check that never ran (crash/skip) ⇒ overall fail.
 
 ## Merge (gated, explicitly requested)
 
@@ -44,7 +44,8 @@ standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
 ## Layout
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
-- `checks/` — one script per check under a uniform contract (`manifest.json` lists the set)
+- `checks/` — one script per check under a uniform contract (`borromeo.toml` declares the required set)
+- `borromeo.toml` — the policy spine: declared invariants enforced on every run
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate
 - `src/`, `tests/` — the governed code
 - `docs/MANIFESTO.md` — **the why**: the north star, and the three-layer stack (harness → deep research → kernel)

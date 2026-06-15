@@ -17,6 +17,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0005](0005-checks-registry-and-adapter-seam.md) | Checks as a uniform-contract registry; substrate Adapter seam | Accepted |
 | 0006 | Coverage = ratchet, no absolute % | **Proposed** (pending DD-1) |
 | [0007](0007-gated-explicit-merge.md) | Gated, explicitly-requested merge (no autonomous self-merge) | Accepted |
+| [0008](0008-ci-runs-the-gate.md) | CI runs the gate as the required status check | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

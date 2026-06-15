@@ -24,6 +24,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0012](0012-engineering-process.md) | Engineering process = risk-driven + TDD | Accepted |
 | [0013](0013-portability-reference-model.md) | Portability: govern any project by reference | Accepted |
 | [0014](0014-research-enhances-agent-not-searches.md) | Research enhancement steers the agent's own search | Accepted |
+| [0015](0015-per-language-check-sets.md) | Per-language check sets (gate adjusts to the project) | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

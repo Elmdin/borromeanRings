@@ -4,6 +4,7 @@
 
 [project]
 # What borromeo targets in THIS governed project (portability — see ADR-0013).
+language = "python"  # selects checks/python/ (+ checks/shared/); see ADR-0015
 package = "meta_harness"
 src_dir = "src"
 tests_dir = "tests"

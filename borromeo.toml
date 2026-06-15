@@ -6,11 +6,26 @@
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
   "00_build",
+  "05_hygiene",
   "10_format",
   "20_lint",
   "30_typecheck",
   "40_test",
   "50_security",
+]
+
+[hygiene]
+# The engineering surround this project must have (presence-gated; see ADR-0012).
+# borromeo enforces these the same way it enforces code quality.
+requires = [
+  "README.md",
+  "LICENSE",
+  "AGENTS.md",
+  "pyproject.toml",
+  "verify.sh",
+  "docs",
+  ".github/workflows",
+  "Dockerfile",
 ]
 
 [context]

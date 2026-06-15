@@ -43,3 +43,11 @@ def test_prompt_rewriting_toggle(tmp_path: Path) -> None:
         '[checks]\nrequired = ["00_build"]\n[prompt_rewriting]\nenabled = true\n',
     )
     assert load_config(config).prompt_rewriting_enabled is True
+
+
+def test_hygiene_requires_loaded(tmp_path: Path) -> None:
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[hygiene]\nrequires = ["README.md", "LICENSE"]\n',
+    )
+    assert load_config(config).hygiene_requires == ("README.md", "LICENSE")

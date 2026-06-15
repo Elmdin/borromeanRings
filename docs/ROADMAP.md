@@ -28,23 +28,59 @@
 | Auto-merge: `merge.sh --auto` waits for the PR's CI to pass, then merges | 🟦 in review | `merge.sh`, ADR-0009 |
 | ~~Server-side branch protection / native `--auto`~~ | ⛔ blocked | needs GitHub Pro/Team or a public repo (private+free can't require checks); command-orchestrated instead (ADR-0009) |
 
-## Phase 2+ — the deferred vision (⏳ planned, build only when directed)
-From Build Brief §9 / `PLAN-v0.md` §10 — each is a future self-extension (build → gate → human-approved adopt).
+## The three-layer stack
+borromeo is built bottom-up as three mutually-reinforcing tools (see [`MANIFESTO.md`](MANIFESTO.md)).
+Layer 1 (the harness) is largely built; Layers 2–3 are the larger product.
 
-| # | Capability | What it is | Status |
-|---|---|---|---|
-| 2 | **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⏳ |
-| 3 | **Config/policy spine** | The declarative engine where projects/harnesses declare invariants; v0's manifest+receipts are the seed | ⏳ |
-| 4 | **Research + safe prompt-refinement front-of-loop** | Pull in prior art / refine the task safely before the agent starts | ⏳ |
-| 5 | **Instrumentation + A/B loop** | Measure whether the harness actually improves outcomes | ⏳ |
-| 6 | **Orchestration / parallelism / worktrees** | Run agents in parallel in isolated worktrees | ⏳ |
-| 7 | **Generator adapter + Executor interface** | Abstractions that make the agent and the run-environment swappable | ⏳ |
-| 8 | **Multi-harness substrate** | Adapters for OpenCode / Hermes / others (the Adapter seam already exists) | ⏳ |
-| 9 | **Multi-language stacks** | TS, Go, etc. behind the same uniform check contract | ⏳ |
-| 10 | **Cloud-sandbox executor + offline prompt optimization** | Heavier execution + tuning environments | ⏳ |
-| 11 | **Full self-assurance layer** | Tool-use instrumentation, config-compliance diffing, tamper-evidence, adversarial self-testing | ⏳ (receipts seeded in v0) |
-| 12 | **Self-extension capability: deep-research / synthesis** | First capability borromeo builds, gates, and adopts into itself; needs a tool/plugin registry | ⏳ |
-| 13 | **Verification ladder beyond mypy** | Hypothesis → CrossHair (SMT) → mutation testing → formal (Lean/Dafny, opt-in for tagged critical modules) | ⏳ |
+| Layer | Tool | Status |
+|---|---|---|
+| **1** | SWE harness — build pristine software | 🟩 core shipped; advanced features ⏳ below |
+| **2** | Deep Research tool — find & synthesize information | ⏳ next major product |
+| **3** | Borromeo Kernel — organize notes/plans into tasks, roadmaps, visual maps | ⏳ |
+
+## Phase 2 — Layer 1 advanced harness features (⏳ build when directed)
+Each is a future self-extension (build → gate → human-approved adopt).
+
+| Capability | What it is | Status |
+|---|---|---|
+| **Config/policy spine** | Declarative engine: declare an account/constraint/requirement → enforced on every run, always; v0's manifest+receipts are the seed | ⏳ |
+| **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⏳ |
+| **Mathematical verification (code & claims)** | Code: Hypothesis → CrossHair (SMT) → mutation → formal (Lean/Dafny, opt-in). Claims: verify factual assertions, distinct from code | ⏳ |
+| **Prompt rewriting + multi-prompting** | Context-aware / agent-aware prompt refinement; multi-pass prompting | ⏳ |
+| **Tools + MCP + plug-and-play** | External/internal tools, MCP servers, plug in any skill/tool, compose with other harnesses | ⏳ |
+| **Multi-harness substrate** | Adapters for OpenCode / Hermes / others (the Adapter seam already exists) | ⏳ |
+| **Multi-language stacks** | TS, Go, etc. behind the same uniform check contract | ⏳ |
+| **Generator adapter + Executor interface** | Make the agent and run-environment swappable | ⏳ |
+| **Orchestration / parallelism / worktrees** | Run agents in parallel in isolated worktrees | ⏳ |
+| **Instrumentation + A/B loop** | Measure whether the harness actually improves outcomes | ⏳ |
+| **Cloud-sandbox executor + offline prompt optimization** | Heavier execution + tuning environments | ⏳ |
+| **Full self-assurance layer** | Tool-use instrumentation, config-compliance diffing, tamper-evidence, adversarial self-testing | ⏳ (receipts seeded in v0) |
+
+## Phase 3 — Layer 2: the Deep Research tool (⏳ next major product)
+borromeo builds this *through* the harness, then **adopts** it (the harness can then research too).
+First **research existing deep-research systems**, then upgrade them to be:
+
+| Property | Meaning |
+|---|---|
+| **Deterministic** | Same query → reproducible, auditable search path |
+| **Visualized step-by-step** | Show exactly what it searched, found, and read — so you can trust it looked everywhere |
+| **Referencing** | Every claim cited to its source |
+| **Synthesizing** | Combine sources into a focused answer, not a link dump |
+| **Focusing** | Stay on the question; avoid drift |
+| **Clean & safe** | Avoid ads, BS/low-quality content, viruses |
+| **Substrate-agnostic** | Works on any browser/search engine, with any AI agent or a bare LLM |
+
+## Phase 4 — Layer 3: the Borromeo Kernel (⏳)
+The second brain. Organize **all** notes/thoughts/plans into a visually navigable, modifiable
+structure, and turn it into **actionable next steps**.
+
+| Capability | Notes |
+|---|---|
+| Notes substrate | **Use Obsidian** — do not rebuild an editor; build the intelligence on top |
+| Real-time organization | Ingest raw notes/text → cleaned, structured docs + graphs; **never lose original information** (show original → transformed) |
+| Life-map | One navigable map of everything: options, current standing, next steps; tasks, roadmaps, visual maps/graphs |
+| Actionability | Turn the map into concrete next steps; present options to family/friends/investors |
+| Interop | Works with other AI agents |
 
 ## How items graduate
 A deferred item becomes real only when the Maintainer directs it. It is then: spec'd

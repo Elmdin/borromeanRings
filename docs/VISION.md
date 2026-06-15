@@ -1,11 +1,23 @@
 # borromeo — Vision (the north star)
 
-> This is the whole product borromeo is meant to become. It consolidates the originating
-> "Build Brief" (previously referenced throughout `PLAN-v0.md` but never committed as a file)
-> with the principles we've locked. For *what is built vs. deferred and in what order*, see
-> [`ROADMAP.md`](ROADMAP.md). For v0 specifics, see `PLAN-v0.md` and the rest of `docs/`.
+> This is the whole product borromeo is meant to become. The originating *why* is in
+> [`MANIFESTO.md`](MANIFESTO.md); *what is built vs. deferred and in what order* is in
+> [`ROADMAP.md`](ROADMAP.md); v0 specifics are in `PLAN-v0.md` and the rest of `docs/`.
 
-## 1. Thesis
+## 0. borromeo is Layer 1 of a three-layer stack
+Per the [Manifesto](MANIFESTO.md), borromeo is built bottom-up as three mutually-reinforcing tools:
+
+| Layer | Tool | "The best way to…" |
+|---|---|---|
+| **1** | **The SWE harness** *(this document)* | build **pristine software** |
+| **2** | **Deep Research tool** | **find & synthesize information** (deterministic, visualized, cited) |
+| **3** | **Borromeo Kernel** | **organize notes/plans into tasks, roadmaps, visual maps** (a second brain) |
+
+The harness builds Layers 2 and 3; the research tool informs what to build; the kernel organizes it
+all and feeds priorities back. This document specifies **Layer 1**. Layers 2–3 are scoped in
+`ROADMAP.md`.
+
+## 1. Thesis (Layer 1)
 borromeo is a **model- and harness-agnostic meta-harness**: a governing quality layer that wraps
 any AI coding agent + any model and enforces engineering best practices as **deterministic gates**,
 not prompt requests. Mental model: an **assembly line with quality gates** — the agent is an
@@ -29,6 +41,24 @@ v0 instantiates the first three as thin seams; the rest are deferred (see `ROADM
 | 5 | **Executor interface** | Abstraction over where work runs | ⏳ deferred (v0: local shell) |
 | 6 | **Orchestrator** | The generate→verify→retry loop, parallelism, worktrees | ◑ partial (v0: Stop hook) |
 | 7 | **Config/policy spine** | Declarative invariants per project/harness | ⏳ deferred (v0: manifest + receipts seed) |
+
+## 2a. Full harness feature set (Layer 1 target)
+The capabilities borromeo must eventually have — an **extension to any existing harness**, working
+with **any LLM + any harness combination**, plug-and-play with existing skills/tools:
+
+- **Best SWE practices as gates** — ✅ shipped (the v0 gate).
+- **Config-focused enforcement** — when you declare a specific account, constraint, or requirement,
+  it is enforced on **every** run, always (the config/policy spine).
+- **Mathematical verification of code *and* claims** — code via the verification ladder
+  (mypy → Hypothesis → CrossHair/SMT → mutation → formal); **claims** (factual assertions, e.g. from
+  research) verified too — distinct from code correctness.
+- **Prompt rewriting + multi-prompting** — context-aware and agent-aware prompt refinement, and the
+  ability to drive multiple prompts/passes.
+- **Tool access + MCP + plug-and-play** — reach external/internal tools and MCP servers; plug in any
+  existing feature, skill, or tool; compose with other harnesses.
+- **Ever-growing & research-driven** — can apply existing or new research; **adopts the tools it
+  builds** when asked (e.g. the Layer-2 Deep Research tool becomes usable *by* the harness).
+- **Multi-prompt / multi-model / multi-harness agnosticism** — never bound to one model or harness.
 
 ## 3. The self-extension loop (a core feature, not a nice-to-have)
 borromeo **compounds its own capabilities**: it builds capability X → X passes borromeo's own gate

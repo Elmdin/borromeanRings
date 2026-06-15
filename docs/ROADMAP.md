@@ -28,17 +28,16 @@
 | Auto-merge: `merge.sh --auto` waits for the PR's CI to pass, then merges | 🟦 in review | `merge.sh`, ADR-0009 |
 | ~~Server-side branch protection / native `--auto`~~ | ⛔ blocked | needs GitHub Pro/Team or a public repo (private+free can't require checks); command-orchestrated instead (ADR-0009) |
 
-## The three-layer stack
-borromeo is built bottom-up as three mutually-reinforcing tools (see [`MANIFESTO.md`](MANIFESTO.md)).
-Layer 1 (the harness) is largely built; Layers 2–3 are the larger product.
+## Scope: borromeo is the meta-harness only
+borromeo's roadmap is **harness features** (Phases 0–2). The Deep Research tool and the notes/Kernel
+are **separate products built *with* borromeo** — out of this repo's scope (see [`MANIFESTO.md`](MANIFESTO.md)):
 
-| Layer | Tool | Status |
-|---|---|---|
-| **1** | SWE harness — build pristine software | 🟩 core shipped; advanced features ⏳ below |
-| **2** | Deep Research tool — find & synthesize information | ⏳ next major product |
-| **3** | Borromeo Kernel — organize notes/plans into tasks, roadmaps, visual maps | ⏳ |
+| Separate product (built with borromeo) | Status |
+|---|---|
+| **Deep Research tool** — find & synthesize information | Phase-1 prototype exists in-repo (to be extracted to its own repo); spec/research kept as seed |
+| **Notes / Kernel** — organize notes/plans into tasks, roadmaps, visual maps (on Obsidian) | not started; its own repo when built |
 
-## Phase 2 — Layer 1 advanced harness features (⏳ build when directed)
+## Phase 2 — advanced harness features (⏳ build when directed)
 Each is a future self-extension (build → gate → human-approved adopt).
 
 | Capability | What it is | Status |
@@ -57,39 +56,20 @@ Each is a future self-extension (build → gate → human-approved adopt).
 | **Cloud-sandbox executor + offline prompt optimization** | Heavier execution + tuning environments | ⏳ |
 | **Full self-assurance layer** | Tool-use instrumentation, config-compliance diffing, tamper-evidence, adversarial self-testing | ⏳ (receipts seeded in v0) |
 
-## Phase 3 — Layer 2: the Deep Research tool (🟦 research done; spec in review)
-borromeo builds this *through* the harness, then **adopts** it (the harness can then research too).
-- ✅ **Research done** — [`research/deep-research-landscape.md`](research/deep-research-landscape.md): how OpenAI/Perplexity/Gemini/GPT-Researcher/STORM work, and the gaps (non-determinism, ~40% bad citations, weak transparency) that become our differentiators.
-- 🟦 **Spec in review** — [`SPEC-deep-research.md`](SPEC-deep-research.md): a deterministic, inspectable, **citation-verified** pipeline; phased build.
+## Separate products (built with borromeo — NOT on this roadmap)
+These were previously mis-scoped as borromeo "layers." They are **separate products**, each in its
+own repo when built. Their specs/research live here only as seeds pending extraction.
 
-Target properties (upgrade existing deep-research to be):
+- **Deep Research tool** — find & synthesize information (deterministic, visualized, citation-verified,
+  multi-engine, completeness-critic). Phase-1 prototype exists in-repo
+  (`meta_harness/deep_research.py`, `tools/deep_research_demo.py`); spec + landscape in
+  [`SPEC-deep-research.md`](SPEC-deep-research.md) and [`research/`](research/). **To be extracted.**
+- **Notes / Kernel** — organize notes/plans into tasks, roadmaps, and visual maps on **Obsidian**
+  (never rebuild an editor); turn everything into actionable next steps. Not started.
 
-| Property | Meaning |
-|---|---|
-| **Deterministic** | Same query → reproducible, auditable search path |
-| **Visualized step-by-step** | Show exactly what it searched, found, and read — so you can trust it looked everywhere |
-| **Referencing** | Every claim cited to its source |
-| **Synthesizing** | Combine sources into a focused answer, not a link dump |
-| **Focusing** | Stay on the question; avoid drift |
-| **Clean & safe** | Avoid ads, BS/low-quality content, viruses (sandboxed fetch) |
-| **Substrate-agnostic** | Works on any browser/search engine, with any AI agent or a bare LLM |
-| **Augments the agent's own research** | Enhances (not replaces) the wrapped agent's existing deep-research tool |
-| **Multi-engine + comprehensive** | Federated search across engines; reads all relevant sites |
-| **Query mutation** | Diverse multi-query rewriting + pseudo-answer to widen recall (verified) |
-| **Completeness critic ("don't miss anything")** | Gap detection; flags wrong query/place/missed detail; loops until coverage saturates (best existing agent only ~21% recall) |
-| **Fact-check + output gate** | Deterministic gate on the synthesis — no unverified claim survives |
-
-## Phase 4 — Layer 3: the Borromeo Kernel (⏳)
-The second brain. Organize **all** notes/thoughts/plans into a visually navigable, modifiable
-structure, and turn it into **actionable next steps**.
-
-| Capability | Notes |
-|---|---|
-| Notes substrate | **Use Obsidian** — do not rebuild an editor; build the intelligence on top |
-| Real-time organization | Ingest raw notes/text → cleaned, structured docs + graphs; **never lose original information** (show original → transformed) |
-| Life-map | One navigable map of everything: options, current standing, next steps; tasks, roadmaps, visual maps/graphs |
-| Actionability | Turn the map into concrete next steps; present options to family/friends/investors |
-| Interop | Works with other AI agents |
+*(A research-to-build-software capability — a "research front-of-loop" that helps borromeo's wrapped
+agent build software better — may remain a harness feature; that is distinct from the standalone
+Deep Research product above.)*
 
 ## How items graduate
 A deferred item becomes real only when the Maintainer directs it. It is then: spec'd

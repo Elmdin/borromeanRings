@@ -1,8 +1,8 @@
 # SPEC — Deep Research tool
 
-> **Scope note:** the Deep Research tool is a **separate product built *with* borromeo**, not part of
-> borromeo's meta-harness scope. This spec + the Phase-1 prototype (`meta_harness/deep_research.py`)
-> live here as a seed pending extraction to their own repo. See [`MANIFESTO.md`](MANIFESTO.md).
+> **Scope note:** this is a **borromeo harness feature** — borromeo *enhances the deep-research
+> capability the wrapped agent already has* (it does not build a research product from scratch). The
+> features below are the enhancements borromeo adds. See [`MANIFESTO.md`](MANIFESTO.md).
 >
 > Status: spec, derived from [`research/deep-research-landscape.md`](research/deep-research-landscape.md).
 > Awaiting sign-off before implementation. The first tool borromeo builds *through* the harness and

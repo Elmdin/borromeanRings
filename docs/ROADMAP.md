@@ -28,16 +28,21 @@
 | Auto-merge: `merge.sh --auto` waits for the PR's CI to pass, then merges | 🟦 in review | `merge.sh`, ADR-0009 |
 | ~~Server-side branch protection / native `--auto`~~ | ⛔ blocked | needs GitHub Pro/Team or a public repo (private+free can't require checks); command-orchestrated instead (ADR-0009) |
 
-## Scope: borromeo is the meta-harness only
-borromeo's roadmap is **harness features** (Phases 0–2). The Deep Research tool and the notes/Kernel
-are **separate products built *with* borromeo** — out of this repo's scope (see [`MANIFESTO.md`](MANIFESTO.md)):
+## Scope: borromeo enhances agent capabilities (incl. deep research)
+borromeo's roadmap is **harness features** — including the **deep-research enhancement** (borromeo
+improves the agent's *built-in* deep research; it does not build a research product from scratch).
 
-| Separate product (built with borromeo) | Status |
-|---|---|
-| **Deep Research tool** — find & synthesize information | Phase-1 prototype exists in-repo (to be extracted to its own repo); spec/research kept as seed |
-| **Notes / Kernel** — organize notes/plans into tasks, roadmaps, visual maps (on Obsidian) | not started; its own repo when built |
+The only thing **out of scope** is an end-user app: the **notes/Kernel** is a separate product built
+*with* borromeo (its own repo when built). See [`MANIFESTO.md`](MANIFESTO.md).
 
-## Phase 2 — advanced harness features (⏳ build when directed)
+## Deep-research enhancement (active workstream — issues #12–19)
+borromeo improves the wrapped agent's existing deep research. Phase 1 ✅ (issue #12, PR #20):
+real search/fetch/trail + deterministic retrieval + injected semantic judge (`meta_harness/deep_research.py`).
+Remaining (issues #13–19): federated multi-engine, query mutation, citation verification,
+completeness critic, synthesis + output gate, live visibility, augment the agent's research.
+Spec: [`SPEC-deep-research.md`](SPEC-deep-research.md); research: [`research/`](research/).
+
+## Phase 2 — other advanced harness features (⏳ build when directed)
 Each is a future self-extension (build → gate → human-approved adopt).
 
 | Capability | What it is | Status |

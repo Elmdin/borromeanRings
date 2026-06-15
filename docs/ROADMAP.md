@@ -57,9 +57,12 @@ Each is a future self-extension (build → gate → human-approved adopt).
 | **Cloud-sandbox executor + offline prompt optimization** | Heavier execution + tuning environments | ⏳ |
 | **Full self-assurance layer** | Tool-use instrumentation, config-compliance diffing, tamper-evidence, adversarial self-testing | ⏳ (receipts seeded in v0) |
 
-## Phase 3 — Layer 2: the Deep Research tool (⏳ next major product)
+## Phase 3 — Layer 2: the Deep Research tool (🟦 research done; spec in review)
 borromeo builds this *through* the harness, then **adopts** it (the harness can then research too).
-First **research existing deep-research systems**, then upgrade them to be:
+- ✅ **Research done** — [`research/deep-research-landscape.md`](research/deep-research-landscape.md): how OpenAI/Perplexity/Gemini/GPT-Researcher/STORM work, and the gaps (non-determinism, ~40% bad citations, weak transparency) that become our differentiators.
+- 🟦 **Spec in review** — [`SPEC-deep-research.md`](SPEC-deep-research.md): a deterministic, inspectable, **citation-verified** pipeline; phased build.
+
+Target properties (upgrade existing deep-research to be):
 
 | Property | Meaning |
 |---|---|

@@ -47,6 +47,14 @@ cat >"$TARGET/.claude/settings.json" <<EOF
 }
 EOF
 echo "wrote $TARGET/.claude/settings.json  (hooks reference borromeo at $BORROMEO_HOME)"
+
+# Install borromeo's skills (e.g. borromeo-research) so a Claude session in the target finds them.
+if [ -d "$BORROMEO_HOME/.claude/skills" ]; then
+  mkdir -p "$TARGET/.claude/skills"
+  cp -R "$BORROMEO_HOME/.claude/skills/." "$TARGET/.claude/skills/"
+  echo "installed borromeo skills into $TARGET/.claude/skills/ (e.g. borromeo-research)"
+fi
+
 echo
 echo "borromeo now governs $TARGET. Run the gate with:"
 echo "  cd '$TARGET' && '$BORROMEO_HOME/verify.sh'"

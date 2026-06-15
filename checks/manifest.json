@@ -1,0 +1,10 @@
+{
+  "checks": [
+    "00_build",
+    "10_format",
+    "20_lint",
+    "30_typecheck",
+    "40_test",
+    "50_security"
+  ]
+}

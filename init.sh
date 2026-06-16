@@ -28,7 +28,10 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
 enabled = true
 
 [hygiene]
-requires = ["README.md"]
+# Engineering-surround files this project must have. Empty by default so a fresh/greenfield
+# project starts GREEN; add requirements as it matures, e.g.:
+#   requires = ["README.md", "LICENSE", ".github/workflows", "Dockerfile"]
+requires = []
 EOF
   echo "wrote $TARGET/borromeo.toml  (edit it for your project)"
 else

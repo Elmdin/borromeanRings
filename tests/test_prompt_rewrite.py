@@ -10,7 +10,7 @@ def test_directive_includes_declared_context() -> None:
     assert "preserve its intent" in directive
     assert "Elmdin/borromeo" in directive
     assert "correctness, security" in directive
-    assert "Show the user the rewritten request" in directive
+    assert "confirm or edit" in directive  # propose, don't auto-apply
 
 
 def test_directive_without_context_omits_optional_lines() -> None:

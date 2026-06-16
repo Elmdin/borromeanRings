@@ -33,5 +33,9 @@ def build_directive(context: Mapping[str, Any]) -> str:
     priorities = context.get("value_priorities")
     if priorities:
         lines.append(f"- honor these value priorities (highest first): {', '.join(priorities)};")
-    lines.append("Show the user the rewritten request (and what changed), then proceed.")
+    lines.append(
+        "Then SHOW the user the improved prompt and what changed, and PROPOSE it — unless the "
+        "request is trivial/unambiguous, ASK them to confirm or edit before you act. Do not "
+        "silently treat your rewrite as their words; let them steer."
+    )
     return "\n".join(lines)

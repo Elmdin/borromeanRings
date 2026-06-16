@@ -21,6 +21,21 @@ fi
 ( cd "$PROJECT_ROOT" && python3 -m pytest -q --cov --cov-report=json:"$covjson" ) >"$log" 2>&1
 code=$?
 
+# pytest exit 5 = "no tests collected". On a GREENFIELD project (no source either) that's not a
+# failure — there's simply nothing to test yet (don't force scaffolding during planning). But if
+# source exists with no tests, that IS a gap → fail (untested code).
+if [ "$code" -eq 5 ]; then
+  src_dir="$(borromeo_project_cfg src_dir)"
+  if [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -print -quit 2>/dev/null)" ]; then
+    echo "no tests and no source yet (greenfield) — nothing to test" >>"$log"
+    emit_receipt "$id" "$cmd" 0 "$log" "pass"
+    exit 0
+  fi
+  echo "no tests collected, but source exists — add tests" >>"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
+
 baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 current="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['totals']['percent_covered'])" "$covjson" 2>/dev/null || echo 0)"
 

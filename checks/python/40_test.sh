@@ -18,7 +18,9 @@ if ! python3 -m pytest --version >/dev/null 2>&1; then
   exit 127
 fi
 
-( cd "$PROJECT_ROOT" && python3 -m pytest -q --cov --cov-report=json:"$covjson" ) >"$log" 2>&1
+# `exec` so pytest is the timeout's direct child: on a hang it gets SIGTERM/SIGKILL
+# directly (no orphaned pytest lingering past the gate). See checks/_lib.sh.
+borromeo_run_bounded "$log" "exec python3 -m pytest -q --cov --cov-report=json:\"$covjson\""
 code=$?
 
 # pytest exit 5 = "no tests collected". On a GREENFIELD project (no source either) that's not a

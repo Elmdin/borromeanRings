@@ -14,12 +14,20 @@ BORROMEO_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 mkdir -p "$CLAUDE_DIR/skills"
 
-# 1. skills (substitute borromeo's path into the bootstrap skill)
-mkdir -p "$CLAUDE_DIR/skills/borromeo"
-sed "s#__BORROMEO_HOME__#$BORROMEO_HOME#g" \
-  "$BORROMEO_HOME/skills/borromeo/SKILL.md" >"$CLAUDE_DIR/skills/borromeo/SKILL.md"
-cp -R "$BORROMEO_HOME/.claude/skills/borromeo-research" "$CLAUDE_DIR/skills/" 2>/dev/null || true
-echo "installed skills: borromeo, borromeo-research -> $CLAUDE_DIR/skills/"
+# 1. install all skills (templated from skills/, plus project skills in .claude/skills/),
+#    substituting borromeo's path (the __BORROMEO_HOME__ placeholder; a no-op where absent).
+installed=""
+for src in "$BORROMEO_HOME"/skills/*/ "$BORROMEO_HOME"/.claude/skills/*/; do
+  [ -d "$src" ] || continue
+  name="$(basename "$src")"
+  mkdir -p "$CLAUDE_DIR/skills/$name"
+  for f in "$src"*; do
+    [ -f "$f" ] || continue
+    sed "s#__BORROMEO_HOME__#$BORROMEO_HOME#g" "$f" >"$CLAUDE_DIR/skills/$name/$(basename "$f")"
+  done
+  installed="$installed $name"
+done
+echo "installed skills:$installed -> $CLAUDE_DIR/skills/"
 
 # 2. merge global hooks into ~/.claude/settings.json (preserve everything else)
 PYTHONPATH="" python3 - "$CLAUDE_DIR/settings.json" "$BORROMEO_HOME" <<'PY'

@@ -39,7 +39,7 @@ The product is **not** a monolithic verifier; it is a **registry of independent 
 
 | Promoted | Inhibited / cost |
 |---|---|
-| **Extensibility** — add a check = drop in a file + a line in `borromeo.toml` (QAS-3) | **Latency** — checks run; a large suite is as slow as its slowest checks (acceptable: correctness > speed for a gate) |
+| **Extensibility** — add a check = drop in a file + a line in `borromeo.toml` (QAS-3) | **Latency** — checks run; a large suite is as slow as its slowest checks (acceptable: correctness > speed for a gate). Each check is bounded by a wall-clock `timeout` (`BORROMEO_CHECK_TIMEOUT`, default 300s) so a *hanging* tool fails closed instead of stalling the gate — see `checks/_lib.sh:borromeo_run_bounded`. |
 | **Modifiability** — replace a check's tool without touching the gate | **No cross-check reasoning** — by design; a check can't depend on another's result |
 | **Reusability** — the gate is substrate-neutral; any caller reuses it | |
 

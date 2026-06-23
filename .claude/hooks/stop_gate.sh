@@ -22,6 +22,28 @@ if [ "$stop_active" = "true" ]; then
   exit 0
 fi
 
+# No-op guard: if the governed input state is identical to the last proven-green
+# state (e.g. the agent only answered a question), skip the full gate — re-running
+# it adds no assurance and wastes compute/tokens. Fail-closed: any error or change
+# ⇒ fall through and run the gate.
+if PYTHONPATH="$BORROMEO_HOME/src" python3 - "$PROJECT_DIR" <<'PY'
+import sys
+from pathlib import Path
+
+try:
+    from meta_harness.change_detect import should_skip_gate
+    from meta_harness.spine import load_config
+
+    project = Path(sys.argv[1])
+    config = load_config(project / "borromeo.toml")
+    sys.exit(0 if should_skip_gate(project, config) else 1)
+except Exception:
+    sys.exit(1)  # never skip on error — run the gate
+PY
+then
+  exit 0
+fi
+
 attempt_dir="$PROJECT_DIR/.meta-harness/stop_attempts"
 mkdir -p "$attempt_dir"
 counter_file="$attempt_dir/$session_id"

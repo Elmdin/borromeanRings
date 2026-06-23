@@ -54,11 +54,14 @@ PYTHONPATH="$BORROMEO_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROO
 import json
 import os
 import sys
+from pathlib import Path
 
+from meta_harness.change_detect import record_green
 from meta_harness.spine import load_config
 
 config_path, receipt_dir, project_root = sys.argv[1], sys.argv[2], sys.argv[3]
-expected = load_config(config_path).required_checks
+config = load_config(config_path)
+expected = config.required_checks
 
 rows = []
 ok = True
@@ -86,5 +89,13 @@ print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
 if not ok:
     print("  One or more checks failed or produced no receipt; see logs in the run dir.")
 print()
+if ok:
+    # Record this exact gated-input state as proven-green so a no-op Stop (a
+    # question, a doc edit) can skip a redundant full gate. Best-effort: a
+    # recording failure must never turn a real PASS into a FAIL.
+    try:
+        record_green(Path(project_root), config)
+    except OSError:
+        pass
 sys.exit(0 if ok else 1)
 PY

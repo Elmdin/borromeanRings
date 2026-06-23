@@ -16,6 +16,7 @@
 | Coverage **ratchet** (no absolute % target) | ✅ | `checks/40_test.sh` |
 | Receipts / audit plumbing (minimal) | ✅ | `.meta-harness/receipts/` |
 | Stop-hook generate→verify→retry loop (bounded + escalation) | ✅ | `.claude/hooks/stop_gate.sh` |
+| No-op Stop guard: skip the gate when the governed state is unchanged (content-hash cache, fail-closed) | ✅ | `.claude/hooks/stop_gate.sh`, `meta_harness/change_detect.py`, ADR-0016 |
 | PostToolUse auto-format · PreToolUse dangerous-command guard | ✅ | `.claude/hooks/` |
 | Spec/context layer (`AGENTS.md`) | ✅ | `AGENTS.md` |
 | CS130 planning docs (requirements, architecture, ADRs, test plan, process) | ✅ | `docs/` |

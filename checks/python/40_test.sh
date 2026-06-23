@@ -18,6 +18,12 @@ if ! python3 -m pytest --version >/dev/null 2>&1; then
   exit 127
 fi
 
+# Erase stale coverage data first. A crashed/interrupted prior run can leave
+# orphan parallel files (.coverage.<host>.<pid>) that poison coverage's combine
+# step ("no such table: other_db.file") and fail the gate for a non-code reason.
+# The gate must fail only on real regressions, never on leftover artifacts.
+rm -f "$PROJECT_ROOT/.coverage" "$PROJECT_ROOT"/.coverage.* 2>/dev/null || true
+
 # `exec` so pytest is the timeout's direct child: on a hang it gets SIGTERM/SIGKILL
 # directly (no orphaned pytest lingering past the gate). See checks/_lib.sh.
 borromeo_run_bounded "$log" "exec python3 -m pytest -q --cov --cov-report=json:\"$covjson\""

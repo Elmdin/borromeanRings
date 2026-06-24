@@ -9,11 +9,19 @@ package = "meta_harness"
 src_dir = "src"
 tests_dir = "tests"
 
+[git]
+# Declared commit identity — every commit/push in this repo must use it. The
+# PreToolUse guard blocks wrong-identity commits; check 06 is the fail-closed
+# backstop. Empty/absent ⇒ enforcement off. See docs/specs/SPEC-git-identity.md.
+name = "wimaan3"
+email = "imaansoltan@gmail.com"
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
   "00_build",
   "05_hygiene",
+  "06_git_identity",
   "10_format",
   "20_lint",
   "30_typecheck",

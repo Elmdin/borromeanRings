@@ -4,7 +4,7 @@ Loads ``borromeo.toml`` and exposes the required-check set and declared context.
 The gate (``verify.sh``) consumes the required set and enforces config-compliance:
 every declared check must produce a pass receipt. The spine governs *outcomes*
 (what must hold), deliberately not *how* the wrapped agent plans or decides.
-See docs/SPEC-spine.md.
+See docs/specs/SPEC-spine.md.
 """
 
 from collections.abc import Mapping
@@ -31,6 +31,11 @@ class Config:
     # [git] — declared commit identity; empty ⇒ identity enforcement is off.
     git_name: str = ""
     git_email: str = ""
+    # [layout] — file-organization conventions; each rule off when empty/zero.
+    specs_dir: str = ""
+    root_doc_allowlist: tuple[str, ...] = ()
+    test_grouping_threshold: int = 0
+    test_groups: tuple[str, ...] = ()
 
 
 def load_config(path: str | Path = "borromeo.toml") -> Config:
@@ -60,6 +65,7 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
     project = raw.get("project", {})
     git = raw.get("git", {})
+    layout = raw.get("layout", {})
     return Config(
         required_checks=tuple(required),
         context=context,
@@ -71,4 +77,8 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
         language=str(project.get("language", "python")),
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),
+        specs_dir=str(layout.get("specs_dir", "")),
+        root_doc_allowlist=tuple(layout.get("root_doc_allowlist", [])),
+        test_grouping_threshold=int(layout.get("test_grouping_threshold", 0)),
+        test_groups=tuple(layout.get("test_groups", [])),
     )

@@ -5,7 +5,7 @@ here from the spine's declared ``[context]``) instructing the wrapped agent to
 rewrite the user's in-the-moment request — preserving intent and improving it per
 the declared context and best practices — and to *show* the rewrite before acting.
 This respects agent autonomy: it asks the agent to refine the prompt, it does not
-dictate a plan. See docs/SPEC-prompt-rewrite.md and docs/adr/0011-*.md.
+dictate a plan. See docs/specs/SPEC-prompt-rewrite.md and docs/adr/0011-*.md.
 """
 
 from collections.abc import Mapping

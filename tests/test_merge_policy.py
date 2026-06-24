@@ -1,4 +1,4 @@
-"""Truth-table tests for the merge policy (docs/SPEC-merge.md §5).
+"""Truth-table tests for the merge policy (docs/specs/SPEC-merge.md §5).
 
 The invariant: allow a merge only when it is explicitly requested AND the gate
 passed; deny otherwise. Covers both branches of :func:`decide_merge`.

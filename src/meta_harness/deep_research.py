@@ -17,7 +17,7 @@ v1 verification is deterministic and lexical: a claim is *supported* only if
 every content word of the claim appears in a source's fetched text — so a claim
 with a fabricated specific (a wrong year, a made-up name) is **rejected** because
 that term is absent. Semantic/NLI verification is a later phase (see
-docs/SPEC-deep-research.md). This is honest about its limits, by design.
+docs/specs/SPEC-deep-research.md). This is honest about its limits, by design.
 """
 
 import re

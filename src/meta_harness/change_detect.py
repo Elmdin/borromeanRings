@@ -1,4 +1,4 @@
-"""Gate-skip change detection — borromeo's no-op Stop guard.
+"""Gate-skip change detection — borromeanRings's no-op Stop guard.
 
 The Stop hook re-runs the full gate on every turn, even when the agent only
 answered a question and changed no governed file. That is wasted compute and
@@ -22,7 +22,7 @@ from pathlib import Path
 
 from meta_harness.spine import Config
 
-# Evidence lives with the governed project (same place as receipts), not borromeo.
+# Evidence lives with the governed project (same place as receipts), not borromeanRings.
 _STATE_FILE = ".meta-harness/last_green_state"
 # Build/cache artifacts never change the gate verdict — exclude them from the hash.
 _SKIP_DIRS = frozenset(
@@ -53,11 +53,11 @@ def _iter_files(project_root: Path, rel: str) -> list[Path]:
 def _gated_paths(project_root: Path, config: Config) -> list[Path]:
     """The inputs the gate actually consumes — what a real change must touch.
 
-    The governed source and tests, the per-language check scripts (when borromeo
+    The governed source and tests, the per-language check scripts (when borromeanRings
     governs itself), and the policy/build config. A stray file outside this set
     (e.g. an extracted ``.txt``) is not governed code and must not force a run.
     """
-    targets = (config.src_dir, config.tests_dir, "checks", "borromeo.toml", "pyproject.toml")
+    targets = (config.src_dir, config.tests_dir, "checks", "borromeanrings.toml", "pyproject.toml")
     collected: dict[Path, None] = {}
     for target in targets:
         for path in _iter_files(project_root, target):

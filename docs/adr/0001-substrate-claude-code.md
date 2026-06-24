@@ -3,7 +3,7 @@
 **Status:** Accepted
 
 ## Context
-borromeo must express its gate through *some* agent harness. v0 needs one concrete substrate that
+borromeanRings must express its gate through *some* agent harness. v0 needs one concrete substrate that
 can (a) intercept the end of an agent's turn to run the gate, (b) auto-format on edit, and (c)
 block dangerous commands — without us building an executor abstraction prematurely.
 

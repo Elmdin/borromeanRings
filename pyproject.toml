@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "meta-harness"
 version = "0.0.0"
-description = "borromeo — a model- and harness-agnostic meta-harness that enforces engineering standards as deterministic gates."
+description = "borromeanRings — a model- and harness-agnostic meta-harness that enforces engineering standards as deterministic gates."
 requires-python = ">=3.10"
 
 [project.optional-dependencies]

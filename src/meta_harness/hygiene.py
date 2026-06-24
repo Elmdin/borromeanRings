@@ -1,8 +1,8 @@
 """Project-hygiene gate: the engineering *surround* a project must have.
 
-borromeo gates not just code quality but the software-engineering surround — docs,
+borromeanRings gates not just code quality but the software-engineering surround — docs,
 CI, containerization, license, dev environment, etc. The required artifacts are
-*declared* in ``borromeo.toml`` (``[hygiene].requires``); the gate fails closed if
+*declared* in ``borromeanrings.toml`` (``[hygiene].requires``); the gate fails closed if
 any are missing. Presence-only for v1 (existence is enough); deeper structural
 checks can follow. See ADR-0012 (process) and docs/ROADMAP.md.
 """

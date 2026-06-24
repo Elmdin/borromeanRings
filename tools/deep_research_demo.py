@@ -5,7 +5,7 @@ Usage: python tools/deep_research_demo.py "<query>" "<claim>"
 It really searches and fetches, then surfaces candidate passages for the claim.
 Two engines are federated (English + Simple Wikipedia) to show multi-engine
 coverage; real search engines plug in via the same SearchFn adapter. The semantic
-verdict is performed by the wrapped agent / an LLM (borromeo structures it). Lives
+verdict is performed by the wrapped agent / an LLM (borromeanRings structures it). Lives
 outside src, so network code stays out of the tested core.
 """
 
@@ -16,7 +16,7 @@ import urllib.request
 
 from meta_harness.deep_research import candidate_passages, federated_search, research
 
-_UA = "borromeo-deep-research/0.0 (https://github.com/Elmdin/borromeo)"
+_UA = "borromeanrings-deep-research/0.0 (https://github.com/Elmdin/borromeanrings)"
 _ENGINES = ("en.wikipedia.org", "simple.wikipedia.org")
 
 
@@ -88,7 +88,7 @@ def main() -> None:
     print(
         "\nVERDICT: semantic entailment (does a passage actually support the claim?) "
         "is performed by the wrapped agent / an LLM via verify_claim_adversarial — "
-        "borromeo structures + records it, fail-closed. Lexical retrieval only narrows."
+        "borromeanRings structures + records it, fail-closed. Lexical retrieval only narrows."
     )
 
 

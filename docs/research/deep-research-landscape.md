@@ -1,6 +1,6 @@
 # Research — How existing deep-research systems work (and where they fall short)
 
-> **Scope note:** research informing borromeo's **deep-research enhancement** (a harness feature) —
+> **Scope note:** research informing borromeanRings's **deep-research enhancement** (a harness feature) —
 > how to improve the deep research the wrapped agent already has. Not a separate product.
 
 > Layer 2, step 1 (per the Manifesto): study existing deep-research before building ours. This is
@@ -21,7 +21,7 @@ Two families differ in *how* they implement this:
 | **GPT Researcher** (OSS, ~26k★) | **planner → concurrent executors → publisher** pipeline; source-tracking; MCP/retriever-extensible | Inspectable pipeline; ~92% citation accuracy claimed; the closest open prior art |
 | **Stanford STORM** (OSS) | **Two-stage**: perspective-guided question-asking → outline → grounded write-up with citations | Strong at outline/synthesis; multi-perspective question generation |
 
-## Where they fall short — and these are borromeo's differentiators
+## Where they fall short — and these are borromeanRings's differentiators
 Each gap maps directly to a property the Manifesto demands:
 
 | Manifesto property | Gap in existing systems (evidence) |
@@ -44,10 +44,10 @@ Each gap maps directly to a property the Manifesto demands:
 - **Federated / metasearch** is a solved pattern: distribute one query to many engines → aggregate →
   **dedup + result fusion (merge/normalize/rank)**. No single engine is authoritative.
 
-## Implications for borromeo's design
+## Implications for borromeanRings's design
 - **Favor an orchestrated, inspectable pipeline** (like GPT Researcher / STORM), **not** an opaque end-to-end agent — determinism and visibility require seams you can observe.
-- **Citation verification is the killer feature.** Every claim must be checked against the *actually fetched source text*, not the model's memory. This is exactly borromeo's **"mathematical verification of claims"** (Layer 1 critic) applied to research — and adversarial verification is borromeo's strength.
-- **Reuse borromeo's receipt/audit plumbing** to record every query, source, and extraction → that *is* the step-by-step visualization + reproducibility.
+- **Citation verification is the killer feature.** Every claim must be checked against the *actually fetched source text*, not the model's memory. This is exactly borromeanRings's **"mathematical verification of claims"** (Layer 1 critic) applied to research — and adversarial verification is borromeanRings's strength.
+- **Reuse borromeanRings's receipt/audit plumbing** to record every query, source, and extraction → that *is* the step-by-step visualization + reproducibility.
 - **Keep the LLM swappable** (Adapter seam) so it runs with any agent or a bare LLM.
 
 ## Sources

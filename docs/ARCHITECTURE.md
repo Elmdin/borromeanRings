@@ -1,4 +1,4 @@
-# borromeo — Architecture (v0)
+# borromeanRings — Architecture (v0)
 
 > CS130 framing (Part 4 §3 + Part 2 L5): start from **architectural drivers**, make quality
 > attributes **measurable**, choose a **style** by its known QA trade-offs, name the **module
@@ -28,18 +28,18 @@ The product is **not** a monolithic verifier; it is a **registry of independent 
 **gate aggregates fail-closed**. This borrows the constraints of **Pipes & Filters** (Part 4
 §3.6.1) — strict independence, agnosticism — for their QA payoff, with one deliberate difference.
 
-| Pipes & Filters constraint | borromeo's analogue |
+| Pipes & Filters constraint | borromeanRings's analogue |
 |---|---|
 | **Strict independence** — filters share no state | Each `checks/NN_*.sh` shares no state with another check |
 | **Agnosticism** — a filter doesn't know its neighbors | A check doesn't know which other checks exist or their order beyond its `NN` prefix |
 | **Acyclic** — source → sink, no feedback | Working tree → each check → receipt; no check feeds another |
-| *(difference)* transformation pipeline | borromeo is an **aggregation gate**: checks don't transform the artifact for the next stage; the gate ANDs their verdicts |
+| *(difference)* transformation pipeline | borromeanRings is an **aggregation gate**: checks don't transform the artifact for the next stage; the gate ANDs their verdicts |
 
 **QA trade-offs this buys (and costs):**
 
 | Promoted | Inhibited / cost |
 |---|---|
-| **Extensibility** — add a check = drop in a file + a line in `borromeo.toml` (QAS-3) | **Latency** — checks run; a large suite is as slow as its slowest checks (acceptable: correctness > speed for a gate). Each check is bounded by a wall-clock `timeout` (`BORROMEO_CHECK_TIMEOUT`, default 300s) so a *hanging* tool fails closed instead of stalling the gate — see `checks/_lib.sh:borromeo_run_bounded`. |
+| **Extensibility** — add a check = drop in a file + a line in `borromeanrings.toml` (QAS-3) | **Latency** — checks run; a large suite is as slow as its slowest checks (acceptable: correctness > speed for a gate). Each check is bounded by a wall-clock `timeout` (`BORROMEANRINGS_CHECK_TIMEOUT`, default 300s) so a *hanging* tool fails closed instead of stalling the gate — see `checks/_lib.sh:borromeanrings_run_bounded`. |
 | **Modifiability** — replace a check's tool without touching the gate | **No cross-check reasoning** — by design; a check can't depend on another's result |
 | **Reusability** — the gate is substrate-neutral; any caller reuses it | |
 
@@ -55,17 +55,17 @@ put only **stable** assumptions in interfaces.
 | **Which tool implements a check** (ruff/mypy/bandit; later semgrep, DD-2) | the individual `checks/NN_*.sh` | "run → exit non-zero on failure → emit a receipt" | Strategy / Single Choice |
 | **Which harness/substrate drives the loop** (Claude Code today; OpenCode/Hermes later) | `.claude/hooks/*` | `verify.sh`'s exit-code contract | **Adapter** |
 | **Receipt format & storage layout** | the receipt emitter (`checks/_lib.sh`) | "a receipt exists per check with status" | — |
-| **The exhaustive list of expected checks** | `borromeo.toml` (one place only) | "every expected check emitted a pass receipt" | **Single Choice Principle** |
+| **The exhaustive list of expected checks** | `borromeanrings.toml` (one place only) | "every expected check emitted a pass receipt" | **Single Choice Principle** |
 
 **The Adapter is the keystone.** `verify.sh` knows nothing about Claude Code; the `.claude/`
 hooks are thin adapters translating Stop / PostToolUse / PreToolUse events into calls on the
-substrate-neutral gate. *This adapter seam is what makes borromeo "harness-agnostic"* (QAS-4):
+substrate-neutral gate. *This adapter seam is what makes borromeanRings "harness-agnostic"* (QAS-4):
 a future OpenCode adapter is a new directory with zero edits to `checks/` or `verify.sh`.
 
 **Deep modules, not shallow:** `verify.sh` hides a lot (ordering, receipt aggregation, fail-closed
 logic, config cross-check) behind a tiny interface (run it; read the exit code). Good ratio.
 
-**Single Choice Principle:** exactly one place — `borromeo.toml` (the policy spine) — declares the full set of checks.
+**Single Choice Principle:** exactly one place — `borromeanrings.toml` (the policy spine) — declares the full set of checks.
 Adding/removing a check touches that one place plus the check file; the gate code is untouched.
 
 ---
@@ -77,7 +77,7 @@ Adding/removing a check touches that one place plus the check file; the gate cod
 - **Cohesion:** each check does exactly one thing (format, lint, type, test, security) — **high
   cohesion.** The gate's single concern is *aggregate-and-decide*.
 - **Semantic-dependency watch (Part 2 L5):** the most dangerous coupling would be a check that
-  silently assumes another ran first. The `borromeo.toml` required set + fail-closed-on-missing-receipt rule converts
+  silently assumes another ran first. The `borromeanrings.toml` required set + fail-closed-on-missing-receipt rule converts
   that latent semantic dependency into a detectable failure.
 
 ---
@@ -92,7 +92,7 @@ Adding/removing a check touches that one place plus the check file; the gate cod
 - **Behavioral view:** the Stop-hook loop — run gate → (pass ⇒ allow stop) / (fail & under cap ⇒
   feed back, block stop) / (fail & at cap ⇒ escalate, stop). Bounded; see US-4.
 - **Data view:** receipts — per-run directory of `{check, command, exit_code, log, status}` JSON +
-  the `borromeo.toml` required-check set. The seed of the future audit/self-assurance layer.
+  the `borromeanrings.toml` required-check set. The seed of the future audit/self-assurance layer.
 
 ---
 
@@ -101,7 +101,7 @@ Adding/removing a check touches that one place plus the check file; the gate cod
 | Anticipated change | Likely? | Effort under this design |
 |---|---|---|
 | Swap a check's tool (bandit→semgrep) | High | 1 file (the check); gate untouched ✔ |
-| Add a new check | High | 1 file + 1 line in `borromeo.toml` ✔ |
+| Add a new check | High | 1 file + 1 line in `borromeanrings.toml` ✔ |
 | Target a new harness/substrate | Medium | new adapter dir; gate + checks untouched ✔ |
 | Change receipt schema | Medium | `_lib.sh` only ✔ |
 | Add the external critic / config spine | Medium (deferred) | new caller of the gate; the registry pattern already supports plug-in growth ✔ |

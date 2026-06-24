@@ -20,7 +20,7 @@ from meta_harness.spine import Config, load_config
 
 
 def _make_project(tmp_path: Path) -> Config:
-    (tmp_path / "borromeo.toml").write_text(
+    (tmp_path / "borromeanrings.toml").write_text(
         '[checks]\nrequired = ["00_build"]\n[project]\nsrc_dir = "src"\ntests_dir = "tests"\n',
         encoding="utf-8",
     )
@@ -31,7 +31,7 @@ def _make_project(tmp_path: Path) -> Config:
     (tmp_path / "tests" / "test_app.py").write_text(
         "def test_x():\n    assert True\n", encoding="utf-8"
     )
-    return load_config(tmp_path / "borromeo.toml")
+    return load_config(tmp_path / "borromeanrings.toml")
 
 
 def test_hash_is_deterministic(tmp_path: Path) -> None:
@@ -70,7 +70,7 @@ def test_non_gated_file_does_not_block_skip(tmp_path: Path) -> None:
     # code, so it must not force a full gate run.
     config = _make_project(tmp_path)
     record_green(tmp_path, config)
-    (tmp_path / "borromeo-prompts.txt").write_text("a question, no code change\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("a question, no code change\n", encoding="utf-8")
     assert should_skip_gate(tmp_path, config) is True
 
 

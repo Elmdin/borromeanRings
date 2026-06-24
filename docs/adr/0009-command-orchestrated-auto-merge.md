@@ -10,11 +10,11 @@ are unavailable** — the API returns *"Upgrade to GitHub Pro or make this repos
 GitHub cannot enforce the gate server-side here, and native `--auto` has no required check to wait on.
 
 ## Decision
-borromeo orchestrates the gating **itself**, from its own merge command: `./merge.sh --auto` runs
+borromeanRings orchestrates the gating **itself**, from its own merge command: `./merge.sh --auto` runs
 the local gate, then **waits for the PR's CI checks to pass** (`gh pr checks --watch --fail-fast`),
 then merges. The same `verify.sh` runs both locally and in CI (ADR-0008), so the verdict is
 consistent. This delivers "merge automatically once everything passes" without a paid plan, and fits
-borromeo's nature as a **local-first orchestrator** (the harness does the waiting, not GitHub).
+borromeanRings's nature as a **local-first orchestrator** (the harness does the waiting, not GitHub).
 
 The invariant from ADR-0007 still holds: a merge happens only when explicitly invoked **and** the
 gate is green. `--auto` is still per-merge and explicit — there is no standing, unattended mode.

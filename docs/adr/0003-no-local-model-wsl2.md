@@ -4,10 +4,10 @@
 
 ## Context
 The development and execution environment is a **WSL2 laptop with no GPU**. This is a hard
-constraint on what borromeo can assume about compute.
+constraint on what borromeanRings can assume about compute.
 
 ## Decision
-Assume **no local model and no GPU**. borromeo is designed as local orchestration + deterministic
+Assume **no local model and no GPU**. borromeanRings is designed as local orchestration + deterministic
 shell/Python checks only; all model inference is remote (ADR-0002).
 
 ## Alternatives considered
@@ -17,7 +17,7 @@ shell/Python checks only; all model inference is remote (ADR-0002).
   role; would add a dependency the gate doesn't need.
 
 ## Consequences
-- (+) borromeo runs anywhere a shell + Python + network exist; no hardware lock-in.
+- (+) borromeanRings runs anywhere a shell + Python + network exist; no hardware lock-in.
 - (+) The gate is fully deterministic and GPU-free — exactly the part we want reproducible.
 - (−) Hard dependency on network/API availability for the *agent* (not for the gate itself; the
   gate runs offline once code exists).

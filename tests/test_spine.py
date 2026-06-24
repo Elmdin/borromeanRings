@@ -8,7 +8,7 @@ from meta_harness.spine import load_config
 
 
 def _write(tmp_path: Path, body: str) -> Path:
-    config = tmp_path / "borromeo.toml"
+    config = tmp_path / "borromeanrings.toml"
     config.write_text(body, encoding="utf-8")
     return config
 

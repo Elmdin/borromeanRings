@@ -3,14 +3,14 @@
 **Status:** Accepted
 
 ## Context
-borromeo had **no** git-identity enforcement. Agents working in governed repos
+borromeanRings had **no** git-identity enforcement. Agents working in governed repos
 committed under whatever `git config user.*` happened to be set — and in the field
 a wrong GitHub account ended up authoring commits. Commit provenance is a
 correctness/security property (who authored what), so this is a real gate gap, not
 cosmetics.
 
 ## Decision
-A project **declares** its commit identity in `borromeo.toml`:
+A project **declares** its commit identity in `borromeanrings.toml`:
 ```toml
 [git]
 name  = "wimaan3"
@@ -44,10 +44,10 @@ declared fields are checked (declare email only ⇒ name is unconstrained).
   and unsteerable; declaring it in the spine makes the invariant explicit and auditable.
 
 ## Consequences
-- (+) Commit provenance is now a borromeo invariant — the wrong-account failure the
+- (+) Commit provenance is now a borromeanRings invariant — the wrong-account failure the
   Maintainer hit cannot recur silently in a governed repo.
 - (+) Substrate-neutral and reference-mode safe: guard and check both read the
-  *governed* repo's identity, so it works when borromeo governs another project.
+  *governed* repo's identity, so it works when borromeanRings governs another project.
 - (−) Requires each project to declare `[git]` (or `init.sh` to seed it); undeclared
   repos get no enforcement (acceptable: identity can't be guessed).
 - (−) The guard matches `git commit`/`git push` by substring; exotic invocations could

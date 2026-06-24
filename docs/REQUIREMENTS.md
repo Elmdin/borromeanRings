@@ -1,4 +1,4 @@
-# borromeo — Requirements (v0)
+# borromeanRings — Requirements (v0)
 
 > CS130 framing (Part 1): requirements state **what**, never **how**. Functional needs are
 > user stories (INVEST) with **Given/When/Then** acceptance criteria; quality attributes are
@@ -6,7 +6,7 @@
 > v0 gate's acceptance tests — the requirement and the test are the same artifact (traceability).
 >
 > Scope: v0 only. Roles: **Author** (a human or an AI coding agent producing a change — they are
-> deliberately indistinguishable to borromeo), **Maintainer** (a human governing the repo).
+> deliberately indistinguishable to borromeanRings), **Maintainer** (a human governing the repo).
 
 ---
 

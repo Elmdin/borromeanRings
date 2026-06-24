@@ -4,12 +4,12 @@
 
 ## Context
 The user asked for an "auto-merge" capability so they don't have to merge by hand in GitHub. This
-sits directly on borromeo's locked principle (ADR/PLAN-v0 §12.5): self-**extension** is allowed,
-self-**rewriting** is not — *a human approves every merge to borromeo itself.* A naive "auto-merge
+sits directly on borromeanRings's locked principle (ADR/PLAN-v0 §12.5): self-**extension** is allowed,
+self-**rewriting** is not — *a human approves every merge to borromeanRings itself.* A naive "auto-merge
 everything" mode would violate that.
 
 ## Decision
-borromeo gains a `./merge.sh` command bound by one invariant: **a merge happens only when (a) a
+borromeanRings gains a `./merge.sh` command bound by one invariant: **a merge happens only when (a) a
 human explicitly invokes it AND (b) the gate (`verify.sh`) exits 0.** It mechanizes the human's
 decision; it never originates a merge. There is **no standing/blanket auto-merge mode**. The rule is
 encoded and unit-tested in `meta_harness.merge_policy`, separate from the git plumbing in `merge.sh`.

@@ -1,6 +1,6 @@
 """The policy spine: the single declarative source of this repo's invariants.
 
-Loads ``borromeo.toml`` and exposes the required-check set and declared context.
+Loads ``borromeanrings.toml`` and exposes the required-check set and declared context.
 The gate (``verify.sh``) consumes the required set and enforces config-compliance:
 every declared check must produce a pass receipt. The spine governs *outcomes*
 (what must hold), deliberately not *how* the wrapped agent plans or decides.
@@ -17,13 +17,13 @@ import tomllib
 
 @dataclass(frozen=True)
 class Config:
-    """The declared invariants borromeo enforces on every run."""
+    """The declared invariants borromeanRings enforces on every run."""
 
     required_checks: tuple[str, ...]
     context: Mapping[str, Any]
     prompt_rewriting_enabled: bool = False
     hygiene_requires: tuple[str, ...] = ()
-    # [project] — what borromeo targets in the GOVERNED project (portability).
+    # [project] — what borromeanRings targets in the GOVERNED project (portability).
     package: str = ""  # importable package name (optional; "" → skip import check)
     src_dir: str = "src"
     tests_dir: str = "tests"
@@ -38,14 +38,14 @@ class Config:
     test_groups: tuple[str, ...] = ()
 
 
-def load_config(path: str | Path = "borromeo.toml") -> Config:
-    """Load and validate the policy spine from ``borromeo.toml``.
+def load_config(path: str | Path = "borromeanrings.toml") -> Config:
+    """Load and validate the policy spine from ``borromeanrings.toml``.
 
     Fail-closed: an empty or absent ``[checks].required`` is a misconfiguration
-    and raises — borromeo never treats "nothing declared" as "nothing to enforce".
+    and raises — borromeanRings never treats "nothing declared" as "nothing to enforce".
 
     Args:
-        path: path to the TOML config (default ``borromeo.toml``).
+        path: path to the TOML config (default ``borromeanrings.toml``).
 
     Returns:
         The validated :class:`Config`.
@@ -57,7 +57,7 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
     required = list(raw.get("checks", {}).get("required", []))
     if not required:
         raise ValueError(
-            "borromeo.toml must declare a non-empty [checks].required — "
+            "borromeanrings.toml must declare a non-empty [checks].required — "
             "no declared checks is a misconfiguration (fail-closed)."
         )
     context: Mapping[str, Any] = raw.get("context", {})

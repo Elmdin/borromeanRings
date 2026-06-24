@@ -9,7 +9,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
 id="40_test"
 log="$RECEIPT_DIR/$id.log"
 covjson="$RECEIPT_DIR/coverage.json"
-baseline_file="$PROJECT_ROOT/.borromeo-coverage-baseline"
+baseline_file="$PROJECT_ROOT/.borromeanrings-coverage-baseline"
 cmd="pytest --cov (ratchet vs baseline)"
 
 if ! python3 -m pytest --version >/dev/null 2>&1; then
@@ -26,14 +26,14 @@ rm -f "$PROJECT_ROOT/.coverage" "$PROJECT_ROOT"/.coverage.* 2>/dev/null || true
 
 # `exec` so pytest is the timeout's direct child: on a hang it gets SIGTERM/SIGKILL
 # directly (no orphaned pytest lingering past the gate). See checks/_lib.sh.
-borromeo_run_bounded "$log" "exec python3 -m pytest -q --cov --cov-report=json:\"$covjson\""
+borromeanrings_run_bounded "$log" "exec python3 -m pytest -q --cov --cov-report=json:\"$covjson\""
 code=$?
 
 # pytest exit 5 = "no tests collected". On a GREENFIELD project (no source either) that's not a
 # failure — there's simply nothing to test yet (don't force scaffolding during planning). But if
 # source exists with no tests, that IS a gap → fail (untested code).
 if [ "$code" -eq 5 ]; then
-  src_dir="$(borromeo_project_cfg src_dir)"
+  src_dir="$(borromeanrings_project_cfg src_dir)"
   if [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -print -quit 2>/dev/null)" ]; then
     echo "no tests and no source yet (greenfield) — nothing to test" >>"$log"
     emit_receipt "$id" "$cmd" 0 "$log" "pass"

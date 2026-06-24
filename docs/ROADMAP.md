@@ -1,4 +1,4 @@
-# borromeo — Roadmap (every feature, with status)
+# borromeanRings — Roadmap (every feature, with status)
 
 > The single place to see the **whole feature set** and where each piece stands. Vision/why is in
 > [`VISION.md`](VISION.md); v0 detail in `PLAN-v0.md`. Order follows the Build Brief §9 build order:
@@ -29,20 +29,20 @@
 | Auto-merge: `merge.sh --auto` waits for the PR's CI to pass, then merges | 🟦 in review | `merge.sh`, ADR-0009 |
 | ~~Server-side branch protection / native `--auto`~~ | ⛔ blocked | needs GitHub Pro/Team or a public repo (private+free can't require checks); command-orchestrated instead (ADR-0009) |
 
-## Scope: borromeo enhances agent capabilities (incl. deep research)
-borromeo's roadmap is **harness features** — including the **deep-research enhancement** (borromeo
+## Scope: borromeanRings enhances agent capabilities (incl. deep research)
+borromeanRings's roadmap is **harness features** — including the **deep-research enhancement** (borromeanRings
 improves the agent's *built-in* deep research; it does not build a research product from scratch).
 
 The only thing **out of scope** is an end-user app: the **notes/Kernel** is a separate product built
-*with* borromeo (its own repo when built). See [`MANIFESTO.md`](MANIFESTO.md).
+*with* borromeanRings (its own repo when built). See [`MANIFESTO.md`](MANIFESTO.md).
 
 ## Research enhancement — steer the agent's own search (ADR-0014)
-borromeo does **not** search itself — it *steers the wrapped agent's existing search* to be
+borromeanRings does **not** search itself — it *steers the wrapped agent's existing search* to be
 far more thorough and trustworthy. Delivered as a **user-invoked skill**
-(`.claude/skills/borromeo-research/`): the agent shows a steerable search plan, runs many
+(`.claude/skills/borromeanrings-research/`): the agent shows a steerable search plan, runs many
 query mutations across multiple engines + dorking + platforms, goes beyond the top results
 (result graph, citation chains, handles ads/paywalls/anti-bot), synthesizes across all, and
-**verifies every claim against its source (fail-closed)**, visibly. borromeo enforces; the
+**verifies every claim against its source (fail-closed)**, visibly. borromeanRings enforces; the
 agent performs (with its own tools).
 
 The earlier Python search pipeline (`meta_harness/deep_research.py` + runners) is a
@@ -53,8 +53,8 @@ Each is a future self-extension (build → gate → human-approved adopt).
 
 | Capability | What it is | Status |
 |---|---|---|
-| **Config/policy spine** | Declarative `borromeo.toml`: declare required checks + context → enforced on every run (config-compliance). First iteration: required-check set + `[context]` | 🟦 in review (ADR-0010) |
-| **Prompt rewriting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeo enforces it via a UserPromptSubmit hook using the spine's `[context]`; shows the rewrite; toggle in `borromeo.toml`. Multi-prompting deferred. | 🟦 in review (ADR-0011) |
+| **Config/policy spine** | Declarative `borromeanrings.toml`: declare required checks + context → enforced on every run (config-compliance). First iteration: required-check set + `[context]` | 🟦 in review (ADR-0010) |
+| **Prompt rewriting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeanRings enforces it via a UserPromptSubmit hook using the spine's `[context]`; shows the rewrite; toggle in `borromeanrings.toml`. Multi-prompting deferred. | 🟦 in review (ADR-0011) |
 | **Git-identity enforcement** | Declared commit identity (`[git]`) enforced two ways: PreToolUse guard blocks wrong-identity commit/push, gate check `06_git_identity` fails closed on any wrong-author commit | ✅ (ADR-0017) |
 | **Repository-layout enforcement** | Declared `[layout]`: specs under `specs_dir`, repo-root `.md` allowlist, large flat test suites grouped by type — gate check `07_layout`, fail-closed | ✅ (ADR-0018) |
 | **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⏳ |
@@ -69,8 +69,8 @@ Each is a future self-extension (build → gate → human-approved adopt).
 | **Cloud-sandbox executor + offline prompt optimization** | Heavier execution + tuning environments | ⏳ |
 | **Full self-assurance layer** | Tool-use instrumentation, config-compliance diffing, tamper-evidence, adversarial self-testing | ⏳ (receipts seeded in v0) |
 
-## Separate products (built with borromeo — NOT on this roadmap)
-These were previously mis-scoped as borromeo "layers." They are **separate products**, each in its
+## Separate products (built with borromeanRings — NOT on this roadmap)
+These were previously mis-scoped as borromeanRings "layers." They are **separate products**, each in its
 own repo when built. Their specs/research live here only as seeds pending extraction.
 
 - **Deep Research tool** — find & synthesize information (deterministic, visualized, citation-verified,
@@ -80,12 +80,12 @@ own repo when built. Their specs/research live here only as seeds pending extrac
 - **Notes / Kernel** — organize notes/plans into tasks, roadmaps, and visual maps on **Obsidian**
   (never rebuild an editor); turn everything into actionable next steps. Not started.
 
-*(A research-to-build-software capability — a "research front-of-loop" that helps borromeo's wrapped
+*(A research-to-build-software capability — a "research front-of-loop" that helps borromeanRings's wrapped
 agent build software better — may remain a harness feature; that is distinct from the standalone
 Deep Research product above.)*
 
 ## How items graduate
 A deferred item becomes real only when the Maintainer directs it. It is then: spec'd
-(`docs/specs/SPEC-*.md`) → built on a branch → passes borromeo's own gate → human-approved merge (PR).
-Capabilities adopted *into* borromeo face a **same-or-stricter** gate (trust root). Open setup
+(`docs/specs/SPEC-*.md`) → built on a branch → passes borromeanRings's own gate → human-approved merge (PR).
+Capabilities adopted *into* borromeanRings face a **same-or-stricter** gate (trust root). Open setup
 questions live in `DELAYED-DECISIONS.md`.

@@ -4,14 +4,14 @@
 > Scope of this document: v0 only (Build Brief §9 step 1). Everything past the v0 gate is listed under "Explicitly deferred" and is NOT built now.
 >
 > **Companion docs** (the why/vision, plus the requirements/design/decision artifacts this plan is realized through):
-> - [`docs/MANIFESTO.md`](docs/MANIFESTO.md) — **the north star**: why borromeo exists. borromeo is the **meta-harness**; the deep-research and notes tools are separate products built *with* it.
-> - [`docs/VISION.md`](docs/VISION.md) — the whole product borromeo (the meta-harness) is meant to become: thesis, the 7 target components, full harness feature set, the self-extension loop, the verification ladder, the red lines.
+> - [`docs/MANIFESTO.md`](docs/MANIFESTO.md) — **the north star**: why borromeanRings exists. borromeanRings is the **meta-harness**; the deep-research and notes tools are separate products built *with* it.
+> - [`docs/VISION.md`](docs/VISION.md) — the whole product borromeanRings (the meta-harness) is meant to become: thesis, the 7 target components, full harness feature set, the self-extension loop, the verification ladder, the red lines.
 > - [`docs/ROADMAP.md`](docs/ROADMAP.md) — **every feature, with status** (shipped / in-review / next / deferred). Start here to see the full feature set.
 > - [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) — user stories (INVEST) + Given/When/Then ACs + Quality Attribute Scenarios. These ACs/QAS *are* the v0 gate's acceptance tests.
 > - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — drivers, style, module secrets (information hiding), views, Change Impact Analysis.
 > - [`docs/adr/`](docs/adr/README.md) — Architecture Decision Records for the load-bearing decisions (substrate, hosting, hardware, stack, the registry/adapter seam).
 > - [`docs/TEST-PLAN.md`](docs/TEST-PLAN.md) — test plan derived from the design: testability (controllability/observability), the red/green matrix (= §9.2), QAS tests, mutation-vs-coverage rationale.
-> - [`docs/PROCESS.md`](docs/PROCESS.md) — how borromeo itself is built: risk-driven + incremental, the gate as a mechanized Definition of Done, TDD rhythm, and responsible-GenAI operating rules.
+> - [`docs/PROCESS.md`](docs/PROCESS.md) — how borromeanRings itself is built: risk-driven + incremental, the gate as a mechanized Definition of Done, TDD rhythm, and responsible-GenAI operating rules.
 > - [`docs/DELAYED-DECISIONS.md`](docs/DELAYED-DECISIONS.md) — the §11 open questions, tracked with a default + what's needed to resolve each.
 
 ---
@@ -25,7 +25,7 @@
 | Hardware | **WSL2 laptop, no GPU** | No local model. The harness is pure local orchestration + deterministic checks; inference is remote. |
 | First stack | **Python** | `verify.sh` targets Python: `ruff format` + `ruff check` + `mypy` + `pytest`/coverage + `bandit`. |
 
-**The first project the harness governs is its own repo (`borromeo/`).** It is a Python project. We dogfood from commit one: the harness's own development is gated by the harness's own `verify.sh` via the Stop hook.
+**The first project the harness governs is its own repo (`borromeanrings/`).** It is a Python project. We dogfood from commit one: the harness's own development is gated by the harness's own `verify.sh` via the Stop hook.
 
 ---
 
@@ -54,7 +54,7 @@ The Generator adapter, Executor interface, Orchestrator, and Config/policy spine
 ## 4. Repository layout (v0)
 
 ```
-borromeo/
+borromeanrings/
 ├── AGENTS.md                      # non-obvious rules only; agent-neutral
 ├── PLAN-v0.md                     # this spec
 ├── README.md                      # what this is, how to run the gate
@@ -225,7 +225,7 @@ Per Brief §9 build order, the following are out of v0 and built only after the 
 
 ## 11. Open questions for the human (before scaffolding)
 
-1. **Repo name / packaging:** keep working name `borromeo` and Python package `meta_harness`? Any preferred name?
+1. **Repo name / packaging:** keep working name `borromeanRings` and Python package `meta_harness`? Any preferred name?
 2. **Coverage approach (revised):** v0 uses coverage *reported + non-regression ratchet*, NOT an absolute % gate; mutation testing (the real signal, §8) is deferred to a later step. This consciously overrides the CLAUDE.md 80% default — confirm you're good with it.
 3. **Security tool:** `bandit` only for v0, or also wire `semgrep` if available (heavier install on the WSL2 box)? Recommendation: `bandit` only in v0, add `semgrep` later.
 4. **Git:** initialize the repo as part of scaffolding (`git init`, first commit = this plan + scaffold)? The environment currently reports it is not a git repo.
@@ -234,13 +234,13 @@ Per Brief §9 build order, the following are out of v0 and built only after the 
 
 ## 12.5 Core design principle — self-extension (build → gate → adopt)
 
-borromeo is intended to **compound its own capabilities** over time: it builds a new capability, gates it, and — on human approval — registers it into its own feature set, becoming more capable for the next build. The first planned self-adopted capability is **deep-research / synthesis** (Brief §4 names this explicitly). This is a *core* feature, not a nice-to-have.
+borromeanRings is intended to **compound its own capabilities** over time: it builds a new capability, gates it, and — on human approval — registers it into its own feature set, becoming more capable for the next build. The first planned self-adopted capability is **deep-research / synthesis** (Brief §4 names this explicitly). This is a *core* feature, not a nice-to-have.
 
-**The loop:** borromeo builds capability X → X passes borromeo's own gate (+ external critic + human approval) → X is registered as a plugin in borromeo's registry → borromeo uses X to build the next capability.
+**The loop:** borromeanRings builds capability X → X passes borromeanRings's own gate (+ external critic + human approval) → X is registered as a plugin in borromeanRings's registry → borromeanRings uses X to build the next capability.
 
-**The hard line (Brief §6.3):** this is self-*extension* (new capability, human-approved merge, fully auditable), **never** self-*rewriting* (autonomous modification of its own core/gates). Pragmatic self-improvement, not recursive runaway. The human approves every merge to borromeo itself.
+**The hard line (Brief §6.3):** this is self-*extension* (new capability, human-approved merge, fully auditable), **never** self-*rewriting* (autonomous modification of its own core/gates). Pragmatic self-improvement, not recursive runaway. The human approves every merge to borromeanRings itself.
 
-**Stricter gate for self-adopted capabilities:** once a capability becomes part of borromeo's *own* feature set, it is part of the **trust root** — a bug there silently corrupts everything borromeo verifies afterward. So anything borromeo adopts into itself must pass the **same-or-stricter** gate than code it produces for others (full check suite + external critic + explicit human sign-off, every time). Ties into the §11 integrity / tamper-evidence layer.
+**Stricter gate for self-adopted capabilities:** once a capability becomes part of borromeanRings's *own* feature set, it is part of the **trust root** — a bug there silently corrupts everything borromeanRings verifies afterward. So anything borromeanRings adopts into itself must pass the **same-or-stricter** gate than code it produces for others (full check suite + external critic + explicit human sign-off, every time). Ties into the §11 integrity / tamper-evidence layer.
 
 **v0 implication (small, real):** keep the `checks/`-style registry pattern clean and pluggable so that, later, *tools/capabilities* can be registered the same way *checks* are. We do NOT build the tool registry in v0 — we only avoid an architecture that would make adding it a rewrite. The capability-building (Tools+MCP, Brief §4) and adoption mechanics are a deferred step (see §10).
 

@@ -2,7 +2,7 @@
 
 > CS130 (Part 1 L4 / Part 4): an ADR is the organizational memory of a load-bearing decision —
 > context, the alternatives considered, the choice, and its consequences — so the decision can be
-> revisited later instead of silently re-litigated. borromeo records these because its own thesis
+> revisited later instead of silently re-litigated. borromeanRings records these because its own thesis
 > is auditable, evidence-backed engineering: it would be hypocritical to make these choices without
 > a trail.
 
@@ -19,8 +19,8 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0007](0007-gated-explicit-merge.md) | Gated, explicitly-requested merge (no autonomous self-merge) | Accepted |
 | [0008](0008-ci-runs-the-gate.md) | CI runs the gate as the required status check | Accepted |
 | [0009](0009-command-orchestrated-auto-merge.md) | Command-orchestrated auto-merge (free private repo) | Accepted |
-| [0010](0010-config-policy-spine.md) | Config/policy spine (`borromeo.toml`) | Accepted |
-| [0011](0011-prompt-rewriting.md) | Prompt rewriting: enforced by borromeo, performed by the agent | Accepted |
+| [0010](0010-config-policy-spine.md) | Config/policy spine (`borromeanrings.toml`) | Accepted |
+| [0011](0011-prompt-rewriting.md) | Prompt rewriting: enforced by borromeanRings, performed by the agent | Accepted |
 | [0012](0012-engineering-process.md) | Engineering process = risk-driven + TDD | Accepted |
 | [0013](0013-portability-reference-model.md) | Portability: govern any project by reference | Accepted |
 | [0014](0014-research-enhances-agent-not-searches.md) | Research enhancement steers the agent's own search | Accepted |

@@ -4,15 +4,15 @@
 
 ## Context
 The deep-research work drifted into a **Python pipeline that searches by itself** (urllib →
-Wikipedia API). The Maintainer corrected the scope: borromeo's job is to **enhance the wrapped
+Wikipedia API). The Maintainer corrected the scope: borromeanRings's job is to **enhance the wrapped
 agent's existing search** (e.g. Claude Code's WebSearch/browse) — give the user agency, influence,
 and visibility, and make the agent search far more thoroughly — *using the agent's own search
-infrastructure*. borromeo must not be its own search engine.
+infrastructure*. borromeanRings must not be its own search engine.
 
 ## Decision
-borromeo's research enhancement is a **steering layer**, same pattern as prompt-rewriting (borromeo
+borromeanRings's research enhancement is a **steering layer**, same pattern as prompt-rewriting (borromeanRings
 enforces; the agent performs):
-- Delivered as a **user-invoked skill** (`.claude/skills/borromeo-research/SKILL.md`) — the user
+- Delivered as a **user-invoked skill** (`.claude/skills/borromeanrings-research/SKILL.md`) — the user
   invokes it for agency + visibility.
 - The skill makes the agent: show a **search plan** the user can steer; run **many query
   mutations** across **multiple engines/platforms** (incl. Google dorking, social/specialized
@@ -23,7 +23,7 @@ enforces; the agent performs):
   testbed** (kept, not deleted — it exercises the concepts), not the product.
 
 ## Alternatives considered
-- **borromeo runs its own search pipeline** (what was built) — rejected: replaces the agent instead
+- **borromeanRings runs its own search pipeline** (what was built) — rejected: replaces the agent instead
   of enhancing it, can't reach the agent's real search infra from Python, and isn't agent-agnostic.
 - **Always-on hook** (auto-inject on research intent) — deferred: the Maintainer wants explicit
   agency, so a user-invoked skill is primary; an auto hook can be added later.

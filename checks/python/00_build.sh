@@ -5,8 +5,8 @@
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
 
-src_dir="$(borromeo_project_cfg src_dir)"
-package="$(borromeo_project_cfg package)"
+src_dir="$(borromeanrings_project_cfg src_dir)"
+package="$(borromeanrings_project_cfg package)"
 
 if [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -print -quit 2>/dev/null)" ]; then
   log="$RECEIPT_DIR/00_build.log"

@@ -1,4 +1,4 @@
-# borromeo — Delayed Decisions Log
+# borromeanRings — Delayed Decisions Log
 
 > CS130 (Part 1, L4): *"Identify decisions that need more info or are likely to change; design
 > so the system does not assume a solution; keep a list of delayed decisions and track what is
@@ -34,5 +34,5 @@ from commit one (supports the "failures become permanent checks" and audit princ
 ---
 
 ### Resolved
-- **Repo / package naming:** keep working name `borromeo`, Python package `meta_harness`
+- **Repo / package naming:** keep working name `borromeanRings`, Python package `meta_harness`
   (Maintainer confirmed). → captured implicitly; promote to ADR if it ever feels load-bearing.

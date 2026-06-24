@@ -1,8 +1,8 @@
 """File-organization gates: keep a governed repo tidy.
 
 Agents tend to dump specs at the repo root, scatter docs, and lay large test
-suites out flat. A project DECLARES its layout conventions in ``borromeo.toml``
-(``[layout]``) and borromeo enforces them fail-closed. Each rule is independently
+suites out flat. A project DECLARES its layout conventions in ``borromeanrings.toml``
+(``[layout]``) and borromeanRings enforces them fail-closed. Each rule is independently
 opt-in (absent/zero ⇒ off). This module is the pure decision logic; the
 ``07_layout`` check gathers the filesystem facts and calls it.
 

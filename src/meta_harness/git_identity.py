@@ -1,7 +1,7 @@
 """Git-identity enforcement: commits/pushes must use the declared identity.
 
 A project DECLARES the git identity its commits must use (``[git].name``/``email``
-in ``borromeo.toml``). A wrong account committing is a correctness/security failure
+in ``borromeanrings.toml``). A wrong account committing is a correctness/security failure
 (broken provenance). This module is the pure decision logic; a PreToolUse guard
 uses it preventively (block the bad commit) and a gate check uses it as a backstop
 (fail-closed on any commit that slipped through). Not declared ⇒ not enforced.

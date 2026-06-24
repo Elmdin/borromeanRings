@@ -23,10 +23,13 @@ declaration; `init.sh` seeds it for new projects). Enforcement is **two layers**
    when the governed repo's configured `user.name`/`user.email` doesn't match the
    declared identity, with a one-line fix in the denial reason. Stops the bad commit
    before it exists. Fails *open* on guard error (the gate is the backstop).
-2. **Gate backstop** — required check `06_git_identity` fails closed if the configured
-   identity, or any commit unique to the branch (`main..HEAD`, or HEAD when there's no
-   `main`), is not the declared identity. Catches anything the guard missed (e.g.
-   `--author=` overrides, commits made outside the agent).
+2. **Gate backstop** — required check `06_git_identity` fails closed if any commit
+   unique to the branch is not *authored* by the declared identity (base = `main`/
+   `origin/main` when present, else the tip non-merge commit). It checks commit
+   **authorship** — provenance metadata that travels with the commit, so the verdict
+   holds in CI and fresh clones — **not** the repo's transient `git config user.*`,
+   which a CI runner legitimately leaves unset (that is the guard's concern only).
+   Catches `--author=` overrides and commits made outside the agent.
 
 Decision logic lives in `meta_harness.git_identity` (pure, unit-tested to the repo's
 100% baseline): `is_enforced`, `configured_violation`, `author_violations`. Only

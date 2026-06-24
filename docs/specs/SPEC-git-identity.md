@@ -23,10 +23,14 @@ declaration). `init.sh` seeds it for new projects from the user's `git config`.
    runs, compare the repo's configured `user.name`/`user.email` (and any
    `--author=` override) to the declared identity. Mismatch ⇒ **deny** the command
    with a clear reason. Stops the bad commit before it exists.
-2. **Gate backstop** (`checks/shared/06_git_identity.sh`): fail-closed if the
-   configured identity, or any commit unique to the branch (`<base>..HEAD`, base =
-   `main` when present), is not the declared identity. Catches anything the guard
-   missed (e.g. commits made outside the agent).
+2. **Gate backstop** (`checks/shared/06_git_identity.sh`): fail-closed if any commit
+   unique to the branch is not *authored* by the declared identity. Base = first of
+   `main` / `origin/main` that exists (full-range locally); otherwise the tip
+   non-merge commit (CI checks out a detached merge-ref with no local base). The gate
+   checks commit **authorship** (metadata that travels with the commit, so it holds
+   in CI and fresh clones) — **not** the repo's transient `git config user.*`, which
+   a CI runner legitimately leaves unset/different. Configured identity is the guard's
+   concern only.
 
 ## Contracts (`meta_harness.git_identity`, pure + unit-tested)
 - `Identity(name, email)`.

@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + all branches so check 06_git_identity can resolve a base
+          # (origin/main) and evaluate commit provenance. The default shallow depth-1
+          # checkout has no base ref, which the identity gate needs. See ADR-0017.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

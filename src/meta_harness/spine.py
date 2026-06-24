@@ -28,6 +28,9 @@ class Config:
     src_dir: str = "src"
     tests_dir: str = "tests"
     language: str = "python"  # selects checks/<language>/ — the per-language check set
+    # [git] — declared commit identity; empty ⇒ identity enforcement is off.
+    git_name: str = ""
+    git_email: str = ""
 
 
 def load_config(path: str | Path = "borromeo.toml") -> Config:
@@ -56,6 +59,7 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
     project = raw.get("project", {})
+    git = raw.get("git", {})
     return Config(
         required_checks=tuple(required),
         context=context,
@@ -65,4 +69,6 @@ def load_config(path: str | Path = "borromeo.toml") -> Config:
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
         language=str(project.get("language", "python")),
+        git_name=str(git.get("name", "")),
+        git_email=str(git.get("email", "")),
     )

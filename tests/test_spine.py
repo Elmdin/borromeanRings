@@ -71,3 +71,15 @@ def test_language_selects_check_set(tmp_path: Path) -> None:
         tmp_path, '[checks]\nrequired = ["00_build"]\n[project]\nlanguage = "typescript"\n'
     )
     assert load_config(declared).language == "typescript"
+
+
+def test_git_identity_loaded_and_defaults_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[git]\nname = "wimaan3"\nemail = "a@b.c"\n',
+    )
+    cfg = load_config(declared)
+    assert (cfg.git_name, cfg.git_email) == ("wimaan3", "a@b.c")
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert (load_config(default).git_name, load_config(default).git_email) == ("", "")

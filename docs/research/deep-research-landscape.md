@@ -4,7 +4,7 @@
 > how to improve the deep research the wrapped agent already has. Not a separate product.
 
 > Layer 2, step 1 (per the Manifesto): study existing deep-research before building ours. This is
-> the input to [`../SPEC-deep-research.md`](../SPEC-deep-research.md). Researched June 2026.
+> the input to [`../specs/SPEC-deep-research.md`](../specs/SPEC-deep-research.md). Researched June 2026.
 
 ## The common architecture (all systems share a 3-phase loop)
 1. **Plan** — decompose the query into sub-questions / objectives + a research plan.

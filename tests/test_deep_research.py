@@ -1,4 +1,4 @@
-"""Tests for the Phase-1 deep-research core (docs/SPEC-deep-research.md §5).
+"""Tests for the Phase-1 deep-research core (docs/specs/SPEC-deep-research.md §5).
 
 Verification = deterministic retrieval + an injected semantic judge. The 1925
 regression test encodes the lesson from live testing: lexical overlap alone

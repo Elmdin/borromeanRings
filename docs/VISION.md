@@ -57,7 +57,7 @@ with **any LLM + any harness combination**, plug-and-play with existing skills/t
 - **Deep-research enhancement** — most agents already do deep research; borromeo **improves their
   built-in research**: multi-engine + comprehensive coverage, query mutation, a completeness critic
   ("don't miss anything"), full step-by-step visibility, and **fact-check + deterministic gates** on
-  the findings (no unverified claim survives). See `SPEC-deep-research.md`. *(Active workstream.)*
+  the findings (no unverified claim survives). See `specs/SPEC-deep-research.md`. *(Active workstream.)*
 - **Tool access + MCP + plug-and-play** — reach external/internal tools and MCP servers; plug in any
   existing feature, skill, or tool; compose with other harnesses.
 - **Ever-growing & research-driven** — can apply existing or new research; **adopts the tools it

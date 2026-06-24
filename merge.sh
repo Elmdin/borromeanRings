@@ -14,7 +14,7 @@
 #             private repo; borromeo orchestrates the wait itself. See ADR-0009.
 #
 # Policy is in meta_harness.merge_policy; this is the plumbing.
-# See docs/SPEC-merge.md and docs/adr/{0007,0009}-*.md.
+# See docs/specs/SPEC-merge.md and docs/adr/{0007,0009}-*.md.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

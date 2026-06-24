@@ -1,4 +1,4 @@
-"""Tests for the prompt-rewrite directive builder (docs/SPEC-prompt-rewrite.md)."""
+"""Tests for the prompt-rewrite directive builder (docs/specs/SPEC-prompt-rewrite.md)."""
 
 from meta_harness.prompt_rewrite import build_directive
 

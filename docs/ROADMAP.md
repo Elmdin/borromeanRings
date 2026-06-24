@@ -56,6 +56,7 @@ Each is a future self-extension (build → gate → human-approved adopt).
 | **Config/policy spine** | Declarative `borromeo.toml`: declare required checks + context → enforced on every run (config-compliance). First iteration: required-check set + `[context]` | 🟦 in review (ADR-0010) |
 | **Prompt rewriting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeo enforces it via a UserPromptSubmit hook using the spine's `[context]`; shows the rewrite; toggle in `borromeo.toml`. Multi-prompting deferred. | 🟦 in review (ADR-0011) |
 | **Git-identity enforcement** | Declared commit identity (`[git]`) enforced two ways: PreToolUse guard blocks wrong-identity commit/push, gate check `06_git_identity` fails closed on any wrong-author commit | ✅ (ADR-0017) |
+| **Repository-layout enforcement** | Declared `[layout]`: specs under `specs_dir`, repo-root `.md` allowlist, large flat test suites grouped by type — gate check `07_layout`, fail-closed | ✅ (ADR-0018) |
 | **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⏳ |
 | **Mathematical verification (code & claims)** | Code: Hypothesis → CrossHair (SMT) → mutation → formal (Lean/Dafny, opt-in). Claims: verify factual assertions, distinct from code | ⏳ |
 | **Preserve wrapped-agent autonomy** | Enforce invariants on *outcomes*, never dictate the agent's planning/decisions (red line, VISION §6) | ✅ principle locked |
@@ -75,7 +76,7 @@ own repo when built. Their specs/research live here only as seeds pending extrac
 - **Deep Research tool** — find & synthesize information (deterministic, visualized, citation-verified,
   multi-engine, completeness-critic). Phase-1 prototype exists in-repo
   (`meta_harness/deep_research.py`, `tools/deep_research_demo.py`); spec + landscape in
-  [`SPEC-deep-research.md`](SPEC-deep-research.md) and [`research/`](research/). **To be extracted.**
+  [`specs/SPEC-deep-research.md`](specs/SPEC-deep-research.md) and [`research/`](research/). **To be extracted.**
 - **Notes / Kernel** — organize notes/plans into tasks, roadmaps, and visual maps on **Obsidian**
   (never rebuild an editor); turn everything into actionable next steps. Not started.
 
@@ -85,6 +86,6 @@ Deep Research product above.)*
 
 ## How items graduate
 A deferred item becomes real only when the Maintainer directs it. It is then: spec'd
-(`docs/SPEC-*.md`) → built on a branch → passes borromeo's own gate → human-approved merge (PR).
+(`docs/specs/SPEC-*.md`) → built on a branch → passes borromeo's own gate → human-approved merge (PR).
 Capabilities adopted *into* borromeo face a **same-or-stricter** gate (trust root). Open setup
 questions live in `DELAYED-DECISIONS.md`.

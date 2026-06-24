@@ -1,6 +1,6 @@
 # borromeo policy spine — the single source of declared invariants for this repo.
 # Declared once here, enforced on every gate run (config-compliance: every required
-# check must produce a pass receipt). See docs/SPEC-spine.md and docs/adr/0010-*.md.
+# check must produce a pass receipt). See docs/specs/SPEC-spine.md and docs/adr/0010-*.md.
 
 [project]
 # What borromeo targets in THIS governed project (portability — see ADR-0013).
@@ -16,12 +16,21 @@ tests_dir = "tests"
 name = "wimaan3"
 email = "imaansoltan@gmail.com"
 
+[layout]
+# File-organization conventions, enforced by check 07_layout (fail-closed). Each
+# rule is opt-in (empty/zero ⇒ off). See docs/specs/SPEC-layout.md and ADR-0018.
+specs_dir = "docs/specs"                                # every SPEC*.md must live here
+root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md"]  # the only .md allowed at repo root
+test_grouping_threshold = 15                            # > N flat test files ⇒ group by type
+test_groups = ["unit", "integration", "e2e"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
   "00_build",
   "05_hygiene",
   "06_git_identity",
+  "07_layout",
   "10_format",
   "20_lint",
   "30_typecheck",

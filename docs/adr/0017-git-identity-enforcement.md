@@ -52,3 +52,6 @@ declared fields are checked (declare email only ⇒ name is unconstrained).
   repos get no enforcement (acceptable: identity can't be guessed).
 - (−) The guard matches `git commit`/`git push` by substring; exotic invocations could
   evade the *preventive* layer, but the gate backstop still fails them closed.
+- (−) The provenance check needs a base ref to compute `base..HEAD`. CI must check out
+  full history (`actions/checkout` with `fetch-depth: 0`) so `origin/main` resolves;
+  the default shallow depth-1 checkout has no base and HEAD is a merge commit.

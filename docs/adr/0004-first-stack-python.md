@@ -3,7 +3,7 @@
 **Status:** Accepted
 
 ## Context
-borromeo's first governed project is its own repo. We need one concrete language toolchain to wire
+borromeanRings's first governed project is its own repo. We need one concrete language toolchain to wire
 real checks against, chosen for mature, fast, widely-installed deterministic tooling.
 
 ## Decision
@@ -27,7 +27,7 @@ real checks against, chosen for mature, fast, widely-installed deterministic too
 This choice was originally a near-default, not a researched rational decision. On review the
 Maintainer **confirmed Python** as a deliberate **low-stakes** choice, with honest rationale rather
 than exhaustive alternative-research:
-- borromeo is **stack-agnostic for the projects it governs** (any language via the check contract,
+- borromeanRings is **stack-agnostic for the projects it governs** (any language via the check contract,
   ADR-0005), so its *own* implementation language has **low blast radius** — not a load-bearing
   decision in CS130 terms.
 - Python's check toolchain (ruff/mypy/pytest/bandit) is mature and already wired and green.

@@ -1,16 +1,16 @@
-# SPEC — Gated, explicitly-requested merge (`borromeo merge`)
+# SPEC — Gated, explicitly-requested merge (`borromeanRings merge`)
 
 > Status: spec for the "command now" half of the auto-merge feature (the user chose
 > "command now, CI/GitHub-native next"). Plan → approve → implement; delivered via PR.
 
 ## 1. Purpose
 Let a human merge the current branch into the base **with one command**, instead of clicking
-merge in GitHub — but only when borromeo's gate is green. It mechanizes the human's merge
+merge in GitHub — but only when borromeanRings's gate is green. It mechanizes the human's merge
 decision; it does not make one.
 
 ## 2. The safety invariant (non-negotiable)
 A merge is permitted **iff both** hold:
-1. **Explicitly requested** — a human ran the command. borromeo never originates a merge on its own.
+1. **Explicitly requested** — a human ran the command. borromeanRings never originates a merge on its own.
 2. **Gate passed** — `./verify.sh` exited 0 on the branch being merged (fail-closed).
 
 There is **no standing/blanket auto-merge mode** — that would cross from self-*extension* into

@@ -1,4 +1,4 @@
-# borromeo — Test Plan (v0)
+# borromeanRings — Test Plan (v0)
 
 > CS130 framing (Part 3 L12–13 + Part 5 L18, L20): the test plan is **derived from the design** —
 > every test traces back to a requirement (`REQUIREMENTS.md` AC/QAS) and a design decision
@@ -8,7 +8,7 @@
 
 ---
 
-## 1. Testability of borromeo itself
+## 1. Testability of borromeanRings itself
 
 | Property | How v0 achieves it |
 |---|---|

@@ -11,27 +11,27 @@ organized. Layout is a real maintainability property; make it a declared, gated
 invariant rather than a matter of agent taste.
 
 ## Decision
-A project DECLARES its layout conventions in `borromeo.toml` `[layout]`, enforced by
+A project DECLARES its layout conventions in `borromeanrings.toml` `[layout]`, enforced by
 the new required check `07_layout` (fail-closed). Each rule is **independently
 opt-in** — off when its config is empty/zero, so the check never surprises an
 undeclared project; `init.sh` seeds sensible defaults for new ones.
 
 1. **Specs placement** — every `SPEC*.md` in the repo must live under `specs_dir`
-   (borromeo: `docs/specs`).
+   (borromeanRings: `docs/specs`).
 2. **Root-doc allowlist** — every `*.md` directly at the repo root must be in
-   `root_doc_allowlist` (borromeo: `README.md`, `AGENTS.md`, `PLAN-v0.md`).
+   `root_doc_allowlist` (borromeanRings: `README.md`, `AGENTS.md`, `PLAN-v0.md`).
 3. **Test grouping ("by type when large")** — flat (ungrouped) test files directly
    in `tests_dir` may number up to `test_grouping_threshold`; beyond it they must be
    grouped into type subdirectories (`test_groups`, e.g. unit/integration/e2e). A
-   small flat suite stays valid — borromeo's own 9 flat tests pass under threshold 15.
+   small flat suite stays valid — borromeanRings's own 9 flat tests pass under threshold 15.
 
 Pure decision logic in `meta_harness.layout` (`misplaced_specs`,
 `disallowed_root_docs`, `excess_flat_tests`), unit-tested to the repo's 100%
 baseline; the check gathers the filesystem facts and calls it.
 
-## borromeo self-compliance (part of "build into borromeo")
+## borromeanRings self-compliance (part of "build into borromeanRings")
 - Moved `docs/SPEC-{deep-research,merge,prompt-rewrite,spine}.md` → `docs/specs/`
-  and updated every reference across docs, source, tests, and `borromeo.toml`.
+  and updated every reference across docs, source, tests, and `borromeanrings.toml`.
 - Declared the `[layout]` policy; the gate now passes 9/9 including `07_layout`.
 
 ## Alternatives considered
@@ -40,9 +40,9 @@ baseline; the check gathers the filesystem facts and calls it.
   config-policy spine, ADR-0010), and avoids dictating *how* the agent organizes
   beyond the declared outcome.
 - **Always require nested test dirs** — rejected: flat is idiomatic for small pytest
-  suites (borromeo's own), so a blanket rule would force needless structure. The
+  suites (borromeanRings's own), so a blanket rule would force needless structure. The
   threshold triggers organization only once a suite is genuinely large.
-- **Warn instead of fail** — rejected for declared rules: borromeo turns standards
+- **Warn instead of fail** — rejected for declared rules: borromeanRings turns standards
   into gates, not requests. (A project that wants softness simply leaves a rule off.)
 
 ## Consequences

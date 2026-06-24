@@ -1,11 +1,11 @@
-# borromeo
+# borromeanRings
 
 A model- and harness-agnostic **meta-harness**: a governing quality layer that
 wraps any AI coding agent and enforces engineering standards as **deterministic
 gates** — not prompt requests. The agent is an interchangeable worker; the gate
 is the product. A change cannot pass until every declared standard is satisfied.
 
-This is **v0**: one repo, one stack (Python), one gate, on Claude Code. borromeo
+This is **v0**: one repo, one stack (Python), one gate, on Claude Code. borromeanRings
 governs its own repo from commit one (it must pass its own gate).
 
 ## Run the gate
@@ -15,7 +15,7 @@ governs its own repo from commit one (it must pass its own gate).
 ```
 
 Each run writes one receipt per check to `.meta-harness/receipts/<run-id>/`, plus
-a config cross-check against `borromeo.toml`: a required check that never ran (crash/skip) ⇒ overall fail.
+a config cross-check against `borromeanrings.toml`: a required check that never ran (crash/skip) ⇒ overall fail.
 
 ## Merge (gated, explicitly requested)
 
@@ -24,7 +24,7 @@ a config cross-check against `borromeo.toml`: a required check that never ran (c
 ./merge.sh --auto [base]   # run the gate, then WAIT for the PR's CI to pass, then merge
 ```
 
-Run from a feature branch: borromeo runs the gate and merges into `base` **only**
+Run from a feature branch: borromeanRings runs the gate and merges into `base` **only**
 if it passes. It executes your merge decision — it never merges on its own. `--auto`
 waits for the PR's CI checks too, but is still explicitly invoked per-merge (no
 standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
@@ -32,18 +32,18 @@ standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
 
 ## Govern another project (portable, by reference)
 
-borromeo can govern *any* project without being copied into it — its code stays here,
+borromeanRings can govern *any* project without being copied into it — its code stays here,
 the target just references it:
 
 ```bash
-./init.sh /path/to/your-project       # writes borromeo.toml + .claude/settings.json there
-# edit your-project/borromeo.toml ([project] package/src_dir, required checks, hygiene)
-cd /path/to/your-project && /path/to/borromeo/verify.sh    # borromeo governs it
+./init.sh /path/to/your-project       # writes borromeanrings.toml + .claude/settings.json there
+# edit your-project/borromeanrings.toml ([project] package/src_dir, required checks, hygiene)
+cd /path/to/your-project && /path/to/borromeanrings/verify.sh    # borromeanRings governs it
 ```
 
 Any agent prompted in that project is now governed (its `.claude/settings.json` hooks
-point back at this borromeo, and the `borromeo-research` skill is installed). `BORROMEO_HOME`
-= where borromeo lives; `PROJECT_ROOT` = the project being governed.
+point back at this borromeanRings, and the `borromeanrings-research` skill is installed). `BORROMEANRINGS_HOME`
+= where borromeanRings lives; `PROJECT_ROOT` = the project being governed.
 See `docs/adr/0013-portability-reference-model.md`, and **`docs/TESTING.md`** for a full
 step-by-step way to exercise every feature on a fresh project.
 
@@ -61,20 +61,20 @@ step-by-step way to exercise every feature on a fresh project.
 ## Layout
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
-- `checks/` — one script per check under a uniform contract (`borromeo.toml` declares the required set)
-- `borromeo.toml` — the policy spine: declared invariants enforced on every run
+- `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set)
+- `borromeanrings.toml` — the policy spine: declared invariants enforced on every run
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate
-- prompt rewriting: `.claude/hooks/prompt_rewrite.sh` (UserPromptSubmit) injects a spine-driven rewrite directive; toggle in `borromeo.toml`
+- prompt rewriting: `.claude/hooks/prompt_rewrite.sh` (UserPromptSubmit) injects a spine-driven rewrite directive; toggle in `borromeanrings.toml`
 - `src/`, `tests/` — the governed code
-- `docs/MANIFESTO.md` — **the why**: the north star; borromeo is the meta-harness (it enhances agent capabilities incl. deep research); the notes/Kernel is a separate product built *with* it
-- `docs/VISION.md` — the whole product borromeo (the meta-harness) is meant to become
-- `docs/ROADMAP.md` — **every harness feature, with status** (plus the separate products built with borromeo)
+- `docs/MANIFESTO.md` — **the why**: the north star; borromeanRings is the meta-harness (it enhances agent capabilities incl. deep research); the notes/Kernel is a separate product built *with* it
+- `docs/VISION.md` — the whole product borromeanRings (the meta-harness) is meant to become
+- `docs/ROADMAP.md` — **every harness feature, with status** (plus the separate products built with borromeanRings)
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
 
 ## Design
 
 See `docs/` — the `.claude/` hooks are an Adapter over `verify.sh` (what makes
-borromeo harness-agnostic); checks are a uniform-contract registry; the tool a
+borromeanRings harness-agnostic); checks are a uniform-contract registry; the tool a
 check uses and the substrate are module secrets. The gate is a mechanized
 Definition of Done.

@@ -3,8 +3,8 @@
 # format check never becomes the reason the Stop gate blocks. Cheap, per-edit.
 set -uo pipefail
 
-# Safe to install globally: do nothing unless this workspace is borromeo-governed.
-[ -f "${CLAUDE_PROJECT_DIR:-$PWD}/borromeo.toml" ] || exit 0
+# Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
+[ -f "${CLAUDE_PROJECT_DIR:-$PWD}/borromeanrings.toml" ] || exit 0
 
 input="$(cat)"
 fp="$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo '')"

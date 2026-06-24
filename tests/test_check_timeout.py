@@ -1,7 +1,7 @@
 """A hanging check must fail-closed under a wall-clock timeout, not hang the gate.
 
 Regression for the orphaned-pytest bug: a networked test in a governed project
-blocked on a socket and hung borromeo's gate until the 600s Stop-hook timeout,
+blocked on a socket and hung borromeanRings's gate until the 600s Stop-hook timeout,
 leaking one pytest process per run. The fix bounds every check's tool invocation
 with coreutils `timeout` so a hang becomes a FAIL receipt (exit 124), promptly.
 
@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-BORROMEO_HOME = Path(__file__).resolve().parents[1]
-LIB = BORROMEO_HOME / "checks" / "_lib.sh"
+BORROMEANRINGS_HOME = Path(__file__).resolve().parents[1]
+LIB = BORROMEANRINGS_HOME / "checks" / "_lib.sh"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("timeout") is None and shutil.which("gtimeout") is None,
@@ -33,8 +33,8 @@ def _run_check(tmp_path: Path, *, check_id: str, tool: str, cmd: str, env_timeou
     harness = (
         f"export PROJECT_ROOT={tmp_path!s}\n"
         f"export RECEIPT_DIR={receipts!s}\n"
-        f"export BORROMEO_HOME={BORROMEO_HOME!s}\n"
-        f"export BORROMEO_CHECK_TIMEOUT={env_timeout}\n"
+        f"export BORROMEANRINGS_HOME={BORROMEANRINGS_HOME!s}\n"
+        f"export BORROMEANRINGS_CHECK_TIMEOUT={env_timeout}\n"
         f"source {LIB!s}\n"
         f'run_check "{check_id}" "{tool}" "{cmd}" || true\n'
     )

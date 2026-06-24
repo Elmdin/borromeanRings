@@ -3,7 +3,7 @@
 **Status:** Accepted
 
 ## Context
-borromeo's durable value depends on two anticipated changes being *cheap*: (1) adding/replacing a
+borromeanRings's durable value depends on two anticipated changes being *cheap*: (1) adding/replacing a
 check, and (2) targeting a new agent harness. CS130 information hiding (Part 2 L5) says name those
 likely-to-change decisions and isolate each behind a stable interface. This ADR records the two
 structural seams that deliver QAS-3 and QAS-4.

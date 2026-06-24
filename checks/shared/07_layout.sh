@@ -17,9 +17,9 @@ specs="$(cd "$PROJECT_ROOT" && find . \
 # Repo-root *.md filenames only (maxdepth 1).
 root_md="$(cd "$PROJECT_ROOT" && find . -maxdepth 1 -type f -name '*.md' -print 2>/dev/null | sed 's#^\./##' | sort || true)"
 
-PYTHONPATH="$BORROMEO_HOME/src" \
-  BORROMEO_SPECS="$specs" BORROMEO_ROOT_MD="$root_md" \
-  python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeo.toml" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" \
+  BORROMEANRINGS_SPECS="$specs" BORROMEANRINGS_ROOT_MD="$root_md" \
+  python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import os
 import sys
 from pathlib import Path
@@ -30,8 +30,8 @@ from meta_harness.spine import load_config
 project_root, config_path = Path(sys.argv[1]), sys.argv[2]
 cfg = load_config(config_path)
 
-specs = [p for p in os.environ.get("BORROMEO_SPECS", "").splitlines() if p.strip()]
-root_md = [p for p in os.environ.get("BORROMEO_ROOT_MD", "").splitlines() if p.strip()]
+specs = [p for p in os.environ.get("BORROMEANRINGS_SPECS", "").splitlines() if p.strip()]
+root_md = [p for p in os.environ.get("BORROMEANRINGS_ROOT_MD", "").splitlines() if p.strip()]
 
 # Count test files DIRECTLY under tests_dir (ungrouped/flat), if it exists.
 tests_dir = project_root / cfg.tests_dir

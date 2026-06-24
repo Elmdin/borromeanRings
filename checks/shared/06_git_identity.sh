@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Git-identity backstop: every commit unique to this branch must be authored by the
-# identity declared in borromeo.toml ([git].name/email). Fail-closed on a wrong
+# identity declared in borromeanrings.toml ([git].name/email). Fail-closed on a wrong
 # author. Not declared ⇒ pass (not enforced). Not a git repo ⇒ pass. This checks
 # commit *provenance* (metadata that travels with the commit, so it holds in CI and
 # fresh clones). The repo's transient `git config user.*` is the PreToolUse guard's
@@ -32,9 +32,9 @@ if [ "$is_repo" = "true" ]; then
   fi
 fi
 
-PYTHONPATH="$BORROMEO_HOME/src" \
-  BORROMEO_IS_REPO="$is_repo" BORROMEO_AUTHORS="$authors" \
-  python3 - "$PROJECT_ROOT/borromeo.toml" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" \
+  BORROMEANRINGS_IS_REPO="$is_repo" BORROMEANRINGS_AUTHORS="$authors" \
+  python3 - "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import os
 import sys
 
@@ -47,12 +47,12 @@ declared = Identity(name=cfg.git_name, email=cfg.git_email)
 if not is_enforced(declared):
     print("no [git] identity declared — identity enforcement off (pass)")
     sys.exit(0)
-if os.environ.get("BORROMEO_IS_REPO") != "true":
+if os.environ.get("BORROMEANRINGS_IS_REPO") != "true":
     print("not a git repository — nothing to attribute (pass)")
     sys.exit(0)
 
 authors = []
-for line in os.environ.get("BORROMEO_AUTHORS", "").splitlines():
+for line in os.environ.get("BORROMEANRINGS_AUTHORS", "").splitlines():
     if not line.strip():
         continue
     name, _, email = line.partition("\t")

@@ -1,37 +1,37 @@
 # SPEC — Config/policy spine (Layer 1)
 
-> Status: spec for the first iteration of the spine. Approved approach: config = `borromeo.toml`;
+> Status: spec for the first iteration of the spine. Approved approach: config = `borromeanrings.toml`;
 > start with the required-check set + declared context; designed so prompt rewriting plugs in next.
 
 ## 1. Purpose
 A single declarative source of the **invariants this repo must always satisfy**. Declared once in
-`borromeo.toml`, enforced on **every** gate run. This generalizes v0's `checks/manifest.json` +
+`borromeanrings.toml`, enforced on **every** gate run. This generalizes v0's `checks/manifest.json` +
 receipts into a real spine — the seed of the §11 self-assurance layer ("every declared requirement
 has an executed-and-passed receipt").
 
 ## 2. Two principles this spine must honor (from the Manifesto + recent clarifications)
 - **Enforce outcomes, preserve agent autonomy.** The spine checks *results against declared policy*
   (gates + config-compliance). It must **not** constrain *how* the wrapped agent/harness plans or
-  decides — many harnesses plan better than borromeo would. borromeo governs the *what* (invariants
+  decides — many harnesses plan better than borromeanRings would. borromeanRings governs the *what* (invariants
   on outcomes), never the agent's *thinking*.
 - **Declared context fuels prompt rewriting (the next build).** The spine holds the operating
   context (account, value priorities, requirements). Prompt rewriting — performed by the *wrapped
-  agent*, not borromeo — consumes this so the user's in-the-moment prompt is improved while
-  preserving intent, per best agentic + SE practices and the current context. borromeo *enforces
+  agent*, not borromeanRings — consumes this so the user's in-the-moment prompt is improved while
+  preserving intent, per best agentic + SE practices and the current context. borromeanRings *enforces
   that this happens well*; it does not do the rewriting itself.
 
-## 3. Config schema (`borromeo.toml`)
+## 3. Config schema (`borromeanrings.toml`)
 ```toml
 [checks]
 required = ["00_build", "10_format", "20_lint", "30_typecheck", "40_test", "50_security"]
 
 [context]                 # declared once; surfaced to the agent (e.g. for prompt rewriting)
-account = "Elmdin/borromeo"
+account = "Elmdin/borromeanrings"
 value_priorities = ["correctness", "security", "maintainability", "performance"]
 ```
 
 ## 4. Contract
-- `meta_harness.spine.load_config(path="borromeo.toml") -> Config` with
+- `meta_harness.spine.load_config(path="borromeanrings.toml") -> Config` with
   `Config(required_checks: tuple[str, ...], context: Mapping[str, Any])`.
 - **Fail-closed:** if `[checks].required` is empty/absent, `load_config` raises — no declared checks
   is a misconfiguration, never "nothing to enforce so pass."

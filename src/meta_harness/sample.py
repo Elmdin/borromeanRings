@@ -1,6 +1,6 @@
 """A small, real module so the v0 gate exercises actual typed, tested code.
 
-The function mirrors borromeo's own fail-closed rule, which makes it a fitting
+The function mirrors borromeanRings's own fail-closed rule, which makes it a fitting
 first inhabitant of the repo it governs.
 """
 
@@ -12,7 +12,7 @@ def overall_status(statuses: Iterable[str]) -> str:
 
     Returns ``"pass"`` only when *every* status is ``"pass"``. Any non-pass
     status — or an empty input (absence of proof) — yields ``"fail"``. This is
-    the same rule borromeo's gate applies across its checks.
+    the same rule borromeanRings's gate applies across its checks.
 
     Args:
         statuses: the individual check statuses to aggregate.

@@ -1,9 +1,9 @@
-# borromeo policy spine — the single source of declared invariants for this repo.
+# borromeanRings policy spine — the single source of declared invariants for this repo.
 # Declared once here, enforced on every gate run (config-compliance: every required
 # check must produce a pass receipt). See docs/specs/SPEC-spine.md and docs/adr/0010-*.md.
 
 [project]
-# What borromeo targets in THIS governed project (portability — see ADR-0013).
+# What borromeanRings targets in THIS governed project (portability — see ADR-0013).
 language = "python"  # selects checks/python/ (+ checks/shared/); see ADR-0015
 package = "meta_harness"
 src_dir = "src"
@@ -40,7 +40,7 @@ required = [
 
 [hygiene]
 # The engineering surround this project must have (presence-gated; see ADR-0012).
-# borromeo enforces these the same way it enforces code quality.
+# borromeanRings enforces these the same way it enforces code quality.
 requires = [
   "README.md",
   "LICENSE",
@@ -53,15 +53,15 @@ requires = [
 ]
 
 [context]
-# Declared operating context. borromeo surfaces this to the wrapped agent (e.g. for prompt
+# Declared operating context. borromeanRings surfaces this to the wrapped agent (e.g. for prompt
 # rewriting — the next build) so the user's intent is preserved and improved per the declared
 # context, every run. Declaring it here applies it consistently instead of restating it ad hoc.
-account = "Elmdin/borromeo"
+account = "Elmdin/borromeanrings"
 # Value priorities guide trade-offs, highest first. Consumed by prompt rewriting.
 value_priorities = ["correctness", "security", "maintainability", "performance"]
 
 [prompt_rewriting]
-# When enabled, borromeo's UserPromptSubmit hook injects a directive asking the wrapped
+# When enabled, borromeanRings's UserPromptSubmit hook injects a directive asking the wrapped
 # agent to rewrite the user's prompt (preserve+improve intent) using the context above,
-# and to SHOW the rewrite before proceeding. borromeo enforces it; the agent performs it.
+# and to SHOW the rewrite before proceeding. borromeanRings enforces it; the agent performs it.
 enabled = true

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Project hygiene: the engineering surround declared in borromeo.toml ([hygiene].requires)
+# Project hygiene: the engineering surround declared in borromeanrings.toml ([hygiene].requires)
 # must exist (docs, CI, containerization, license, …). Fail-closed if any is missing.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
@@ -8,7 +8,7 @@ id="05_hygiene"
 log="$RECEIPT_DIR/$id.log"
 cmd="project hygiene (declared engineering-surround paths exist)"
 
-PYTHONPATH="$BORROMEO_HOME/src" python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeo.toml" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.hygiene import missing_paths

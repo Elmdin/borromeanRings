@@ -1,4 +1,4 @@
-# AGENTS.md — non-obvious rules for anyone (human or AI) working in borromeo
+# AGENTS.md — non-obvious rules for anyone (human or AI) working in borromeanRings
 
 Agent-neutral on purpose, so it lifts onto other harnesses later. It states only
 what you could not infer from the code.

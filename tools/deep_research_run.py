@@ -1,4 +1,4 @@
-"""End-to-end runner for borromeo's deep-research enhancement (real web sources).
+"""End-to-end runner for borromeanRings's deep-research enhancement (real web sources).
 
 Usage:
     python tools/deep_research_run.py "<query>" ["<claim>" ...]
@@ -12,7 +12,7 @@ to prove the pipeline; real search engines / a real browser are a future swap
 behind the same SearchFn/FetchFn adapters.
 
 The semantic steps (query mutation, gap-finding, entailment judging) are performed
-by the wrapped agent / an LLM in a real borromeo session; this standalone runner
+by the wrapped agent / an LLM in a real borromeanRings session; this standalone runner
 uses honest deterministic STAND-INS so it runs without an API key.
 """
 
@@ -31,7 +31,7 @@ from meta_harness.deep_research import (
     report_findings,
 )
 
-_UA = "borromeo-deep-research/0.0 (https://github.com/Elmdin/borromeo)"
+_UA = "borromeanrings-deep-research/0.0 (https://github.com/Elmdin/borromeanrings)"
 _ENGINES = ("en.wikipedia.org", "simple.wikipedia.org")
 
 

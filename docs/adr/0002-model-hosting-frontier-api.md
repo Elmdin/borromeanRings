@@ -3,11 +3,11 @@
 **Status:** Accepted
 
 ## Context
-borromeo orchestrates an AI coding agent; the model must run somewhere. The dev machine is a WSL2
+borromeanRings orchestrates an AI coding agent; the model must run somewhere. The dev machine is a WSL2
 laptop with no GPU (ADR-0003), so local inference of a frontier-class model is not viable.
 
 ## Decision
-Use a **frontier model via remote API**. borromeo is pure local orchestration + deterministic
+Use a **frontier model via remote API**. borromeanRings is pure local orchestration + deterministic
 checks; inference is remote. Data-locality posture (code leaves the machine on every model call)
 is **documented, not mitigated** in v0.
 

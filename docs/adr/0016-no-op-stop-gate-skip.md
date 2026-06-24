@@ -17,7 +17,7 @@ combine step (`no such table: other_db.file`) and **failed the gate for a non-co
 ## Decision
 **No-op Stop guard (content-hash cache).** On a successful gate, `verify.sh` records a SHA-256
 over the *gated inputs* — the governed source (`src_dir`), tests (`tests_dir`), the check scripts
-(`checks/`, when borromeo governs itself), and `borromeo.toml` + `pyproject.toml` — to
+(`checks/`, when borromeanRings governs itself), and `borromeanrings.toml` + `pyproject.toml` — to
 `.meta-harness/last_green_state`. Before running the gate, the Stop hook recomputes that hash and
 **skips** (exit 0) iff it byte-for-byte matches the last proven-green state. Logic lives in
 `meta_harness/change_detect.py` (unit-tested to 100%).
@@ -39,7 +39,7 @@ fails only on real regressions, never on leftover artifacts.
 - **`git status --porcelain` clean-tree check** — rejected: misses uncommitted-but-already-tested
   states and conflates ignored artifacts with real changes; a content hash is exact.
 - **Skip based on Claude Code's tool-use history (did any Edit/Write fire?)** — rejected: harness-
-  specific, and breaks borromeo's substrate-neutrality; the hash works for any author/harness.
+  specific, and breaks borromeanRings's substrate-neutrality; the hash works for any author/harness.
 - **Always run (status quo)** — rejected: the inefficiency this ADR removes.
 
 ## Consequences
@@ -47,7 +47,7 @@ fails only on real regressions, never on leftover artifacts.
   token/compute waste the Maintainer flagged is eliminated, with no loss of assurance.
 - (+) The gate stops failing on stale coverage artifacts (fail-flaky → fail-only-on-real-regression).
 - (+) Substrate-neutral: the guard is a property of the gated content, not of any harness's event log.
-- (−) The hash binds to the *project's* gated files. When borromeo is *referenced* from another
-  project, a change to borromeo's own check scripts in `BORROMEO_HOME` is not reflected in that
+- (−) The hash binds to the *project's* gated files. When borromeanRings is *referenced* from another
+  project, a change to borromeanRings's own check scripts in `BORROMEANRINGS_HOME` is not reflected in that
   project's `last_green_state`; such cross-repo invalidation is a follow-up (today: re-run `verify.sh`
-  after upgrading borromeo, or delete `.meta-harness/last_green_state`).
+  after upgrading borromeanRings, or delete `.meta-harness/last_green_state`).

@@ -1,15 +1,15 @@
 # SPEC — Git-identity enforcement
 
-> borromeo must guarantee commit provenance: every commit/push in a governed repo
+> borromeanRings must guarantee commit provenance: every commit/push in a governed repo
 > uses the **declared** git identity. A wrong account committing (observed in the
 > field) is a correctness/security failure. ADR-0017.
 
 ## Problem
-borromeo had **no** git-identity enforcement. An agent could commit under any
+borromeanRings had **no** git-identity enforcement. An agent could commit under any
 `git config user.*`, so commits landed under the wrong account.
 
 ## Policy (declared, not assumed)
-`borromeo.toml`:
+`borromeanrings.toml`:
 ```toml
 [git]
 name  = "wimaan3"
@@ -45,8 +45,8 @@ Only a declared field is checked (declare email only ⇒ name is unconstrained).
 - Not a git repo ⇒ pass with note (nothing to attribute).
 - No base branch ⇒ check HEAD's author only.
 - The guard and gate read identity from the **governed** repo (`CLAUDE_PROJECT_DIR`
-  / `PROJECT_ROOT`), so it works when borromeo governs another project by reference.
+  / `PROJECT_ROOT`), so it works when borromeanRings governs another project by reference.
 
-## borromeo self-compliance
-borromeo declares `wimaan3 / imaansoltan@gmail.com`; its configured identity and
+## borromeanRings self-compliance
+borromeanRings declares `wimaan3 / imaansoltan@gmail.com`; its configured identity and
 history already match, so the new required check `06_git_identity` passes.

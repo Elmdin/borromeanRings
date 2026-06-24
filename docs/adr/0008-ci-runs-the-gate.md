@@ -4,7 +4,7 @@
 
 ## Context
 Phase 1 needs GitHub-native auto-merge (`gh pr merge --auto`), which merges a PR once its
-**required status checks** pass. That requires a check that runs borromeo's gate on GitHub's
+**required status checks** pass. That requires a check that runs borromeanRings's gate on GitHub's
 servers — not just locally. It also strengthens QAS-2 (author/environment-agnosticism): the same
 `verify.sh` should produce the same verdict on a clean CI runner as on a developer laptop.
 

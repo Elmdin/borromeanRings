@@ -1,6 +1,6 @@
-"""The merge policy: borromeo's self-extension safety invariant, as tested code.
+"""The merge policy: borromeanRings's self-extension safety invariant, as tested code.
 
-borromeo may *extend* itself (human-approved merges of new capability) but never
+borromeanRings may *extend* itself (human-approved merges of new capability) but never
 *rewrite* itself (autonomous modification of its own core/gates). The single rule
 that enforces that boundary lives here, separated from the git plumbing in
 ``merge.sh`` so it can be unit-tested in isolation.
@@ -18,10 +18,10 @@ class MergeDecision:
 
 
 def decide_merge(*, gate_passed: bool, explicitly_requested: bool) -> MergeDecision:
-    """Decide whether borromeo may perform a merge.
+    """Decide whether borromeanRings may perform a merge.
 
     A merge is allowed only when a human explicitly requested it *and* the gate
-    passed. borromeo never originates a merge on its own, and never merges on a
+    passed. borromeanRings never originates a merge on its own, and never merges on a
     red gate (fail-closed).
 
     Args:
@@ -35,7 +35,7 @@ def decide_merge(*, gate_passed: bool, explicitly_requested: bool) -> MergeDecis
         return MergeDecision(
             allowed=False,
             reason="merge must be explicitly requested by a human; "
-            "borromeo never self-initiates a merge",
+            "borromeanRings never self-initiates a merge",
         )
     if not gate_passed:
         return MergeDecision(

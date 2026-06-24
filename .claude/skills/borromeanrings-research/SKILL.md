@@ -1,20 +1,20 @@
 ---
-name: borromeo-research
+name: borromeanrings-research
 description: >
-  borromeo enhanced web research — steer THIS agent's OWN search (its WebSearch/
+  borromeanRings enhanced web research — steer THIS agent's OWN search (its WebSearch/
   browse tools) to be far more exhaustive and trustworthy: many query mutations,
   multiple engines + Google dorking + platform-specific tricks + social/specialized
   sources, going beyond the top results to build a result graph and synthesize
   across everything, with citation verification (fail-closed) and full user
-  visibility + steering. borromeo ENFORCES the discipline; the agent PERFORMS the
+  visibility + steering. borromeanRings ENFORCES the discipline; the agent PERFORMS the
   searches with its own tools. Use when the user wants to research/search online
   thoroughly and wants agency + visibility into the process.
 ---
 
-# borromeo enhanced research
+# borromeanRings enhanced research
 
 You (the wrapped agent) do the searching with **your own** search/browse tools.
-borromeo does **not** search for you — it makes your search dramatically better and
+borromeanRings does **not** search for you — it makes your search dramatically better and
 keeps the user in control. Follow this protocol every time this skill is invoked.
 
 ## 1. Plan, and let the user steer (agency first)
@@ -54,7 +54,7 @@ agreements, contradictions, and uncertainty across sources.
 For each claim in your answer, cite the **specific source** and confirm that
 source's text **actually supports** the claim (entailment — not just shared
 keywords). **Drop or explicitly flag** anything you cannot verify. No unverified
-claim appears as a stated fact. (This is borromeo's gate, applied to research.)
+claim appears as a stated fact. (This is borromeanRings's gate, applied to research.)
 
 ## 6. Report coverage
 End with: what was searched (engines/queries), what's well-supported, and what's
@@ -68,6 +68,6 @@ credible + diverse sources; rank by credibility; avoid ad/SEO spam. Efficiency:
 stop when new searches stop yielding new relevant material (saturation); don't
 repeat queries; budget effort to the question's importance.
 
-> Config (optional): a project's `borromeo.toml` may declare research preferences
+> Config (optional): a project's `borromeanrings.toml` may declare research preferences
 > (e.g. minimum mutations, preferred engines/platforms, dorking on/off) — honor
-> them. borromeo enforces this protocol; you execute it with your own tools.
+> them. borromeanRings enforces this protocol; you execute it with your own tools.

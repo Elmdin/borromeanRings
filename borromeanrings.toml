@@ -10,9 +10,13 @@ src_dir = "src"
 tests_dir = "tests"
 
 [git]
-# Declared commit identity — every commit/push in this repo must use it. The
-# PreToolUse guard blocks wrong-identity commits; check 06 is the fail-closed
-# backstop. Empty/absent ⇒ enforcement off. See docs/specs/SPEC-git-identity.md.
+# Declared commit identity (the maintainer's — configurable, NOT a contributor
+# requirement). On THIS public repo, identity is enforced by the local PreToolUse guard
+# ONLY: 06_git_identity is deliberately omitted from [checks].required below, so external
+# contributors commit under their own identity and still pass CI. The guard stays a local
+# aid for whoever has borromeanRings installed. Empty/absent ⇒ guard off too. Other projects
+# may still require 06_git_identity. See docs/specs/SPEC-git-identity.md and
+# docs/adr/0019-git-identity-local-guard-only-public-repo.md.
 name = "wimaan3"
 email = "imaansoltan@gmail.com"
 
@@ -29,7 +33,8 @@ test_groups = ["unit", "integration", "e2e"]
 required = [
   "00_build",
   "05_hygiene",
-  "06_git_identity",
+  # 06_git_identity intentionally omitted: this public repo enforces identity via the
+  # local guard only, so external contributors pass CI. See [git] above + ADR-0019.
   "07_layout",
   "10_format",
   "20_lint",

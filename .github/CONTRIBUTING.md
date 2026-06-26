@@ -39,13 +39,18 @@ Each run writes one receipt per check to `.meta-harness/receipts/<run-id>/`.
 
 ## Commit identity
 
-This repo declares a required commit identity in `borromeanrings.toml` (`[git]`). Commits
-must use it, or the `06_git_identity` check fails closed:
+**Contribute under your own GitHub identity** — your own `user.name` / `user.email`.
+You do **not** adopt the maintainer's identity, and the CI gate will **not** reject a
+PR because of who authored it.
 
-```bash
-git config user.name  "wimaan3"
-git config user.email "imaansoltan@gmail.com"
-```
+For context: borromeanRings has an *optional* per-project git-identity policy (`[git]`
+in `borromeanrings.toml`) with two independent layers — a local `PreToolUse` guard that
+blocks commits under the wrong account, and a gate check (`06_git_identity`). This repo
+runs the **guard only** (the check is intentionally *not* in its required set), so the
+guard helps a maintainer avoid committing under the wrong account locally, while
+external contributors with their own identities pass CI normally. See
+`docs/adr/0019-git-identity-local-guard-only-public-repo.md`. The declared `[git]`
+value is the maintainer's, not a requirement for you.
 
 ## Workflow
 

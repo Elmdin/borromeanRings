@@ -1,6 +1,6 @@
 # ADR-0017 — Enforce the declared git commit identity
 
-**Status:** Accepted
+**Status:** Accepted — *amended for borromeanRings's own repo by [ADR-0019](0019-git-identity-local-guard-only-public-repo.md)*: this public repo now runs the **guard layer only** (`06_git_identity` is not in its required set) so external contributors are not blocked. The two-layer design below remains the feature other projects can opt into.
 
 ## Context
 borromeanRings had **no** git-identity enforcement. Agents working in governed repos

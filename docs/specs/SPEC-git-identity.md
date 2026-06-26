@@ -48,5 +48,12 @@ Only a declared field is checked (declare email only ⇒ name is unconstrained).
   / `PROJECT_ROOT`), so it works when borromeanRings governs another project by reference.
 
 ## borromeanRings self-compliance
-borromeanRings declares `wimaan3 / imaansoltan@gmail.com`; its configured identity and
-history already match, so the new required check `06_git_identity` passes.
+borromeanRings declares `wimaan3 / imaansoltan@gmail.com` (the maintainer's value — it is
+configurable, not a contributor requirement). The two layers (guard + gate) are
+independently opt-in per project.
+
+> **Update (public repo):** borromeanRings's *own* repo now enforces identity via the
+> **local guard only** — `06_git_identity` is intentionally **not** in its
+> `[checks].required` set, so external contributors commit under their own identity and
+> still pass CI. The gate check remains available for other projects to require. See
+> [ADR-0019](../adr/0019-git-identity-local-guard-only-public-repo.md).

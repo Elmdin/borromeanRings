@@ -1,5 +1,12 @@
 # borromeanRings
 
+<p align="center">
+  <img src="docs/borromean-rings.png" width="200" alt="Borromean rings — three links that hold only together; remove any one and the whole comes apart">
+</p>
+
+> Like the rings, the gates hold only together: remove any one check and the
+> guarantee falls apart.
+
 [![borromeanRings gate](https://github.com/Elmdin/borromeanrings/actions/workflows/verify.yml/badge.svg)](https://github.com/Elmdin/borromeanrings/actions/workflows/verify.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 

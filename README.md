@@ -62,11 +62,17 @@ step-by-step way to exercise every feature on a fresh project.
 | # | Check | Tool |
 |---|---|---|
 | 00 | build / importable | `python -m compileall` + import |
+| 05 | hygiene | required engineering surround (docs, CI, container, license) exists |
+| 07 | layout | repo layout — specs dir, root-`.md` allowlist, grouped test suites |
 | 10 | format | `ruff format --check` |
 | 20 | lint | `ruff check` |
 | 30 | typecheck | `mypy` (strict) |
 | 40 | test + coverage **ratchet** | `pytest --cov` (no absolute % target) |
 | 50 | security | `bandit` |
+
+The required set is declared in `borromeanrings.toml` `[checks].required` (eight gates
+on this repo; `06_git_identity` exists but is intentionally excluded so external
+contributors pass CI — see ADR-0019).
 
 ## Layout
 

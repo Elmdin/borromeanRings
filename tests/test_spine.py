@@ -102,3 +102,26 @@ def test_layout_loaded_and_defaults_off(tmp_path: Path) -> None:
     off = load_config(default)
     assert (off.specs_dir, off.root_doc_allowlist) == ("", ())
     assert (off.test_grouping_threshold, off.test_groups) == (0, ())
+
+
+def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[collaboration]\n'
+        'protected_branches = ["main", "dev"]\n'
+        'branch_patterns = ["feat/*", "fix/*"]\n'
+        'commit_types = ["feat", "fix"]\n'
+        "subject_max_length = 72\n",
+    )
+    cfg = load_config(declared)
+    assert cfg.collaboration_protected_branches == ("main", "dev")
+    assert cfg.collaboration_branch_patterns == ("feat/*", "fix/*")
+    assert cfg.collaboration_commit_types == ("feat", "fix")
+    assert cfg.collaboration_subject_max_length == 72
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.collaboration_protected_branches == ()
+    assert off.collaboration_branch_patterns == ()
+    assert off.collaboration_commit_types == ()
+    assert off.collaboration_subject_max_length == 0

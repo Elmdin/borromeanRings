@@ -36,6 +36,12 @@ class Config:
     root_doc_allowlist: tuple[str, ...] = ()
     test_grouping_threshold: int = 0
     test_groups: tuple[str, ...] = ()
+    # [collaboration] — Tier A collaboration gates (SPEC-collaboration.md,
+    # ADR-0021); each rule off when empty/zero.
+    collaboration_protected_branches: tuple[str, ...] = ()
+    collaboration_branch_patterns: tuple[str, ...] = ()
+    collaboration_commit_types: tuple[str, ...] = ()
+    collaboration_subject_max_length: int = 0
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -66,6 +72,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     project = raw.get("project", {})
     git = raw.get("git", {})
     layout = raw.get("layout", {})
+    collaboration = raw.get("collaboration", {})
     return Config(
         required_checks=tuple(required),
         context=context,
@@ -81,4 +88,8 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         root_doc_allowlist=tuple(layout.get("root_doc_allowlist", [])),
         test_grouping_threshold=int(layout.get("test_grouping_threshold", 0)),
         test_groups=tuple(layout.get("test_groups", [])),
+        collaboration_protected_branches=tuple(collaboration.get("protected_branches", [])),
+        collaboration_branch_patterns=tuple(collaboration.get("branch_patterns", [])),
+        collaboration_commit_types=tuple(collaboration.get("commit_types", [])),
+        collaboration_subject_max_length=int(collaboration.get("subject_max_length", 0)),
     )

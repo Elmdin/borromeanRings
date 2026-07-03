@@ -37,6 +37,35 @@ case "$cmd" in
     deny "Refusing destructive SQL DROP." ;;
 esac
 
+# Protected-branch guard (Tier A collaboration): block 'git commit'/'git push'
+# while ON a declared [collaboration].protected_branches branch — work belongs on
+# feature branches (Gitflow-lite, ADR-0021). Local aid; the platform branch
+# protection is the backstop. Fail-open on any error.
+case "$cmd" in
+  *"git commit"* | *"git push"*)
+    branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+    reason="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+      "$PROJECT_DIR/borromeanrings.toml" "$branch" 2>/dev/null <<'PY'
+import sys
+
+try:
+    from meta_harness.spine import load_config
+
+    cfg = load_config(sys.argv[1])
+    branch = sys.argv[2]
+    if branch in cfg.collaboration_protected_branches:
+        print(
+            f"'{branch}' is a protected branch (Gitflow-lite, ADR-0021): commit on a "
+            f"work branch instead (e.g. feat/<name>, fix/<name>) and merge via PR."
+        )
+except Exception:
+    pass  # fail open — the platform protection is the backstop
+PY
+    )"
+    [ -n "$reason" ] && deny "$reason"
+    ;;
+esac
+
 # Wrong git-identity guard: block 'git commit'/'git push' when the governed repo's
 # configured identity doesn't match borromeanrings.toml [git]. Catches the systemic case
 # (repo configured under the wrong account); the gate backstop catches the rest.

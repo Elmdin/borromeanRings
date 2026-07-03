@@ -28,6 +28,18 @@ root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md"]  # the only .md al
 test_grouping_threshold = 15                            # > N flat test files ⇒ group by type
 test_groups = ["unit", "integration", "e2e"]
 
+[collaboration]
+# Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
+# Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
+# 09_commits + the protected-branch guard in pre_bash_guard.sh.
+protected_branches = ["main", "dev"]
+branch_patterns = [
+  "feat/*", "feature/*", "fix/*", "docs/*",
+  "chore/*", "refactor/*", "perf/*", "test/*", "ci/*", "hotfix/*",
+]
+commit_types = ["feat", "fix", "refactor", "docs", "test", "chore", "perf", "ci"]
+subject_max_length = 72
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -36,6 +48,8 @@ required = [
   # 06_git_identity intentionally omitted: this public repo enforces identity via the
   # local guard only, so external contributors pass CI. See [git] above + ADR-0019.
   "07_layout",
+  "08_branch",
+  "09_commits",
   "10_format",
   "20_lint",
   "30_typecheck",

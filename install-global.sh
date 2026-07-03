@@ -7,7 +7,8 @@
 #
 # Re-run after moving borromeanRings. This MODIFIES ~/.claude/settings.json (merged, not
 # clobbered) — review it first. Undo: remove borromeanRings's hook entries from that file
-# and delete ~/.claude/skills/{borromeanRings,borromeanrings-research}.
+# and delete the borromeanRings-installed skill dirs under ~/.claude/skills/ (every dir from
+# this repo's skills/ and .claude/skills/, e.g. borromeanrings, borromeanrings-research, ai-fluency-*).
 set -uo pipefail
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

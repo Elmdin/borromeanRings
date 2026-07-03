@@ -47,6 +47,14 @@ exists and what's truly best.
 - **Recursive self-improvement, never self-rewriting.** borromeanRings extends itself with human-approved
   merges; it never autonomously rewrites its own core (see `adr/0007`).
 
+## The operating vocabulary (AI Fluency 4D)
+What the gate *is*, named: borromeanRings mechanizes the **AI Fluency** disciplines —
+Delegation (the spine + explicit `merge.sh`), Description (the prompt-rewrite hook), Discernment
+(the gate + receipts), Diligence (human-vouched merges), and Stewardship (governing a run in
+motion). The full mapping, with attribution to the framework's authors, lives in
+[`AI-FLUENCY.md`](AI-FLUENCY.md); five `ai-fluency-*` skills make the disciplines actionable in
+a session. See `adr/0020`.
+
 ## The near-term mission
 Make **borromeanRings** genuinely good at its job: enhancing existing agents (the gate, CI, gated
 auto-merge, config spine, and prompt rewriting already work; **deep-research enhancement** is the

@@ -29,6 +29,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0017](0017-git-identity-enforcement.md) | Enforce the declared git commit identity (guard + gate) | Accepted |
 | [0018](0018-repository-layout-enforcement.md) | Enforce declared repo layout (specs dir, root-doc allowlist, test grouping) | Accepted |
 | [0019](0019-git-identity-local-guard-only-public-repo.md) | Git identity: local-guard-only for the public repo (amends 0017) | Accepted |
+| [0020](0020-ai-fluency-4d-vocabulary.md) | Adopt AI Fluency 4D as collaboration vocabulary (re-authored, Apache-2.0) | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

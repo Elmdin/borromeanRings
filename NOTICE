@@ -6,3 +6,12 @@ This product includes software developed by Elmdin
 
 Licensed under the Apache License, Version 2.0. See the LICENSE file for
 the full license text.
+
+------------------------------------------------------------------------
+
+The collaboration vocabulary in docs/AI-FLUENCY.md and the skills/ai-fluency-*
+skills apply the AI Fluency framework (Delegation, Description, Discernment,
+Diligence) created by Rick Dakan, Joseph Feller, and Anthropic, which is
+licensed CC BY-NC-SA 4.0. borromeanRings's text describing and applying these
+ideas is original and Apache-2.0 licensed; the framework is credited here as
+prior art. See docs/adr/0020-ai-fluency-4d-vocabulary.md.

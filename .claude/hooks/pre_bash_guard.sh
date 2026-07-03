@@ -9,11 +9,14 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BORROMEANRINGS_HOME="$(cd "$HERE/../.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+. "$HERE/_lib.sh"
 
 # Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
 [ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
 
-input="$(cat)"
+# No dedupe needed here: a duplicate registration just re-checks the same
+# command and reaches the same verdict (idempotent). The read stays bounded.
+input="$(borromeanrings_read_stdin)"
 cmd="$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo '')"
 
 deny() {

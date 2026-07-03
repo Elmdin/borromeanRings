@@ -67,6 +67,8 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
 
 [prompt_rewriting]
 # When enabled, borromeanRings's UserPromptSubmit hook injects a directive asking the wrapped
-# agent to rewrite the user's prompt (preserve+improve intent) using the context above,
-# and to SHOW the rewrite before proceeding. borromeanRings enforces it; the agent performs it.
+# agent to rewrite the user's prompt (preserve+improve intent) using the context above, and to
+# OPEN its reply with a one-line "Reading this as: ..." rendering of the improved request
+# (confirmation-first only for irreversible or scope-changing readings). The agent performs
+# the rewrite; verifying compliance is tracked in issue #81. See SPEC-prompt-rewrite.md.
 enabled = true

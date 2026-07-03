@@ -3,8 +3,12 @@
 borromeanRings does not rewrite the user's prompt itself. It injects a directive (built
 here from the spine's declared ``[context]``) instructing the wrapped agent to
 rewrite the user's in-the-moment request — preserving intent and improving it per
-the declared context and best practices — and to *show* the rewrite before acting.
-This respects agent autonomy: it asks the agent to refine the prompt, it does not
+the declared context and best practices — and to open its reply with a one-line
+``Reading this as:`` rendering of the improved request, so the user can steer.
+Confirmation-before-acting is reserved for irreversible or scope-changing
+readings: a contract cheap enough to survive real sessions (the original
+show-and-confirm ceremony decayed into invisibility — see issue #81). This
+respects agent autonomy: it asks the agent to refine the prompt, it does not
 dictate a plan. See docs/specs/SPEC-prompt-rewrite.md and docs/adr/0011-*.md.
 """
 
@@ -34,8 +38,11 @@ def build_directive(context: Mapping[str, Any]) -> str:
     if priorities:
         lines.append(f"- honor these value priorities (highest first): {', '.join(priorities)};")
     lines.append(
-        "Then SHOW the user the improved prompt and what changed, and PROPOSE it — unless the "
-        "request is trivial/unambiguous, ASK them to confirm or edit before you act. Do not "
-        "silently treat your rewrite as their words; let them steer."
+        "Then act on your improved reading, and OPEN your reply with one line — "
+        '"Reading this as: <your sharpened version of the request>" — so the user can '
+        "correct course immediately. Skip that line only for trivial follow-ups (a bare "
+        "yes/no/continue). If your reading changes the request's scope, or acting on it is "
+        "irreversible (merge, publish, delete, deploy), STOP and get confirmation first. "
+        "Never silently treat your rewrite as the user's words."
     )
     return "\n".join(lines)

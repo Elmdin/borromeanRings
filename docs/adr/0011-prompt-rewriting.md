@@ -1,6 +1,6 @@
 # ADR-0011 — Prompt rewriting: enforced by borromeanRings, performed by the agent
 
-**Status:** Accepted
+**Status:** Accepted (directive contract refined 2026-07: the agent now opens its reply with a one-line `Reading this as:` rendering instead of a show-and-confirm ceremony on every prompt, which decayed in real sessions; confirmation-first is reserved for irreversible/scope-changing readings. See SPEC-prompt-rewrite.md and issue #81.)
 
 ## Context
 The user identified prompt rewriting as a key feature: improve the user's in-the-moment prompt

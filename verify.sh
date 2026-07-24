@@ -21,6 +21,17 @@ if [ ! -f "$CONFIG" ]; then
   exit 1
 fi
 
+# --heavy (or BORROMEANRINGS_HEAVY=1) additionally runs the CI-tier heavy checks
+# (checks/ci/*, e.g. mutation testing) and requires them to pass. The fast inner
+# Stop gate omits them (too expensive per Stop); CI runs `verify.sh --heavy`. ADR-0022.
+HEAVY="${BORROMEANRINGS_HEAVY:-0}"
+for arg in "$@"; do
+  case "$arg" in
+    --heavy) HEAVY=1 ;;
+    *) echo "borromeanRings: unknown argument '$arg' (only --heavy is supported)." >&2; exit 2 ;;
+  esac
+done
+
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
 language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
@@ -40,7 +51,9 @@ mkdir -p "$RECEIPT_DIR"
 
 # Run shared (language-agnostic) checks + the selected language's checks. Each writes
 # its own receipt; the verdict is computed from receipts, never a check's exit alone.
-for dir in "$BORROMEANRINGS_HOME/checks/shared" "$BORROMEANRINGS_HOME/checks/$language"; do
+scan_dirs=("$BORROMEANRINGS_HOME/checks/shared" "$BORROMEANRINGS_HOME/checks/$language")
+[ "$HEAVY" = "1" ] && scan_dirs+=("$BORROMEANRINGS_HOME/checks/ci")
+for dir in "${scan_dirs[@]}"; do
   [ -d "$dir" ] || continue
   for check in "$dir"/[0-9]*.sh; do
     [ -e "$check" ] || continue
@@ -50,7 +63,7 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" <<'PY'
 import json
 import os
 import sys
@@ -59,9 +72,10 @@ from pathlib import Path
 from meta_harness.change_detect import record_green
 from meta_harness.spine import load_config
 
-config_path, receipt_dir, project_root = sys.argv[1], sys.argv[2], sys.argv[3]
+config_path, receipt_dir, project_root, heavy = sys.argv[1:5]
 config = load_config(config_path)
-expected = config.required_checks
+# Under --heavy the CI-tier checks are also required; the inner gate ignores them.
+expected = config.required_checks + (config.heavy_checks if heavy == "1" else ())
 
 rows = []
 ok = True

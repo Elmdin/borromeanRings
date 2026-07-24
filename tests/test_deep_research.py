@@ -6,11 +6,15 @@ false-positives, so the judge (agent/LLM) must decide entailment.
 """
 
 from meta_harness.deep_research import (
+    RatchetDecision,
+    RecallReport,
     ResearchEvent,
     Source,
     Verdict,
     candidate_passages,
+    decide_recall,
     enhanced_research,
+    evaluate_recall,
     federated_search,
     make_entailment_judge,
     multi_query_search,
@@ -266,3 +270,48 @@ def test_research_respects_max_sources() -> None:
     results = [("u1", "A"), ("u2", "B"), ("u3", "C")]
     report = research("q", lambda _q: results, lambda _u: "x", max_sources=2)
     assert len(report.sources) == 2
+
+
+# --- Recall against a known set (SPEC DR-1): make "saturated" an honest claim ---
+
+
+def _srcs(*urls: str) -> tuple[Source, ...]:
+    return tuple(Source(url=u, title=u, text="") for u in urls)
+
+
+def test_evaluate_recall_reports_found_and_missed() -> None:
+    # Reached 2 of 3 gold sources; the 3rd is surfaced as an honest miss, not hidden.
+    report = evaluate_recall(_srcs("a", "b", "x"), {"a", "b", "c"})
+    assert isinstance(report, RecallReport)
+    assert report.found == ("a", "b")  # sorted, gold-only (x is not gold)
+    assert report.missed == ("c",)  # the one we didn't reach
+    assert report.recall == 2 / 3
+
+
+def test_evaluate_recall_perfect_when_all_gold_reached() -> None:
+    report = evaluate_recall(_srcs("a", "b"), {"a", "b"})
+    assert report.recall == 1.0
+    assert report.missed == ()
+
+
+def test_evaluate_recall_empty_gold_is_vacuously_complete() -> None:
+    # No known relevant set → nothing can be missed → recall 1.0 (no div-by-zero).
+    report = evaluate_recall(_srcs("a"), set())
+    assert report.recall == 1.0
+    assert report.found == () and report.missed == ()
+
+
+def test_decide_recall_passes_when_not_regressed() -> None:
+    assert decide_recall(0.80, 0.80) == RatchetDecision(True, False, 0.80, 0.80)
+    assert decide_recall(0.90, 0.80).passed is True  # improvement is fine
+
+
+def test_decide_recall_fails_closed_on_regression() -> None:
+    decision = decide_recall(0.70, 0.80)
+    assert decision.passed is False
+    assert decision.regressed is True
+
+
+def test_decide_recall_epsilon_tolerates_float_noise() -> None:
+    # A float-representation wobble below the epsilon is not a real regression.
+    assert decide_recall(0.80 - 1e-12, 0.80).passed is True

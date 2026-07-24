@@ -46,7 +46,7 @@ harder to game.
 |---|---|---|---|
 | Tests pass | T0 | ✅ | `checks/…/40_test.sh` |
 | Coverage non-regression | T1 | ✅ | ratchet vs `.borromeanrings-coverage-baseline` |
-| **Mutation score** (assertion/oracle strength) | T1 | ❌ | *flagship gap* — coverage proves execution, not detection. See §3. |
+| **Mutation score** (assertion/oracle strength) | T1 | ✅ | `checks/ci/60_mutation.sh` (CI-tier heavy lane), ratchet vs `.borromeanrings-mutation-baseline`; baseline 0.80. Closes the coverage-Goodhart gap. ADR-0022 |
 | Property-based / metamorphic testing present | T1/T3 | ❌ | Hypothesis / metamorphic invariants |
 | Boundary-value / equivalence design | T2 | ❌ | needs a critic to judge input design |
 | Flaky-test detection | T1 | ❌ | rerun variance; quarantine |
@@ -124,10 +124,10 @@ harder to game.
 
 - **T0 (deterministic gate): strong, fairly complete for *hygiene*** — build, types, lint,
   static-security, layout, and the full process/collaboration set. This is borromeanRings's earned strength.
-- **T1 (ratchet): almost empty** — exactly **one** ratchet (coverage), and it is the weakest
-  possible signal. A deliberately broken function with a vacuous 100%-coverage test passes the
-  entire gate (verified by probe). Mutation, complexity, duplication, dead-code, perf, doc-coverage,
-  and API-diff are all T1-shaped and unbuilt. **Biggest underexploited tier.**
+- **T1 (ratchet): opening up** — coverage (weak) **plus mutation score** (strong,
+  assertion-level; ADR-0022), the latter on the CI-tier heavy lane. Mutation closes the
+  coverage-Goodhart hole the probe exposed. Still unbuilt and T1-shaped: complexity,
+  duplication, dead-code, perf, doc-coverage, API-diff. Still the biggest tier to deepen.
 - **T2 (semantic critic): zero.** Every "does it do the right thing / is it well-designed / do the
   docs match / are requirements traced" practice lives here and none is enforced. This is the
   **quality ceiling**: mechanical gates check *form*, never *intent*.
@@ -149,8 +149,8 @@ row at the **lowest tier** first (a ratchet beats a critic beats an advisory), t
 
 | # | Workstream | Fills | Tier |
 |---|---|---|---|
-| 1 | **This map** (persist as living doc) | K (self-knowledge) | — |
-| 2 | **T1 ratchets** — mutation, complexity, duplication, dead-code | A, B | T1 |
+| 1 | **This map** (persist as living doc) ✅ | K (self-knowledge) | — |
+| 2 | **T1 ratchets** — mutation ✅ (ADR-0022); complexity, duplication, dead-code next | A, B | T1 |
 | 3 | **T2 critic seam** — substrate-agnostic injected rubric critic (intent, doc-drift) | J, G, E, F | T2 |
 | 4 | **Project profiler** — classify type → select active rows/tiers → emit `borromeanrings.toml` | selects all | T3 |
 

@@ -20,6 +20,10 @@ class Config:
     """The declared invariants borromeanRings enforces on every run."""
 
     required_checks: tuple[str, ...]
+    # Heavy (CI-tier) checks — too expensive for the fast inner Stop gate (e.g.
+    # mutation testing). Run + required to pass ONLY under verify.sh --heavy /
+    # BORROMEANRINGS_HEAVY=1 (CI); ignored by the inner gate. See ADR-0022.
+    heavy_checks: tuple[str, ...]
     context: Mapping[str, Any]
     prompt_rewriting_enabled: bool = False
     hygiene_requires: tuple[str, ...] = ()
@@ -60,12 +64,14 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         ValueError: if no required checks are declared.
     """
     raw: dict[str, Any] = tomllib.loads(Path(path).read_text(encoding="utf-8"))
-    required = list(raw.get("checks", {}).get("required", []))
+    checks = raw.get("checks", {})
+    required = list(checks.get("required", []))
     if not required:
         raise ValueError(
             "borromeanrings.toml must declare a non-empty [checks].required — "
             "no declared checks is a misconfiguration (fail-closed)."
         )
+    heavy = list(checks.get("heavy", []))
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
@@ -75,6 +81,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     collaboration = raw.get("collaboration", {})
     return Config(
         required_checks=tuple(required),
+        heavy_checks=tuple(heavy),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
         hygiene_requires=hygiene_requires,

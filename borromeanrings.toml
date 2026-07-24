@@ -56,6 +56,11 @@ required = [
   "40_test",
   "50_security",
 ]
+# Heavy (CI-tier) checks — run + required ONLY under `verify.sh --heavy` (CI), never
+# on the fast inner Stop gate. Mutation testing runs the suite once per mutant. ADR-0022.
+heavy = [
+  "60_mutation",
+]
 
 [hygiene]
 # The engineering surround this project must have (presence-gated; see ADR-0012).

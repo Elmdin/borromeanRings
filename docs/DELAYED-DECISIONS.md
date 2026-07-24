@@ -34,5 +34,10 @@ from commit one (supports the "failures become permanent checks" and audit princ
 ---
 
 ### Resolved
+- **DD-1 — Coverage approach / mutation testing:** resolved. Coverage stays a ratchet (not an
+  absolute %); mutation testing is **adopted** as a separate non-regression ratchet on a
+  CI-tier heavy lane (not the inner gate) → **ADR-0022**. An adversarial probe confirmed
+  coverage alone passes deliberately-broken code; mutation closes that hole. First baseline
+  0.80. See `docs/ENFORCEMENT-COVERAGE.md`.
 - **Repo / package naming:** keep working name `borromeanRings`, Python package `meta_harness`
   (Maintainer confirmed). → captured implicitly; promote to ADR if it ever feels load-bearing.

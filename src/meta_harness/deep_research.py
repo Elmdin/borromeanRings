@@ -13,16 +13,26 @@ memory) — borromeanRings's anti-hallucination differentiator. Search and fetch
 injected adapters (substrate-agnostic and testable); the run records a visible
 trail.
 
-v1 verification is deterministic and lexical: a claim is *supported* only if
-every content word of the claim appears in a source's fetched text — so a claim
-with a fabricated specific (a wrong year, a made-up name) is **rejected** because
-that term is absent. Semantic/NLI verification is a later phase (see
-docs/specs/SPEC-deep-research.md). This is honest about its limits, by design.
+Verification is deterministic retrieval + an injected, skeptical semantic judge
+(fail-closed): retrieval narrows to candidate passages by content-word overlap,
+then the judge (agent/LLM) decides *entailment* — lexical overlap alone is NOT a
+judge, because live testing showed it false-positives (a fabricated "1925"
+matched an unrelated 1925 mention). An adversarial panel raises the bar: a claim
+survives only if enough independent judges affirm the same passage.
+
+Coverage is the other half of trust: a run that stops when *it* stops finding
+things measures self-consistency, not recall. :func:`evaluate_recall` and
+:func:`decide_recall` measure reach against a **known relevant set** and ratchet
+it (non-regression, no arbitrary target) — so "saturated" becomes an honest
+claim, and what was *missed* is surfaced rather than hidden. See
+docs/specs/SPEC-deep-research.md (DR-1, DR-2).
 """
 
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+
+from meta_harness.ratchet import RatchetDecision, decide_ratchet
 
 # Search adapter: query -> list of (url, title). Fetch adapter: url -> plain text.
 SearchFn = Callable[[str], Sequence[tuple[str, str]]]
@@ -321,6 +331,46 @@ def research_until_saturated(
             break
         queries = [q for q in gap_finder(query, tuple(sources)) if q.strip()]
     return Report(query=query, sources=tuple(sources), trail=tuple(trail))
+
+
+@dataclass(frozen=True)
+class RecallReport:
+    """How much of a *known relevant set* a run actually reached.
+
+    ``missed`` is the honest "you did not reach these" list that turns a
+    "saturated" claim from self-referential ("I stopped finding things") into
+    accountable ("of the known set, here is exactly what I missed").
+    """
+
+    found: tuple[str, ...]  # gold URLs actually reached (sorted)
+    missed: tuple[str, ...]  # gold URLs NOT reached (sorted)
+    recall: float  # |found| / |gold|; 1.0 when gold is empty (nothing to miss)
+
+
+def evaluate_recall(sources: Sequence[Source], gold_urls: set[str]) -> RecallReport:
+    """Measure a run's reach against a known relevant set (SPEC DR-1).
+
+    Recall is |reached ∩ gold| / |gold|. Matching is exact by URL (deterministic;
+    URL normalization is deliberately out of scope for v1). An empty gold set is
+    vacuously complete (recall 1.0) — nothing is required, so nothing is missed —
+    which also avoids a divide-by-zero in the ratchet.
+    """
+    reached = {source.url for source in sources}
+    found = tuple(sorted(gold_urls & reached))
+    missed = tuple(sorted(gold_urls - reached))
+    recall = len(found) / len(gold_urls) if gold_urls else 1.0
+    return RecallReport(found=found, missed=missed, recall=recall)
+
+
+def decide_recall(current: float, baseline: float, *, epsilon: float = 1e-9) -> RatchetDecision:
+    """Fail-closed recall ratchet: recall may **not** drop below the recorded
+    baseline (a meaningful non-regression signal, never an arbitrary % target).
+
+    Delegates to the shared T1 primitive
+    :func:`meta_harness.ratchet.decide_ratchet` (recall is higher-is-better);
+    ``RatchetDecision`` is re-exported here for existing callers.
+    """
+    return decide_ratchet(current, baseline, higher_is_better=True, epsilon=epsilon)
 
 
 @dataclass(frozen=True)

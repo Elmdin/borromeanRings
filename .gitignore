@@ -13,6 +13,10 @@ venv/
 # borromeanRings audit plumbing — per-run artifacts (receipts, stop counters, merge logs), not source
 .meta-harness/
 
+# mutmut (heavy T1 mutation ratchet) working artifacts — regenerated per run, not source
+mutants/
+.mutmut-cache
+
 # CS130 knowledge base — reference material that informed the build, not borromeanRings's product code.
 # Untracked by default; remove this line if you want it versioned with the repo.
 cs130/

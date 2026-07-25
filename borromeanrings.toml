@@ -28,6 +28,15 @@ root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md"]  # the only .md al
 test_grouping_threshold = 15                            # > N flat test files ⇒ group by type
 test_groups = ["unit", "integration", "e2e"]
 
+[architecture]
+# Import-direction fitness over the internal module graph, enforced by check
+# 35_architecture (native stdlib-ast; no external tool). Codifies the acyclic,
+# information-hiding architecture in docs/ARCHITECTURE.md as executable rules.
+# Each rule is opt-in (empty/false ⇒ off). See SPEC-architecture.md and ADR-0027.
+leaves = ["spine"]           # the config foundation (Single Choice) imports no domain module
+private = ["deep_research"]  # the research testbed must stay non-load-bearing (nothing imports it)
+forbid_cycles = true         # ARCHITECTURE.md §2: source → check → receipt, acyclic, no feedback
+
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
@@ -53,6 +62,7 @@ required = [
   "10_format",
   "20_lint",
   "30_typecheck",
+  "35_architecture",
   "40_test",
   "50_security",
 ]

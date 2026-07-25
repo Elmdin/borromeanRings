@@ -42,6 +42,10 @@ class Config:
     collaboration_branch_patterns: tuple[str, ...] = ()
     collaboration_commit_types: tuple[str, ...] = ()
     collaboration_subject_max_length: int = 0
+    # [changelog] — Keep a Changelog discipline (ADR-0028); off when disabled.
+    changelog_enabled: bool = False
+    changelog_path: str = "CHANGELOG.md"
+    changelog_require_entry_on_src_change: bool = False
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -73,6 +77,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     git = raw.get("git", {})
     layout = raw.get("layout", {})
     collaboration = raw.get("collaboration", {})
+    changelog = raw.get("changelog", {})
     return Config(
         required_checks=tuple(required),
         context=context,
@@ -92,4 +97,9 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         collaboration_branch_patterns=tuple(collaboration.get("branch_patterns", [])),
         collaboration_commit_types=tuple(collaboration.get("commit_types", [])),
         collaboration_subject_max_length=int(collaboration.get("subject_max_length", 0)),
+        changelog_enabled=bool(changelog.get("enabled", False)),
+        changelog_path=str(changelog.get("path", "CHANGELOG.md")),
+        changelog_require_entry_on_src_change=bool(
+            changelog.get("require_entry_on_src_change", False)
+        ),
     )

@@ -23,6 +23,24 @@ def test_loads_required_checks_and_context(tmp_path: Path) -> None:
     assert loaded.context["account"] == "x"
 
 
+def test_changelog_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[changelog]\n'
+        'enabled = true\npath = "HISTORY.md"\nrequire_entry_on_src_change = true\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.changelog_enabled is True
+    assert cfg.changelog_path == "HISTORY.md"
+    assert cfg.changelog_require_entry_on_src_change is True
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.changelog_enabled is False
+    assert off.changelog_path == "CHANGELOG.md"
+    assert off.changelog_require_entry_on_src_change is False
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

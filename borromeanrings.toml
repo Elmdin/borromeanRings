@@ -54,6 +54,7 @@ required = [
   "20_lint",
   "30_typecheck",
   "40_test",
+  "45_docstrings",
   "50_security",
 ]
 

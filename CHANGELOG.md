@@ -24,6 +24,8 @@ queue is merged.
     (ADR-0027).
   - Changelog discipline (this check): presence + `Unreleased` section, with an
     opt-in strict "entry on source change" rule (ADR-0028).
+  - Cyclomatic-complexity ratchet: native McCabe, worst-case non-regression, no
+    absolute ceiling (ADR-0031).
 
 ### Notes
 - Earlier increments that are in review: mutation-score ratchet (ADR-0022),

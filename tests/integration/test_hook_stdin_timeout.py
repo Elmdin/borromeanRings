@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-BORROMEANRINGS_HOME = Path(__file__).resolve().parents[1]
+BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 HOOKS = BORROMEANRINGS_HOME / ".claude" / "hooks"
 
 pytestmark = pytest.mark.skipif(

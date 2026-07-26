@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-BORROMEANRINGS_HOME = Path(__file__).resolve().parents[1]
+BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 
 # Each fixture runs the full gate in a subprocess; keep the corpus tight.

@@ -41,6 +41,31 @@ def test_changelog_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.changelog_require_entry_on_src_change is False
 
 
+def test_architecture_contracts_parse(tmp_path: Path) -> None:
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n\n'
+        "[architecture]\n"
+        'leaves = ["spine"]\n'
+        'private = ["deep_research"]\n'
+        'forbidden = [["hygiene", "layout"], ["a", "b"]]\n'
+        "forbid_cycles = true\n",
+    )
+    loaded = load_config(config)
+    assert loaded.architecture_leaves == ("spine",)
+    assert loaded.architecture_private == ("deep_research",)
+    assert loaded.architecture_forbidden == (("hygiene", "layout"), ("a", "b"))
+    assert loaded.architecture_forbid_cycles is True
+
+
+def test_architecture_defaults_off(tmp_path: Path) -> None:
+    config = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    loaded = load_config(config)
+    assert loaded.architecture_leaves == ()
+    assert loaded.architecture_forbidden == ()
+    assert loaded.architecture_forbid_cycles is False
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

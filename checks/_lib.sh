@@ -24,10 +24,15 @@ PY
 }
 
 # emit_receipt <id> <command> <exit_code> <log> <status> [extra_json]
+# Writes the receipt with a tamper-evident content hash (see meta_harness.receipts):
+# the digest covers every field + the log content, so a later status/log edit no
+# longer matches. The verdict step re-verifies it. Evidence, not proof (ADR-0026).
 emit_receipt() {
-  python3 - "$1" "$2" "$3" "$4" "$5" "$RECEIPT_DIR/$1.json" "${6:-}" <<'PY'
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$1" "$2" "$3" "$4" "$5" "$RECEIPT_DIR/$1.json" "${6:-}" <<'PY'
 import json
 import sys
+
+from meta_harness.receipts import finalize_receipt
 
 cid, command, exit_code, log, status, out, extra = sys.argv[1:8]
 receipt = {
@@ -39,6 +44,12 @@ receipt = {
 }
 if extra:
     receipt.update(json.loads(extra))
+try:
+    with open(log, encoding="utf-8", errors="replace") as fh:
+        log_text = fh.read()
+except OSError:
+    log_text = ""
+receipt = finalize_receipt(receipt, log_text)
 with open(out, "w") as fh:
     json.dump(receipt, fh, indent=2)
     fh.write("\n")

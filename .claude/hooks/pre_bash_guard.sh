@@ -24,18 +24,41 @@ deny() {
   exit 0
 }
 
+# Is `$1` a real `git push --force` / `-f`? True only for a statement that
+# INVOKES git push with a bare force flag — not for the safe `--force-with-lease`
+# (which this guard permits), and not for a mere mention of the string inside
+# another command (e.g. a `grep` pattern). We split the command into statements
+# and inspect each: a substring match on the whole line conflated all three.
+# `read` (not word-splitting) avoids glob-expanding the statements.
+is_force_push() {
+  local c="$1" seg
+  c="${c//&&/$'\n'}"; c="${c//;/$'\n'}"; c="${c//|/$'\n'}"
+  while IFS= read -r seg; do
+    seg="${seg#"${seg%%[![:space:]]*}"}"  # left-trim whitespace
+    case "$seg" in
+      "git push" | "git push "*)
+        case "$seg" in
+          *--force-with-lease*) : ;;                     # safe force — allow
+          *--force* | *" -f "* | *" -f") return 0 ;;     # bare force — deny
+        esac ;;
+    esac
+  done <<<"$c"
+  return 1
+}
+
 case "$cmd" in
   *"rm -rf /"* | *"rm -rf ~"* | *"rm -rf /*"*)
     deny "Refusing destructive recursive delete of a root or home path." ;;
   *":(){ :|:& };:"*)
     deny "Refusing fork bomb." ;;
-  *"git push --force"* | *"git push -f"*)
-    deny "Refusing force-push. Use --force-with-lease deliberately if truly required." ;;
   *"git reset --hard"*)
     deny "Refusing 'git reset --hard' via guard; run it manually if intended." ;;
   *"DROP TABLE"* | *"DROP DATABASE"*)
     deny "Refusing destructive SQL DROP." ;;
 esac
+
+is_force_push "$cmd" &&
+  deny "Refusing bare force-push. Use --force-with-lease (allowed) so you never clobber unseen upstream commits."
 
 # Protected-branch guard (Tier A collaboration): block 'git commit'/'git push'
 # while ON a declared [collaboration].protected_branches branch — work belongs on

@@ -42,6 +42,12 @@ class Config:
     collaboration_branch_patterns: tuple[str, ...] = ()
     collaboration_commit_types: tuple[str, ...] = ()
     collaboration_subject_max_length: int = 0
+    # [architecture] — import-direction fitness over the internal module graph
+    # (ADR-0027); each rule off when empty/false.
+    architecture_leaves: tuple[str, ...] = ()
+    architecture_private: tuple[str, ...] = ()
+    architecture_forbidden: tuple[tuple[str, str], ...] = ()
+    architecture_forbid_cycles: bool = False
     # [changelog] — Keep a Changelog discipline (ADR-0028); off when disabled.
     changelog_enabled: bool = False
     changelog_path: str = "CHANGELOG.md"
@@ -77,6 +83,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     git = raw.get("git", {})
     layout = raw.get("layout", {})
     collaboration = raw.get("collaboration", {})
+    architecture = raw.get("architecture", {})
     changelog = raw.get("changelog", {})
     return Config(
         required_checks=tuple(required),
@@ -97,6 +104,12 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         collaboration_branch_patterns=tuple(collaboration.get("branch_patterns", [])),
         collaboration_commit_types=tuple(collaboration.get("commit_types", [])),
         collaboration_subject_max_length=int(collaboration.get("subject_max_length", 0)),
+        architecture_leaves=tuple(architecture.get("leaves", [])),
+        architecture_private=tuple(architecture.get("private", [])),
+        architecture_forbidden=tuple(
+            (str(pair[0]), str(pair[1])) for pair in architecture.get("forbidden", [])
+        ),
+        architecture_forbid_cycles=bool(architecture.get("forbid_cycles", False)),
         changelog_enabled=bool(changelog.get("enabled", False)),
         changelog_path=str(changelog.get("path", "CHANGELOG.md")),
         changelog_require_entry_on_src_change=bool(

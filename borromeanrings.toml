@@ -97,6 +97,7 @@ required = [
   "20_lint",
   "30_typecheck",
   "32_complexity",
+  "33_coupling",
   "35_architecture",
   "40_test",
   "45_docstrings",

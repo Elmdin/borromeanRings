@@ -24,6 +24,11 @@ queue is merged.
     (ADR-0027).
   - Changelog discipline (this check): presence + `Unreleased` section, with an
     opt-in strict "entry on source change" rule (ADR-0028).
+  - Docstring-coverage ratchet: native, non-regression, no absolute target
+    (ADR-0029).
+  - Doc-drift critic: first live application of the T2 seam — a model judge
+    external to the generator checks docstrings against code; advisory-first,
+    opt-in via `[critic].judge_command` (ADR-0030).
   - Cyclomatic-complexity ratchet: native McCabe, worst-case non-regression, no
     absolute ceiling (ADR-0031).
 

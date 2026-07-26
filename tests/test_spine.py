@@ -66,6 +66,16 @@ def test_architecture_defaults_off(tmp_path: Path) -> None:
     assert loaded.architecture_forbid_cycles is False
 
 
+def test_critic_judge_command_loaded_and_defaults_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[critic]\njudge_command = "claude -p"\n',
+    )
+    assert load_config(declared).critic_judge_command == "claude -p"
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).critic_judge_command == ""
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

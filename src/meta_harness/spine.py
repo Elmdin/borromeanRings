@@ -64,6 +64,8 @@ class Config:
     # [licenses] — dependency license compliance (ADR-0035); deny patterns off when empty.
     license_deny: tuple[str, ...] = ()
     license_allow_packages: tuple[str, ...] = ()
+    # [enhancements] — agent-enhancement recommender interests (ADR-0037); advisory.
+    enhancements_interests: tuple[str, ...] = ()
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -137,4 +139,5 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         audit_ignore_vulns=tuple(audit.get("ignore_vulns", [])),
         license_deny=tuple(licenses.get("deny", [])),
         license_allow_packages=tuple(licenses.get("allow_packages", [])),
+        enhancements_interests=tuple(raw.get("enhancements", {}).get("interests", [])),
     )

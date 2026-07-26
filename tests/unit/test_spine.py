@@ -122,6 +122,16 @@ def test_critic_rubrics_loaded_and_default_empty(tmp_path: Path) -> None:
     assert load_config(default).critic_rubrics == ()
 
 
+def test_enhancements_interests_loaded_and_default_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[enhancements]\ninterests = ["model-routing"]\n',
+    )
+    assert load_config(declared).enhancements_interests == ("model-routing",)
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).enhancements_interests == ()
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

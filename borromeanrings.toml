@@ -47,6 +47,14 @@ enabled = true
 path = "CHANGELOG.md"
 require_entry_on_src_change = false
 
+[critic]
+# T2 external rubric critic (ADR-0023/0030). judge_command is the model judge the
+# critic checks (e.g. 55_doc_drift, advisory) shell out to — it receives a prompt on
+# stdin and returns a yes/no answer on stdout (e.g. "claude -p"). Empty ⇒ the critic
+# checks are OFF (no live judge wired). Left empty here: doc-drift is advisory and
+# belongs on the CI heavy lane before a live model judge runs on every gate.
+judge_command = ""
+
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and

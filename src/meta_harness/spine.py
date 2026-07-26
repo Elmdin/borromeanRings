@@ -52,6 +52,9 @@ class Config:
     changelog_enabled: bool = False
     changelog_path: str = "CHANGELOG.md"
     changelog_require_entry_on_src_change: bool = False
+    # [critic] — model-backed rubric judgment (ADR-0023/0030). Empty judge_command
+    # ⇒ the critic checks are off (no live judge wired).
+    critic_judge_command: str = ""
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -85,6 +88,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     collaboration = raw.get("collaboration", {})
     architecture = raw.get("architecture", {})
     changelog = raw.get("changelog", {})
+    critic = raw.get("critic", {})
     return Config(
         required_checks=tuple(required),
         context=context,
@@ -115,4 +119,5 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         changelog_require_entry_on_src_change=bool(
             changelog.get("require_entry_on_src_change", False)
         ),
+        critic_judge_command=str(critic.get("judge_command", "")),
     )

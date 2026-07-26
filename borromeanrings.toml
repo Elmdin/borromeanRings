@@ -97,6 +97,7 @@ required = [
 # Heavy (CI-tier) checks — required ONLY under `verify.sh --heavy` (CI). Populated as
 # tool-checks land (mutation, pip-audit, gitleaks, licenses). See ADR-0033.
 heavy = [
+  "60_mutation",
   "70_pip_audit",
 ]
 

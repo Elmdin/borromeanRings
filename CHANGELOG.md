@@ -24,6 +24,8 @@ queue is merged.
     (ADR-0027).
   - Changelog discipline (this check): presence + `Unreleased` section, with an
     opt-in strict "entry on source change" rule (ADR-0028).
+  - Native secret scanning: high-confidence provider tokens + private keys in
+    tracked files, fail-closed, `allow-secret` escape hatch (ADR-0032).
   - Docstring-coverage ratchet: native, non-regression, no absolute target
     (ADR-0029).
   - Doc-drift critic: first live application of the T2 seam — a model judge

@@ -13,6 +13,8 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Coupling ratchet: `33_coupling` — worst-case efferent coupling (fan-out) over
+  the internal module graph, non-regression, native (ADR-0038).
 - Critic activation: `scripts/critic-judge.sh` (provider-agnostic, fail-closed
   judge — claude CLI or ANTHROPIC_API_KEY) + `docs/CRITIC-ACTIVATION.md`; the
   Wave-2 critics are now one config line from live (ADR-0030/0036).

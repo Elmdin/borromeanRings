@@ -34,6 +34,9 @@ queue is merged.
   - Cyclomatic-complexity ratchet: native McCabe, worst-case non-regression, no
     absolute ceiling (ADR-0031).
 
+  - Dependency CVE audit (heavy): `70_pip_audit` runs pip-audit in CI and
+    fails on known vulnerabilities; base tooling / accepted CVEs ignorable
+    via `[audit]` (ADR-0034).
   - CI-tier heavy lane: `verify.sh --heavy` runs + requires `checks/ci/`
     (`[checks].heavy`), the home for expensive tool-checks; landed dormant
     (ADR-0033).

@@ -55,6 +55,12 @@ require_entry_on_src_change = false
 # belongs on the CI heavy lane before a live model judge runs on every gate.
 judge_command = ""
 
+[audit]
+# Dependency CVE audit (heavy check 70_pip_audit). Ignore base packaging
+# tooling (not declared deps) and any explicitly-accepted advisories. ADR-0034.
+ignore_packages = ["pip", "setuptools", "wheel"]
+ignore_vulns = []
+
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
@@ -90,7 +96,9 @@ required = [
 ]
 # Heavy (CI-tier) checks — required ONLY under `verify.sh --heavy` (CI). Populated as
 # tool-checks land (mutation, pip-audit, gitleaks, licenses). See ADR-0033.
-heavy = []
+heavy = [
+  "70_pip_audit",
+]
 
 [hygiene]
 # The engineering surround this project must have (presence-gated; see ADR-0012).

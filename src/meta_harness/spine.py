@@ -57,6 +57,9 @@ class Config:
     # [critic] — model-backed rubric judgment (ADR-0023/0030). Empty judge_command
     # ⇒ the critic checks are off (no live judge wired).
     critic_judge_command: str = ""
+    # [audit] — dependency CVE audit (ADR-0034); ignore base tooling / accepted CVEs.
+    audit_ignore_packages: tuple[str, ...] = ()
+    audit_ignore_vulns: tuple[str, ...] = ()
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -91,6 +94,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     architecture = raw.get("architecture", {})
     changelog = raw.get("changelog", {})
     critic = raw.get("critic", {})
+    audit = raw.get("audit", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -123,4 +127,6 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
             changelog.get("require_entry_on_src_change", False)
         ),
         critic_judge_command=str(critic.get("judge_command", "")),
+        audit_ignore_packages=tuple(audit.get("ignore_packages", [])),
+        audit_ignore_vulns=tuple(audit.get("ignore_vulns", [])),
     )

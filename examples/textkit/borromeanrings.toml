@@ -31,6 +31,7 @@ required = [
   "20_lint",
   "30_typecheck",
   "32_complexity",
+  "34_api_diff",
   "40_test",
   "45_docstrings",
   "50_security",
@@ -38,3 +39,8 @@ required = [
 
 [hygiene]
 requires = ["README.md", "pyproject.toml"]
+
+[api]
+# Public-API breaking-change policy (ADR-0040). Flip to true only for a deliberate
+# major-version release; otherwise a breaking change to textkit's API fails the gate.
+allow_breaking = false

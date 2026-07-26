@@ -132,6 +132,13 @@ def test_enhancements_interests_loaded_and_default_empty(tmp_path: Path) -> None
     assert load_config(default).enhancements_interests == ()
 
 
+def test_api_allow_breaking_loaded_and_default_false(tmp_path: Path) -> None:
+    declared = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n[api]\nallow_breaking = true\n')
+    assert load_config(declared).api_allow_breaking is True
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).api_allow_breaking is False
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

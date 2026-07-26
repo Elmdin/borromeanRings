@@ -86,6 +86,19 @@ def test_heavy_checks_loaded_and_default_empty(tmp_path: Path) -> None:
     assert load_config(default).heavy_checks == ()
 
 
+def test_audit_ignores_loaded_and_default_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[audit]\n'
+        'ignore_packages = ["pip", "setuptools"]\nignore_vulns = ["PYSEC-1"]\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.audit_ignore_packages == ("pip", "setuptools")
+    assert cfg.audit_ignore_vulns == ("PYSEC-1",)
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).audit_ignore_packages == ()
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

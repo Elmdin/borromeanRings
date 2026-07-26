@@ -48,6 +48,10 @@ class Config:
     architecture_private: tuple[str, ...] = ()
     architecture_forbidden: tuple[tuple[str, str], ...] = ()
     architecture_forbid_cycles: bool = False
+    # [changelog] — Keep a Changelog discipline (ADR-0028); off when disabled.
+    changelog_enabled: bool = False
+    changelog_path: str = "CHANGELOG.md"
+    changelog_require_entry_on_src_change: bool = False
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -80,6 +84,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     layout = raw.get("layout", {})
     collaboration = raw.get("collaboration", {})
     architecture = raw.get("architecture", {})
+    changelog = raw.get("changelog", {})
     return Config(
         required_checks=tuple(required),
         context=context,
@@ -105,4 +110,9 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
             (str(pair[0]), str(pair[1])) for pair in architecture.get("forbidden", [])
         ),
         architecture_forbid_cycles=bool(architecture.get("forbid_cycles", False)),
+        changelog_enabled=bool(changelog.get("enabled", False)),
+        changelog_path=str(changelog.get("path", "CHANGELOG.md")),
+        changelog_require_entry_on_src_change=bool(
+            changelog.get("require_entry_on_src_change", False)
+        ),
     )

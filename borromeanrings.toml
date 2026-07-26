@@ -24,7 +24,7 @@ email = "imaansoltan@gmail.com"
 # File-organization conventions, enforced by check 07_layout (fail-closed). Each
 # rule is opt-in (empty/zero ⇒ off). See docs/specs/SPEC-layout.md and ADR-0018.
 specs_dir = "docs/specs"                                # every SPEC*.md must live here
-root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md"]  # the only .md allowed at repo root
+root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md", "CHANGELOG.md"]  # the only .md allowed at repo root
 test_grouping_threshold = 30                            # > N flat test files ⇒ group by type (see ROADMAP: group into unit/integration/e2e)
 test_groups = ["unit", "integration", "e2e"]
 
@@ -36,6 +36,16 @@ test_groups = ["unit", "integration", "e2e"]
 leaves = ["spine"]           # the config foundation (Single Choice) imports no domain module
 private = ["deep_research"]  # the research testbed must stay non-load-bearing (nothing imports it)
 forbid_cycles = true         # ARCHITECTURE.md §2: source → check → receipt, acyclic, no feedback
+
+[changelog]
+# Keep a Changelog discipline, enforced by check 11_changelog. presence + an
+# 'Unreleased' section is on now (non-retroactive: it constrains repo state, not a
+# diff). The strict "update the changelog when source changes" rule is left OFF
+# until the current PR queue merges — turning on a required diff-rule would
+# retroactively fail open src-touching PRs. See SPEC-changelog.md, ADR-0028.
+enabled = true
+path = "CHANGELOG.md"
+require_entry_on_src_change = false
 
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
@@ -59,6 +69,7 @@ required = [
   "07_layout",
   "08_branch",
   "09_commits",
+  "11_changelog",
   "10_format",
   "20_lint",
   "30_typecheck",

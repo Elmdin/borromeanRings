@@ -57,6 +57,7 @@ import sys
 from pathlib import Path
 
 from meta_harness.change_detect import record_green
+from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
 
 config_path, receipt_dir, project_root = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -65,6 +66,7 @@ expected = config.required_checks
 
 rows = []
 ok = True
+intact_hashes = []
 for cid in expected:
     rpath = os.path.join(receipt_dir, f"{cid}.json")
     if not os.path.exists(rpath):
@@ -74,6 +76,19 @@ for cid in expected:
     with open(rpath) as fh:
         receipt = json.load(fh)
     status = receipt.get("status", "?")
+    # Tamper-evidence: a required receipt must match its own content hash (fields +
+    # log). A fresh run always does; a mismatch means the evidence was edited after
+    # the fact — fail closed, never trust a forged/corrupt pass. See ADR-0026.
+    log_path = receipt.get("log", "")
+    log_text = ""
+    if log_path and os.path.exists(log_path):
+        with open(log_path, encoding="utf-8", errors="replace") as fh:
+            log_text = fh.read()
+    if not verify_receipt(receipt, log_text):
+        ok = False
+        rows.append((cid, f"{status.upper()} !TAMPERED"))
+        continue
+    intact_hashes.append(receipt.get("content_sha256", ""))
     if status != "pass":
         ok = False
     rows.append((cid, status.upper()))
@@ -86,6 +101,8 @@ for cid, status in rows:
     print(f"  {cid.ljust(width)}   {status}")
 print("  " + "-" * (width + 14))
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
+if intact_hashes:
+    print(f"  run-digest: {run_digest(intact_hashes)}")
 if not ok:
     print("  One or more checks failed or produced no receipt; see logs in the run dir.")
 print()

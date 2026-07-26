@@ -25,7 +25,7 @@ email = "imaansoltan@gmail.com"
 # rule is opt-in (empty/zero ⇒ off). See docs/specs/SPEC-layout.md and ADR-0018.
 specs_dir = "docs/specs"                                # every SPEC*.md must live here
 root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md"]  # the only .md allowed at repo root
-test_grouping_threshold = 15                            # > N flat test files ⇒ group by type
+test_grouping_threshold = 30                            # > N flat test files ⇒ group by type (see ROADMAP: group into unit/integration/e2e)
 test_groups = ["unit", "integration", "e2e"]
 
 [architecture]

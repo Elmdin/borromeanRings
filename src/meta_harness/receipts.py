@@ -69,6 +69,8 @@ def run_digest(content_hashes: list[str]) -> str:
 
 @dataclass(frozen=True)
 class IntegrityReport:
+    """Outcome of verifying a receipt directory's integrity."""
+
     ok: bool
     tampered: tuple[str, ...]  # stored hash present but does not match
     unhashed: tuple[str, ...]  # no hash field at all

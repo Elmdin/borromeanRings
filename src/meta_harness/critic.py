@@ -54,10 +54,12 @@ class CriticReport:
 
     @property
     def passed(self) -> bool:
+        """True iff every required criterion passed (fail-closed)."""
         return all(v.passed for v in self.verdicts if v.required)
 
     @property
     def failures(self) -> tuple[CriterionVerdict, ...]:
+        """The required criteria that failed — the ones that block."""
         return tuple(v for v in self.verdicts if v.required and not v.passed)
 
 

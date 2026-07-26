@@ -75,6 +75,7 @@ required = [
   "30_typecheck",
   "35_architecture",
   "40_test",
+  "45_docstrings",
   "50_security",
 ]
 

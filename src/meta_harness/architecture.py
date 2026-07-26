@@ -74,17 +74,22 @@ def build_import_graph(src_root: Path | str, package: str) -> Graph:
 
 @dataclass(frozen=True)
 class ArchViolation:
+    """A single breached architectural contract (its kind and a human-readable detail)."""
+
     kind: str  # "leaf" | "private" | "forbidden" | "cycle"
     detail: str
 
 
 @dataclass(frozen=True)
 class ArchReport:
+    """Aggregate result of evaluating the contracts: ``ok`` plus any violations."""
+
     ok: bool
     violations: tuple[ArchViolation, ...]
 
 
 def leaf_violations(graph: Graph, leaves: tuple[str, ...]) -> list[ArchViolation]:
+    """Foundation modules in ``leaves`` that import an internal sibling."""
     out: list[ArchViolation] = []
     for module in leaves:
         imported = sorted(graph.get(module, set()))
@@ -100,6 +105,7 @@ def leaf_violations(graph: Graph, leaves: tuple[str, ...]) -> list[ArchViolation
 
 
 def private_violations(graph: Graph, private: tuple[str, ...]) -> list[ArchViolation]:
+    """Modules importing a ``private`` module (which nothing may depend on)."""
     priv = set(private)
     out: list[ArchViolation] = []
     for module, deps in sorted(graph.items()):
@@ -118,6 +124,7 @@ def private_violations(graph: Graph, private: tuple[str, ...]) -> list[ArchViola
 def forbidden_violations(
     graph: Graph, forbidden: tuple[tuple[str, str], ...]
 ) -> list[ArchViolation]:
+    """Declared ``A ↛ B`` edges that the graph violates."""
     out: list[ArchViolation] = []
     for importer, target in forbidden:
         if target in graph.get(importer, set()):
@@ -154,6 +161,7 @@ def find_cycles(graph: Graph) -> list[list[str]]:
 
 
 def cycle_violations(graph: Graph) -> list[ArchViolation]:
+    """Import cycles in ``graph`` rendered as violations."""
     return [ArchViolation("cycle", " -> ".join([*cycle, cycle[0]])) for cycle in find_cycles(graph)]
 
 

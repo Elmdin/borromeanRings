@@ -10,6 +10,14 @@
 # author (human / CI / agent hook).
 set -uo pipefail
 
+# Heavy (CI-tier) lane: `--heavy` (or BORROMEANRINGS_HEAVY=1) additionally runs +
+# requires the checks/ci/ set — expensive checks (mutation, CVE audit, secret-scan
+# tools) that must NOT run on the fast inner Stop gate. Off by default. See ADR-0033.
+HEAVY="${BORROMEANRINGS_HEAVY:-0}"
+for _arg in "$@"; do
+  [ "$_arg" = "--heavy" ] && HEAVY=1
+done
+
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
@@ -40,7 +48,10 @@ mkdir -p "$RECEIPT_DIR"
 
 # Run shared (language-agnostic) checks + the selected language's checks. Each writes
 # its own receipt; the verdict is computed from receipts, never a check's exit alone.
-for dir in "$BORROMEANRINGS_HOME/checks/shared" "$BORROMEANRINGS_HOME/checks/$language"; do
+scan_dirs=("$BORROMEANRINGS_HOME/checks/shared" "$BORROMEANRINGS_HOME/checks/$language")
+# CI-tier heavy checks run ONLY under --heavy (never on the fast inner Stop gate).
+[ "$HEAVY" = "1" ] && scan_dirs+=("$BORROMEANRINGS_HOME/checks/ci")
+for dir in "${scan_dirs[@]}"; do
   [ -d "$dir" ] || continue
   for check in "$dir"/[0-9]*.sh; do
     [ -e "$check" ] || continue
@@ -50,7 +61,7 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" <<'PY'
 import json
 import os
 import sys
@@ -60,9 +71,11 @@ from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
 
-config_path, receipt_dir, project_root = sys.argv[1], sys.argv[2], sys.argv[3]
+config_path, receipt_dir, project_root, heavy = sys.argv[1:5]
 config = load_config(config_path)
-expected = config.required_checks
+# Under --heavy the CI-tier heavy checks are also required; otherwise only the
+# fast required set gates (the heavy set never blocks the inner Stop gate).
+expected = config.required_checks + (config.heavy_checks if heavy == "1" else ())
 
 rows = []
 ok = True

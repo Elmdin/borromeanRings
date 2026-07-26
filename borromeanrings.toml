@@ -88,6 +88,9 @@ required = [
   "45_docstrings",
   "50_security",
 ]
+# Heavy (CI-tier) checks — required ONLY under `verify.sh --heavy` (CI). Populated as
+# tool-checks land (mutation, pip-audit, gitleaks, licenses). See ADR-0033.
+heavy = []
 
 [hygiene]
 # The engineering surround this project must have (presence-gated; see ADR-0012).

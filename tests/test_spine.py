@@ -76,6 +76,16 @@ def test_critic_judge_command_loaded_and_defaults_empty(tmp_path: Path) -> None:
     assert load_config(default).critic_judge_command == ""
 
 
+def test_heavy_checks_loaded_and_default_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\nheavy = ["60_mutation", "70_audit"]\n',
+    )
+    assert load_config(declared).heavy_checks == ("60_mutation", "70_audit")
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).heavy_checks == ()
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

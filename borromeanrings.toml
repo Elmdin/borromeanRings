@@ -61,6 +61,13 @@ judge_command = ""
 ignore_packages = ["pip", "setuptools", "wheel"]
 ignore_vulns = []
 
+[licenses]
+# Dependency license compliance (heavy check 72_licenses). Deny copyleft that
+# is incompatible with Apache-2.0 distribution; allow_packages exempts vetted
+# deps. Off when deny is empty. ADR-0035.
+deny = ["GPL-2", "GPL-3", "GPLv2", "GPLv3", "AGPL", "Affero", "SSPL", "GNU General Public"]
+allow_packages = []
+
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
@@ -99,6 +106,7 @@ required = [
 heavy = [
   "60_mutation",
   "70_pip_audit",
+  "72_licenses",
 ]
 
 [hygiene]

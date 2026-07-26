@@ -112,6 +112,16 @@ def test_license_policy_loaded_and_default_empty(tmp_path: Path) -> None:
     assert load_config(default).license_deny == ()
 
 
+def test_critic_rubrics_loaded_and_default_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[critic]\nrubrics = ["naming", "security"]\n',
+    )
+    assert load_config(declared).critic_rubrics == ("naming", "security")
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).critic_rubrics == ()
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

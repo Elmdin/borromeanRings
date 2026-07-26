@@ -28,6 +28,10 @@ queue is merged.
     tracked files, fail-closed, `allow-secret` escape hatch (ADR-0032).
   - Docstring-coverage ratchet: native, non-regression, no absolute target
     (ADR-0029).
+  - Wave-2 critic rubrics (advisory): `56_critics` judges functions against
+    error-handling / naming / security / boundary-value / test-smell rubrics
+    via a live model judge; a DRY registry over the doc-drift machinery,
+    dormant until `[critic].judge_command` is wired (ADR-0036).
   - Doc-drift critic: first live application of the T2 seam — a model judge
     external to the generator checks docstrings against code; advisory-first,
     opt-in via `[critic].judge_command` (ADR-0030).

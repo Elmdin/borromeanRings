@@ -13,6 +13,9 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Critic activation: `scripts/critic-judge.sh` (provider-agnostic, fail-closed
+  judge — claude CLI or ANTHROPIC_API_KEY) + `docs/CRITIC-ACTIVATION.md`; the
+  Wave-2 critics are now one config line from live (ADR-0030/0036).
 - Agent-enhancement recommender (advisory): `meta_harness.enhancements` — a
   curated, maintainer-verified catalog of open-source tools that improve the
   *wrapped agent* (model routing, MCP servers, observability, caching), with a

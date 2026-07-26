@@ -40,12 +40,11 @@ forbid_cycles = true         # ARCHITECTURE.md §2: source → check → receipt
 [changelog]
 # Keep a Changelog discipline, enforced by check 11_changelog. presence + an
 # 'Unreleased' section is on now (non-retroactive: it constrains repo state, not a
-# diff). The strict "update the changelog when source changes" rule is left OFF
-# until the current PR queue merges — turning on a required diff-rule would
-# retroactively fail open src-touching PRs. See SPEC-changelog.md, ADR-0028.
+# diff). The strict "update the changelog when source changes" rule is now ON
+# (the enforcement-coverage PR queue has merged). See SPEC-changelog.md, ADR-0028.
 enabled = true
 path = "CHANGELOG.md"
-require_entry_on_src_change = false
+require_entry_on_src_change = true
 
 [critic]
 # T2 external rubric critic (ADR-0023/0030). judge_command is the model judge the

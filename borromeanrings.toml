@@ -77,6 +77,7 @@ required = [
   "07_layout",
   "08_branch",
   "09_commits",
+  "12_secrets",
   "11_changelog",
   "10_format",
   "20_lint",

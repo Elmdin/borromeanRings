@@ -139,3 +139,10 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
 # (confirmation-first only for irreversible or scope-changing readings). The agent performs
 # the rewrite; verifying compliance is tracked in issue #81. See SPEC-prompt-rewrite.md.
 enabled = true
+
+[enhancements]
+# Agent-enhancement recommender (advisory; ADR-0037). Categories of open-source
+# tools to surface for improving the WRAPPED agent (not the code). Advisory only
+# — proposes, never gates. Run: python3 -c "from meta_harness.enhancements import
+# main; print(main())"
+interests = ["model-routing", "observability"]

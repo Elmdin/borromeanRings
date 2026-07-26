@@ -13,6 +13,10 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Agent-enhancement recommender (advisory): `meta_harness.enhancements` — a
+  curated, maintainer-verified catalog of open-source tools that improve the
+  *wrapped agent* (model routing, MCP servers, observability, caching), with a
+  `[enhancements].interests` filter. Proposes, never gates (ADR-0037).
 - **Enforcement-coverage program** — turning the SWE best-practice matrix into
   real gates:
   - Adversarial self-test corpus: the gate must reject known-bad and accept

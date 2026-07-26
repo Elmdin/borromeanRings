@@ -60,6 +60,9 @@ class Config:
     # [audit] — dependency CVE audit (ADR-0034); ignore base tooling / accepted CVEs.
     audit_ignore_packages: tuple[str, ...] = ()
     audit_ignore_vulns: tuple[str, ...] = ()
+    # [licenses] — dependency license compliance (ADR-0035); deny patterns off when empty.
+    license_deny: tuple[str, ...] = ()
+    license_allow_packages: tuple[str, ...] = ()
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -95,6 +98,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     changelog = raw.get("changelog", {})
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
+    licenses = raw.get("licenses", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -129,4 +133,6 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         critic_judge_command=str(critic.get("judge_command", "")),
         audit_ignore_packages=tuple(audit.get("ignore_packages", [])),
         audit_ignore_vulns=tuple(audit.get("ignore_vulns", [])),
+        license_deny=tuple(licenses.get("deny", [])),
+        license_allow_packages=tuple(licenses.get("allow_packages", [])),
     )

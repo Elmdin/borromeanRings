@@ -99,6 +99,19 @@ def test_audit_ignores_loaded_and_default_empty(tmp_path: Path) -> None:
     assert load_config(default).audit_ignore_packages == ()
 
 
+def test_license_policy_loaded_and_default_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[licenses]\n'
+        'deny = ["GPL", "AGPL"]\nallow_packages = ["special"]\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.license_deny == ("GPL", "AGPL")
+    assert cfg.license_allow_packages == ("special",)
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).license_deny == ()
+
+
 def test_empty_required_is_fail_closed(tmp_path: Path) -> None:
     config = _write(tmp_path, "[checks]\nrequired = []\n")
     with pytest.raises(ValueError, match="fail-closed"):

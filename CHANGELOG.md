@@ -37,6 +37,9 @@ queue is merged.
   - Mutation-score ratchet (heavy): `60_mutation` runs mutmut in CI and
     ratchets assertion strength vs `.borromeanrings-mutation-baseline`
     (0.80; current 0.83), fail-closed on 0-evaluated (ADR-0022).
+  - License compliance (heavy): `72_licenses` runs pip-licenses in CI and
+    denies incompatible copyleft (`[licenses].deny`), with `allow_packages`
+    exceptions (ADR-0035).
   - Dependency CVE audit (heavy): `70_pip_audit` runs pip-audit in CI and
     fails on known vulnerabilities; base tooling / accepted CVEs ignorable
     via `[audit]` (ADR-0034).

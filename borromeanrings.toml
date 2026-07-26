@@ -54,6 +54,8 @@ require_entry_on_src_change = false
 # checks are OFF (no live judge wired). Left empty here: doc-drift is advisory and
 # belongs on the CI heavy lane before a live model judge runs on every gate.
 judge_command = ""
+# Wave-2 rubrics enabled (dormant until judge_command is set). ADR-0036.
+rubrics = ["error_handling", "naming", "security", "boundary_value", "test_smell"]
 
 [audit]
 # Dependency CVE audit (heavy check 70_pip_audit). Ignore base packaging

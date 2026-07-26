@@ -13,6 +13,10 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Example governed project: `examples/textkit` — a small library (different
+  archetype) with its own `borromeanrings.toml`, governed by borromeanRings's
+  gate end-to-end (11 checks). Proves the 'any project' portability claim; a
+  permanent integration test asserts its gate passes.
 - Coupling ratchet: `33_coupling` — worst-case efferent coupling (fan-out) over
   the internal module graph, non-regression, native (ADR-0038).
 - Critic activation: `scripts/critic-judge.sh` (provider-agnostic, fail-closed

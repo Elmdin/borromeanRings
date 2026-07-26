@@ -28,7 +28,7 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-extend-exclude = ["cs130", ".meta-harness"]
+extend-exclude = ["cs130", ".meta-harness", "examples"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]

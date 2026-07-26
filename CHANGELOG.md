@@ -13,6 +13,10 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Public-API breaking-change detection: `34_api_diff` — diffs the public
+  surface vs the merge-base; a removed symbol / removed-renamed param / new
+  required param fails unless `[api].allow_breaking=true`. Native ast+git,
+  dogfooded on `examples/textkit` (ADR-0040).
 - Example governed project: `examples/textkit` — a small library (different
   archetype) with its own `borromeanrings.toml`, governed by borromeanRings's
   gate end-to-end (11 checks). Proves the 'any project' portability claim; a

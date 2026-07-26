@@ -66,6 +66,9 @@ class Config:
     license_allow_packages: tuple[str, ...] = ()
     # [enhancements] — agent-enhancement recommender interests (ADR-0037); advisory.
     enhancements_interests: tuple[str, ...] = ()
+    # [api] — public-API breaking-change policy (ADR-0040). allow_breaking=true only
+    # for a deliberate major-version release.
+    api_allow_breaking: bool = False
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -140,4 +143,5 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         license_deny=tuple(licenses.get("deny", [])),
         license_allow_packages=tuple(licenses.get("allow_packages", [])),
         enhancements_interests=tuple(raw.get("enhancements", {}).get("interests", [])),
+        api_allow_breaking=bool(raw.get("api", {}).get("allow_breaking", False)),
     )

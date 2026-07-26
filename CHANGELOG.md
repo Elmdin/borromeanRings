@@ -52,6 +52,8 @@ queue is merged.
     (ADR-0033).
 
 ### Changed
+- Grouped `tests/` into `unit/` (23) + `integration/` (5 shell-out tests); layout
+  threshold back to 15; mutmut ignore paths updated; retires the 30 workaround.
 - Enforcement-coverage map refreshed to reflect the shipped suite (T1 filled,
   T2 critic seam + rubric family live-advisory); honest scorecard updated.
 - Changelog strict rule (`require_entry_on_src_change`) turned **on** now the

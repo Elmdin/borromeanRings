@@ -22,7 +22,7 @@ import pytest
 
 from meta_harness.hook_dedupe import claim, release
 
-BORROMEANRINGS_HOME = Path(__file__).resolve().parents[1]
+BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 HOOKS = BORROMEANRINGS_HOME / ".claude" / "hooks"
 
 # --- unit: claim semantics ---------------------------------------------------

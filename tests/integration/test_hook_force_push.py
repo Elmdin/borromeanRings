@@ -18,7 +18,7 @@ import os
 import subprocess
 from pathlib import Path
 
-BORROMEANRINGS_HOME = Path(__file__).resolve().parents[1]
+BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 HOOKS = BORROMEANRINGS_HOME / ".claude" / "hooks"
 
 

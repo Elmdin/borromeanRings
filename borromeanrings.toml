@@ -81,6 +81,7 @@ required = [
   "10_format",
   "20_lint",
   "30_typecheck",
+  "32_complexity",
   "35_architecture",
   "40_test",
   "45_docstrings",

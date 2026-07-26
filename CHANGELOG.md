@@ -29,6 +29,8 @@ queue is merged.
   - Doc-drift critic: first live application of the T2 seam — a model judge
     external to the generator checks docstrings against code; advisory-first,
     opt-in via `[critic].judge_command` (ADR-0030).
+  - Cyclomatic-complexity ratchet: native McCabe, worst-case non-regression, no
+    absolute ceiling (ADR-0031).
 
 ### Notes
 - Earlier increments that are in review: mutation-score ratchet (ADR-0022),

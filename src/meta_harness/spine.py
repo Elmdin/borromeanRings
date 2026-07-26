@@ -21,6 +21,8 @@ class Config:
 
     required_checks: tuple[str, ...]
     context: Mapping[str, Any]
+    # [checks].heavy — CI-tier checks required only under `verify.sh --heavy` (ADR-0033).
+    heavy_checks: tuple[str, ...] = ()
     prompt_rewriting_enabled: bool = False
     hygiene_requires: tuple[str, ...] = ()
     # [project] — what borromeanRings targets in the GOVERNED project (portability).
@@ -91,6 +93,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     critic = raw.get("critic", {})
     return Config(
         required_checks=tuple(required),
+        heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
         hygiene_requires=hygiene_requires,

@@ -34,6 +34,10 @@ queue is merged.
   - Cyclomatic-complexity ratchet: native McCabe, worst-case non-regression, no
     absolute ceiling (ADR-0031).
 
+  - CI-tier heavy lane: `verify.sh --heavy` runs + requires `checks/ci/`
+    (`[checks].heavy`), the home for expensive tool-checks; landed dormant
+    (ADR-0033).
+
 ### Notes
 - Earlier increments that are in review: mutation-score ratchet (ADR-0022),
   external rubric-critic seam (ADR-0023), project profiler (ADR-0024), and the

@@ -51,6 +51,12 @@ queue is merged.
     (`[checks].heavy`), the home for expensive tool-checks; landed dormant
     (ADR-0033).
 
+### Changed
+- Enforcement-coverage map refreshed to reflect the shipped suite (T1 filled,
+  T2 critic seam + rubric family live-advisory); honest scorecard updated.
+- Changelog strict rule (`require_entry_on_src_change`) turned **on** now the
+  PR queue has cleared (ADR-0028).
+
 ### Notes
 - Earlier increments that are in review: mutation-score ratchet (ADR-0022),
   external rubric-critic seam (ADR-0023), project profiler (ADR-0024), and the

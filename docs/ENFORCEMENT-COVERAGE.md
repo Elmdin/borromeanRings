@@ -46,32 +46,32 @@ harder to game.
 |---|---|---|---|
 | Tests pass | T0 | ✅ | `checks/…/40_test.sh` |
 | Coverage non-regression | T1 | ✅ | ratchet vs `.borromeanrings-coverage-baseline` |
-| **Mutation score** (assertion/oracle strength) | T1 | ❌ | *flagship gap* — coverage proves execution, not detection. See §3. |
-| Property-based / metamorphic testing present | T1/T3 | ❌ | Hypothesis / metamorphic invariants |
-| Boundary-value / equivalence design | T2 | ❌ | needs a critic to judge input design |
+| **Mutation score** (assertion/oracle strength) | T1 | ✅ | `checks/ci/60_mutation.sh` (heavy lane); ratchet 0.83 vs baseline 0.80; fail-closed on 0-evaluated (ADR-0022) |
+| Property-based / metamorphic testing present | T1/T3 | ❌ | deferred — mutation testing already measures oracle strength |
+| Boundary-value / equivalence design | T2 | ⚠️ | `56_critics` rubric `boundary_value` — advisory critic, dormant until a judge is wired (ADR-0036) |
 | Flaky-test detection | T1 | ❌ | rerun variance; quarantine |
 | Every bug-fix ships a regression test | T0/process | ⚠️ | stated in rules, not enforced |
 | Test isolation / independence | T0 | ⚠️ | pytest fixtures; not asserted |
-| Test-smell detection (assertion roulette, mystery guest) | T2 | ❌ | |
+| Test-smell detection (assertion roulette, mystery guest) | T2 | ⚠️ | `56_critics` rubric `test_smell` — advisory critic (ADR-0036) |
 
 ### B. Static correctness & type safety — CS130 §6
 | Typecheck | T0 | ✅ | mypy (`30_typecheck`) |
 | Lint | T0 | ✅ | ruff (`20_lint`) |
-| Dead-code detection | T0/T1 | ❌ | vulture / ts-prune |
-| Cyclomatic-complexity ceiling/ratchet | T1 | ❌ | radon |
-| Duplication ratchet | T1 | ❌ | jscpd / pylint duplicate-code |
+| Dead-code detection | T0/T1 | ❌ | deliberately deferred — vulture is false-positive-prone on bash-invoked functions here (noise-gate) |
+| Cyclomatic-complexity ceiling/ratchet | T1 | ✅ | `checks/python/32_complexity.sh` — native McCabe worst-case ratchet, no external tool (ADR-0031) |
+| Duplication ratchet | T1 | ❌ | deliberately deferred — low value on a small, clean codebase |
 
 ### C. Security — CS130 §14
 | Static SAST | T0 | ✅ | bandit (`50_security`) |
-| Dependency / CVE audit | T0 | ❌ | pip-audit / safety |
-| Secret scanning | T0 | ❌ | gitleaks / trufflehog |
+| Dependency / CVE audit | T0 | ✅ | `checks/ci/70_pip_audit.sh` (heavy lane) — pip-audit, `[audit]` ignores (ADR-0034) |
+| Secret scanning | T0 | ✅ | `checks/shared/12_secrets.sh` — native high-confidence scan; gitleaks (entropy) is the heavy-lane follow-up (ADR-0032) |
 | Pinned deps / lockfile integrity / SBOM | T0 | ⚠️ | `pyproject.toml`; no lockfile-integrity gate |
-| License compliance | T0 | ❌ | |
+| License compliance | T0 | ✅ | `checks/ci/72_licenses.sh` (heavy lane) — pip-licenses denylist (ADR-0035) |
 | Fuzzing / DAST | T1/T3 | ❌ | |
 
 ### D. Design & architecture — CS130 §4, §11
-| **Dependency-direction / architecture fitness functions** | T0 | ❌ | import-linter / ArchUnit — enforce layering & the DIP |
-| Layering / information-hiding | T0 | ⚠️ | `07_layout` enforces *file* layout, not *dependency* rules |
+| **Dependency-direction / architecture fitness functions** | T0 | ✅ | `checks/python/35_architecture.sh` — native import-graph contracts: leaves/private/forbidden/acyclic (ADR-0027) |
+| Layering / information-hiding | T0 | ✅ | `35_architecture` now enforces *dependency* rules (not just file layout) (ADR-0027) |
 | Coupling/cohesion metrics | T1/T2 | ❌ | |
 | ADR present for load-bearing decisions | T0/T3 | ⚠️ | ADRs by convention (`docs/adr`), not gated |
 | Design-doc for N-file features | T0/T3 | ⚠️ | rule only |
@@ -79,7 +79,7 @@ harder to game.
 
 ### E. Code smells & maintainability — CS130 §6, §9
 | Function/file size, nesting depth | T0 | ⚠️ | partial via ruff; nesting not bounded |
-| Naming quality, feature envy, long-param, primitive obsession | T2 | ❌ | critic territory |
+| Naming quality, feature envy, long-param, primitive obsession | T2 | ⚠️ | `56_critics` rubric `naming` — advisory critic (ADR-0036) |
 
 ### F. Requirements & traceability — CS130 §1, §15
 | Story → test traceability | T2 | ❌ | "trace each test to a decision to a requirement" |
@@ -88,9 +88,9 @@ harder to game.
 | Requirements coverage | T2 | ❌ | |
 
 ### G. Documentation — CS130 §10
-| Docstring / API-doc coverage | T1 | ❌ | interrogate / docstr-coverage |
-| **Doc-drift** (docs match code) | T2 | ⚠️ | caught manually (e.g. the deep_research docstring); not enforced |
-| Changelog updated | T0 | ❌ | |
+| Docstring / API-doc coverage | T1 | ✅ | `checks/python/45_docstrings.sh` — native ratchet at 1.0 (ADR-0029) |
+| **Doc-drift** (docs match code) | T2 | ⚠️ | `55_doc_drift.sh` advisory critic — live-judge mechanism shipped, dormant until wired (ADR-0030) |
+| Changelog updated | T0 | ✅ | `checks/shared/11_changelog.sh` — presence + Unreleased; strict entry-on-src-change now on (ADR-0028) |
 | README / ARCHITECTURE freshness | T2 | ❌ | |
 
 ### H. Process & collaboration — CS130 §7, §12
@@ -104,39 +104,47 @@ harder to game.
 | Commit identity | T0 | ✅ | `06_git_identity` guard (ADR-0017/0019) |
 
 ### I. Performance & reliability — CS130 §11, §13
-| Perf budget / benchmark ratchet | T1 | ❌ | |
+| Perf budget / benchmark ratchet | T1 | ❌ | deliberately deferred — borromeanRings has no perf-critical hot paths (meaningless ratchet here) |
 | Bundle / binary size ratchet | T1 | ❌ | |
-| Error-handling completeness | T2 | ❌ | |
+| Error-handling completeness | T2 | ⚠️ | `56_critics` rubric `error_handling` — advisory critic (ADR-0036) |
 | Logging / observability presence | T2 | ❌ | |
 | Load / chaos testing | T3 | ❌ | |
 
 ### J. Intent / semantic correctness — the ceiling — CS130 §9, §14
-| **"Built the right thing" rubric critic** | T2 | ❌ | roadmap ⏳ "External rubric critic"; workstream #3 |
+| **"Built the right thing" rubric critic** | T2 | ✅ | critic seam + `55_doc_drift` + `56_critics` rubric family (ADR-0023/0030/0036) |
 | Explainability (no unexplained code) | T2/T3 | ❌ | CS130 §14 rule |
-| AI-code security-review-by-default | T2 | ⚠️ | bandit only; no semantic security review |
+| AI-code security-review-by-default | T2 | ⚠️ | bandit (`50_security`) + `56_critics` rubric `security` — advisory semantic review (ADR-0036) |
 
 ### K. Meta — is the enforcement itself real? — CS130 §15
-| **Adversarial self-test** (gate must catch known-bad) | T0 | ❌ | make the manual "buggy-code probe" a permanent check |
-| Tamper-evident receipts | T0 | ⚠️ | receipts exist (`.meta-harness/receipts/`); no tamper-evidence |
-| Mutation-test the gate's own checks | meta | ❌ | |
+| **Adversarial self-test** (gate must catch known-bad) | T0 | ✅ | `tests/test_gate_adversarial.py` — known-bad corpus, permanent (ADR-0025) |
+| Tamper-evident receipts | T0 | ✅ | content-digest receipts + fail-closed verdict + run-digest anchor (ADR-0026) |
+| Mutation-test the gate's own checks | meta | ✅ | the checks' logic lives in `meta_harness/*` which `60_mutation` mutates (ADR-0022) |
 
-## 3. Honest scorecard (2026-07)
+## 3. Honest scorecard (2026-07, after the enforcement-coverage program)
 
-- **T0 (deterministic gate): strong, fairly complete for *hygiene*** — build, types, lint,
-  static-security, layout, and the full process/collaboration set. This is borromeanRings's earned strength.
-- **T1 (ratchet): almost empty** — exactly **one** ratchet (coverage), and it is the weakest
-  possible signal. A deliberately broken function with a vacuous 100%-coverage test passes the
-  entire gate (verified by probe). Mutation, complexity, duplication, dead-code, perf, doc-coverage,
-  and API-diff are all T1-shaped and unbuilt. **Biggest underexploited tier.**
-- **T2 (semantic critic): zero.** Every "does it do the right thing / is it well-designed / do the
-  docs match / are requirements traced" practice lives here and none is enforced. This is the
-  **quality ceiling**: mechanical gates check *form*, never *intent*.
-- **T3 (advisory): thin but principled** — prompt-rewrite and research skills exist; the project
-  profiler is the next T3 capability *and* the selector for this whole matrix.
+- **T0 (deterministic gate): strong and broad** — build, types, lint, static-security,
+  layout, the full process/collaboration set, **plus** native secret-scan and
+  dependency-direction architecture fitness. Still borromeanRings's earned strength.
+- **T1 (ratchet): now populated** — coverage **plus** mutation-score (the assertion-strength
+  signal that closes the coverage-Goodhart hole the probe exposed), cyclomatic-complexity,
+  and docstring-coverage ratchets; CVE audit and license compliance on the CI heavy lane.
+  The deliberately-broken-function probe is now a **permanent adversarial check**. Still
+  T1-shaped and *deliberately* deferred: perf/bundle (no hot paths here), duplication (low
+  value), property-based (mutation covers oracle strength), API-diff, flaky-detection.
+- **T2 (semantic critic): seam + live template + rubric family.** The critic (a model judge
+  external to the generator, fail-closed) is built and demonstrated: doc-drift is live-wired,
+  and error-handling / naming / security / boundary-value / test-smell exist as a DRY rubric
+  registry. **Advisory today** (dormant until a `judge_command` / CI model-judge secret is
+  wired); promotion to gating is a heavy-lane + `required=True` step.
+- **T3 (advisory): principled** — prompt-rewrite, research skills, and the project profiler
+  (the selector for this whole matrix). Next: the agent-enhancement recommender.
 
-**Verdict.** borromeanRings today enforces **hygiene comprehensively** and **quality partially**. Calling
-it "enforces high-quality code" is only earned once T1 is filled (assertion strength) and the T2
-critic seam exists (intent). Until then it is an honest, strong, regression-proof **floor**.
+**Verdict.** borromeanRings now enforces **hygiene comprehensively and quality substantively**:
+the T1 tier is filled (assertion strength is enforced, not just execution), the T2 critic seam
+exists and has a live application, and receipts are tamper-evident. What remains is *by choice*
+(deferred poor-fit ratchets) or *one wiring step* (activating the critics with a model-judge
+secret). It is an honest, strong, regression-proof floor **with a real quality ceiling now
+under construction** — no longer just "hygiene with quality partial".
 
 ## 4. How rows graduate
 

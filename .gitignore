@@ -16,3 +16,5 @@ venv/
 # CS130 knowledge base — reference material that informed the build, not borromeanRings's product code.
 # Untracked by default; remove this line if you want it versioned with the repo.
 cs130/
+mutants/
+.mutmut-cache

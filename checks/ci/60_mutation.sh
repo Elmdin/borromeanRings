@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# 60_mutation — HEAVY (CI-tier) mutation-score RATCHET.
+#
+# NOT run by the fast inner Stop gate: mutation testing runs the whole suite once
+# per mutant. It lives in checks/ci/ (which verify.sh scans ONLY under --heavy /
+# BORROMEANRINGS_HEAVY=1) and runs in CI. It measures oracle/assertion strength —
+# coverage proves a line executed; mutation proves a test would CATCH a change to
+# it — closing the coverage-Goodhart gap. Ratchets vs
+# .borromeanrings-mutation-baseline (non-regression; no arbitrary target). See
+# ADR-0022 and docs/ENFORCEMENT-COVERAGE.md.
+set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
+
+id="60_mutation"
+log="$RECEIPT_DIR/$id.log"
+baseline_file="$PROJECT_ROOT/.borromeanrings-mutation-baseline"
+cmd="mutmut run (mutation-score ratchet vs baseline)"
+
+if ! command -v mutmut >/dev/null 2>&1; then
+  printf "required tool 'mutmut' not found on PATH\n" >"$log"
+  emit_receipt "$id" "$cmd" 127 "$log" "error"
+  exit 127
+fi
+
+# mutmut's OWN exit is nonzero when mutants survive — that is NOT a check failure
+# here: the ratchet decides pass/fail on the SCORE, not on mutmut's exit. Capture
+# output (the emoji summary line) to the log regardless. Mutation over the whole
+# package runs many minutes, so give it a generous, configurable wall-clock bound —
+# the 300s default would kill it mid-run and (correctly) fail closed on 0 evaluated.
+BORROMEANRINGS_CHECK_TIMEOUT="${BORROMEANRINGS_MUTATION_TIMEOUT:-1800}" \
+  borromeanrings_run_bounded "$log" "mutmut run" || true
+
+baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
+
+# Parse the score from the captured output and ratchet it — both in borromeanRings's
+# own tested code (meta_harness.mutation + meta_harness.ratchet), so the shell
+# only orchestrates.
+read -r score regressed evaluated <<EOF
+$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$log" "$baseline" <<'PY'
+import sys
+
+from meta_harness.mutation import mutation_score, parse_mutmut_summary, total_evaluated
+from meta_harness.ratchet import decide_ratchet
+
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+counts = parse_mutmut_summary(text)
+score = mutation_score(counts)
+decision = decide_ratchet(score, float(sys.argv[2]), higher_is_better=True)
+print(f"{score:.4f} {1 if decision.regressed else 0} {total_evaluated(counts)}")
+PY
+)
+EOF
+
+status="pass"
+code=0
+# Fail CLOSED if mutmut evaluated no mutants: that is a setup/clean-tests failure
+# (the vacuous 1.0 score), NOT a perfect suite. Never let it pass silently.
+if [ -z "${score:-}" ] || [ "${evaluated:-0}" = "0" ]; then
+  printf "\nMUTATION CHECK DID NOT RUN: mutmut evaluated 0 mutants (setup/clean-test failure — see above). Failing closed.\n" >>"$log"
+  status="fail"
+  code=1
+elif [ "${regressed:-1}" = "1" ]; then
+  printf "\nMUTATION-SCORE REGRESSION: %s is below baseline %s\n" "$score" "$baseline" >>"$log"
+  status="fail"
+  code=1
+fi
+
+extra="$(python3 -c "import json,sys; print(json.dumps({'mutation_score': float(sys.argv[1]), 'mutation_baseline': float(sys.argv[2])}))" "${score:-0}" "$baseline" 2>/dev/null || echo '')"
+emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
+exit "$code"

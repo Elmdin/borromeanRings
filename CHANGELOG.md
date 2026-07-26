@@ -34,6 +34,9 @@ queue is merged.
   - Cyclomatic-complexity ratchet: native McCabe, worst-case non-regression, no
     absolute ceiling (ADR-0031).
 
+  - Mutation-score ratchet (heavy): `60_mutation` runs mutmut in CI and
+    ratchets assertion strength vs `.borromeanrings-mutation-baseline`
+    (0.80; current 0.83), fail-closed on 0-evaluated (ADR-0022).
   - Dependency CVE audit (heavy): `70_pip_audit` runs pip-audit in CI and
     fails on known vulnerabilities; base tooling / accepted CVEs ignorable
     via `[audit]` (ADR-0034).

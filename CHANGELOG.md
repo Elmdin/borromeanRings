@@ -13,6 +13,14 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Adoption helper for existing projects: `adopt.sh` + `meta_harness.adopt` —
+  migrates a project already governed at the founding baseline onto the newer
+  quality/security checks. Plans the missing recommended set (`12_secrets`,
+  `11_changelog`, `32_complexity`, `33_coupling`, `45_docstrings`), seeds each
+  ratchet's baseline from current state, creates a `CHANGELOG.md` if needed, and
+  rewrites `[checks].required` in place. Idempotent, native, no installs.
+  Complements `init.sh` (new projects); piloted on `reliefq` 7 → 12 checks green
+  (ADR-0041).
 - Public-API breaking-change detection: `34_api_diff` — diffs the public
   surface vs the merge-base; a removed symbol / removed-renamed param / new
   required param fails unless `[api].allow_breaking=true`. Native ast+git,

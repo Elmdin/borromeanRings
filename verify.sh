@@ -10,6 +10,14 @@
 # author (human / CI / agent hook).
 set -uo pipefail
 
+# Heavy (CI-tier) lane: `--heavy` (or BORROMEANRINGS_HEAVY=1) additionally runs +
+# requires the checks/ci/ set — expensive checks (mutation, CVE audit, secret-scan
+# tools) that must NOT run on the fast inner Stop gate. Off by default. See ADR-0033.
+HEAVY="${BORROMEANRINGS_HEAVY:-0}"
+for _arg in "$@"; do
+  [ "$_arg" = "--heavy" ] && HEAVY=1
+done
+
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
@@ -40,7 +48,10 @@ mkdir -p "$RECEIPT_DIR"
 
 # Run shared (language-agnostic) checks + the selected language's checks. Each writes
 # its own receipt; the verdict is computed from receipts, never a check's exit alone.
-for dir in "$BORROMEANRINGS_HOME/checks/shared" "$BORROMEANRINGS_HOME/checks/$language"; do
+scan_dirs=("$BORROMEANRINGS_HOME/checks/shared" "$BORROMEANRINGS_HOME/checks/$language")
+# CI-tier heavy checks run ONLY under --heavy (never on the fast inner Stop gate).
+[ "$HEAVY" = "1" ] && scan_dirs+=("$BORROMEANRINGS_HOME/checks/ci")
+for dir in "${scan_dirs[@]}"; do
   [ -d "$dir" ] || continue
   for check in "$dir"/[0-9]*.sh; do
     [ -e "$check" ] || continue
@@ -50,21 +61,25 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 
 from meta_harness.change_detect import record_green
+from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
 
-config_path, receipt_dir, project_root = sys.argv[1], sys.argv[2], sys.argv[3]
+config_path, receipt_dir, project_root, heavy = sys.argv[1:5]
 config = load_config(config_path)
-expected = config.required_checks
+# Under --heavy the CI-tier heavy checks are also required; otherwise only the
+# fast required set gates (the heavy set never blocks the inner Stop gate).
+expected = config.required_checks + (config.heavy_checks if heavy == "1" else ())
 
 rows = []
 ok = True
+intact_hashes = []
 for cid in expected:
     rpath = os.path.join(receipt_dir, f"{cid}.json")
     if not os.path.exists(rpath):
@@ -74,6 +89,19 @@ for cid in expected:
     with open(rpath) as fh:
         receipt = json.load(fh)
     status = receipt.get("status", "?")
+    # Tamper-evidence: a required receipt must match its own content hash (fields +
+    # log). A fresh run always does; a mismatch means the evidence was edited after
+    # the fact — fail closed, never trust a forged/corrupt pass. See ADR-0026.
+    log_path = receipt.get("log", "")
+    log_text = ""
+    if log_path and os.path.exists(log_path):
+        with open(log_path, encoding="utf-8", errors="replace") as fh:
+            log_text = fh.read()
+    if not verify_receipt(receipt, log_text):
+        ok = False
+        rows.append((cid, f"{status.upper()} !TAMPERED"))
+        continue
+    intact_hashes.append(receipt.get("content_sha256", ""))
     if status != "pass":
         ok = False
     rows.append((cid, status.upper()))
@@ -86,6 +114,8 @@ for cid, status in rows:
     print(f"  {cid.ljust(width)}   {status}")
 print("  " + "-" * (width + 14))
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
+if intact_hashes:
+    print(f"  run-digest: {run_digest(intact_hashes)}")
 if not ok:
     print("  One or more checks failed or produced no receipt; see logs in the run dir.")
 print()

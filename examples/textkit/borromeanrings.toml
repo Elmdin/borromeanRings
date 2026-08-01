@@ -1,0 +1,46 @@
+# borromeanRings policy spine for the `textkit` example library.
+#
+# This is a DIFFERENT project archetype than borromeanRings itself (a plain
+# library, not the meta-harness) — it proves borromeanRings governs any project.
+# Run its gate with:  BORROMEANRINGS_PROJECT=examples/textkit bash verify.sh
+# (borromeanRings's own code lives at the repo root; this project is governed BY it.)
+
+[project]
+language = "python"
+package = "textkit"
+src_dir = "src"
+tests_dir = "tests"
+
+[layout]
+root_doc_allowlist = ["README.md"]
+
+[architecture]
+# A library keeps its public surface (__init__) importing only its own modules.
+forbid_cycles = true
+
+[checks]
+# A sensible library gate: build, hygiene, layout, format, secrets, lint, types,
+# complexity, tests+coverage, docstrings, static-security. (Collaboration/changelog
+# gates are borromeanRings-repo policy, not needed for a standalone library example.)
+required = [
+  "00_build",
+  "05_hygiene",
+  "07_layout",
+  "10_format",
+  "12_secrets",
+  "20_lint",
+  "30_typecheck",
+  "32_complexity",
+  "34_api_diff",
+  "40_test",
+  "45_docstrings",
+  "50_security",
+]
+
+[hygiene]
+requires = ["README.md", "pyproject.toml"]
+
+[api]
+# Public-API breaking-change policy (ADR-0040). Flip to true only for a deliberate
+# major-version release; otherwise a breaking change to textkit's API fails the gate.
+allow_breaking = false

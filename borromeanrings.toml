@@ -24,9 +24,62 @@ email = "imaansoltan@gmail.com"
 # File-organization conventions, enforced by check 07_layout (fail-closed). Each
 # rule is opt-in (empty/zero ⇒ off). See docs/specs/SPEC-layout.md and ADR-0018.
 specs_dir = "docs/specs"                                # every SPEC*.md must live here
-root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md"]  # the only .md allowed at repo root
-test_grouping_threshold = 15                            # > N flat test files ⇒ group by type
+root_doc_allowlist = ["README.md", "AGENTS.md", "PLAN-v0.md", "CHANGELOG.md"]  # the only .md allowed at repo root
+test_grouping_threshold = 15                            # > N flat test files ⇒ group by type (grouped into unit/integration/e2e)
 test_groups = ["unit", "integration", "e2e"]
+
+[architecture]
+# Import-direction fitness over the internal module graph, enforced by check
+# 35_architecture (native stdlib-ast; no external tool). Codifies the acyclic,
+# information-hiding architecture in docs/ARCHITECTURE.md as executable rules.
+# Each rule is opt-in (empty/false ⇒ off). See SPEC-architecture.md and ADR-0027.
+leaves = ["spine"]           # the config foundation (Single Choice) imports no domain module
+private = ["deep_research"]  # the research testbed must stay non-load-bearing (nothing imports it)
+forbid_cycles = true         # ARCHITECTURE.md §2: source → check → receipt, acyclic, no feedback
+
+[changelog]
+# Keep a Changelog discipline, enforced by check 11_changelog. presence + an
+# 'Unreleased' section is on now (non-retroactive: it constrains repo state, not a
+# diff). The strict "update the changelog when source changes" rule is now ON
+# (the enforcement-coverage PR queue has merged). See SPEC-changelog.md, ADR-0028.
+enabled = true
+path = "CHANGELOG.md"
+require_entry_on_src_change = true
+
+[critic]
+# T2 external rubric critic (ADR-0023/0030). judge_command is the model judge the
+# critic checks (e.g. 55_doc_drift, advisory) shell out to — it receives a prompt on
+# stdin and returns a yes/no answer on stdout (e.g. "claude -p"). Empty ⇒ the critic
+# checks are OFF (no live judge wired). Left empty here: doc-drift is advisory and
+# belongs on the CI heavy lane before a live model judge runs on every gate.
+judge_command = ""
+# Wave-2 rubrics enabled (dormant until judge_command is set). ADR-0036.
+rubrics = ["error_handling", "naming", "security", "boundary_value", "test_smell"]
+
+[audit]
+# Dependency CVE audit (heavy check 70_pip_audit). Ignore base packaging
+# tooling (not declared deps) and any explicitly-accepted advisories. ADR-0034.
+ignore_packages = ["pip", "setuptools", "wheel"]
+ignore_vulns = []
+
+[licenses]
+# Dependency license compliance (heavy check 72_licenses). Deny copyleft that
+# is incompatible with Apache-2.0 distribution; allow_packages exempts vetted
+# deps. Off when deny is empty. ADR-0035.
+deny = ["GPL-2", "GPL-3", "GPLv2", "GPLv3", "AGPL", "Affero", "SSPL", "GNU General Public"]
+allow_packages = []
+
+[collaboration]
+# Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
+# Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
+# 09_commits + the protected-branch guard in pre_bash_guard.sh.
+protected_branches = ["main", "dev"]
+branch_patterns = [
+  "feat/*", "feature/*", "fix/*", "docs/*",
+  "chore/*", "refactor/*", "perf/*", "test/*", "ci/*", "hotfix/*",
+]
+commit_types = ["feat", "fix", "refactor", "docs", "test", "chore", "perf", "ci"]
+subject_max_length = 72
 
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
@@ -36,11 +89,26 @@ required = [
   # 06_git_identity intentionally omitted: this public repo enforces identity via the
   # local guard only, so external contributors pass CI. See [git] above + ADR-0019.
   "07_layout",
+  "08_branch",
+  "09_commits",
+  "12_secrets",
+  "11_changelog",
   "10_format",
   "20_lint",
   "30_typecheck",
+  "32_complexity",
+  "33_coupling",
+  "35_architecture",
   "40_test",
+  "45_docstrings",
   "50_security",
+]
+# Heavy (CI-tier) checks — required ONLY under `verify.sh --heavy` (CI). Populated as
+# tool-checks land (mutation, pip-audit, gitleaks, licenses). See ADR-0033.
+heavy = [
+  "60_mutation",
+  "70_pip_audit",
+  "72_licenses",
 ]
 
 [hygiene]
@@ -72,3 +140,10 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
 # (confirmation-first only for irreversible or scope-changing readings). The agent performs
 # the rewrite; verifying compliance is tracked in issue #81. See SPEC-prompt-rewrite.md.
 enabled = true
+
+[enhancements]
+# Agent-enhancement recommender (advisory; ADR-0037). Categories of open-source
+# tools to surface for improving the WRAPPED agent (not the code). Advisory only
+# — proposes, never gates. Run: python3 -c "from meta_harness.enhancements import
+# main; print(main())"
+interests = ["model-routing", "observability"]

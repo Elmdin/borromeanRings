@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-BORROMEANRINGS_HOME = Path(__file__).resolve().parents[1]
+BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 LIB = BORROMEANRINGS_HOME / "checks" / "_lib.sh"
 
 pytestmark = pytest.mark.skipif(

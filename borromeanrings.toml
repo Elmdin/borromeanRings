@@ -109,6 +109,7 @@ heavy = [
   "60_mutation",
   "70_pip_audit",
   "72_licenses",
+  "74_secret_history",
 ]
 
 [hygiene]

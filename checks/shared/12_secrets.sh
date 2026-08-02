@@ -11,6 +11,16 @@ id="12_secrets"
 log="$RECEIPT_DIR/$id.log"
 cmd="secret scan (high-confidence provider tokens + private keys, tracked files)"
 
+# Fail-closed on a non-git project: without git there is no tracked-file set to scan,
+# so an empty list would PASS VACUOUSLY ("can't scan" silently reading as "nothing to
+# find"). Refuse instead — that vacuity is exactly what a secret gate must not do.
+if ! git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "NOT A GIT REPOSITORY — cannot enumerate tracked files, so secrets cannot be scanned." >"$log"
+  echo "Fail-closed: run 'git init' (and commit) so tracked files exist, or drop 12_secrets from [checks].required for this project." >>"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
+
 # Write the NUL-delimited tracked-file list to a file (a bash variable would strip
 # the NULs, and stdin is taken by the heredoc). Paths with spaces/newlines stay safe.
 list_file="$RECEIPT_DIR/$id.files"

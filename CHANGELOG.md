@@ -13,6 +13,14 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Secret-scanning completeness (ADR-0042): `74_secret_history` (heavy lane) scans
+  every blob reachable from any ref for high-confidence secrets — a
+  committed-then-deleted secret still lives in history and is compromised.
+  Reachable-only (dangling objects excluded), fail-closed, deduped by a one-way
+  fingerprint (the secret is never emitted); acknowledge rotated/benign findings
+  via `[secrets].history_allow`. Native (`meta_harness.secret_history`),
+  unit-tested + adversarially verified. Also hardens `12_secrets` to **fail
+  closed on a non-git directory** (was a vacuous pass — found in rollout).
 - Adoption helper for existing projects: `adopt.sh` + `meta_harness.adopt` —
   migrates a project already governed at the founding baseline onto the newer
   quality/security checks. Plans the missing recommended set (`12_secrets`,

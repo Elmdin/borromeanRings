@@ -77,6 +77,11 @@ queue is merged.
     (ADR-0033).
 
 ### Changed
+- Enforcement-coverage map corrected to reality: coverage-ratchet was mis-claimed
+  ✅ but no check exists (now ❌ candidate); coupling (`33_coupling`), public-API
+  breaking-change (`34_api_diff`), and the adoption path (`adopt.sh`) marked ✅;
+  doc-drift noted as activation-paused (agent-only, no API keys); added §6 for the
+  other governance matrices (security, DORA, SRE, data/ML, product/UX).
 - Grouped `tests/` into `unit/` (23) + `integration/` (5 shell-out tests); layout
   threshold back to 15; mutmut ignore paths updated; retires the 30 workaround.
 - Enforcement-coverage map refreshed to reflect the shipped suite (T1 filled,

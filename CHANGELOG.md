@@ -13,6 +13,14 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- ADR-discipline gate (ADR-0043): `13_adr` + `meta_harness.adr_discipline` — on a
+  feature branch (name starts with `[adr].require_prefixes`, default `feat/`), a
+  change that touches `src` must also add/modify an ADR under `[adr].dir`
+  (`docs/adr/`), so a new capability can't land with no recorded decision. Fills
+  coverage-map rows D/H; deterministic, threshold-free, git-derivable (merge-base
+  diff, `--relative` so it works for git-root and subdir projects). The buildable,
+  no-telemetry slice of the delivery/process matrix. Native, unit-tested +
+  adversarially verified.
 - Secret-scanning completeness (ADR-0042): `74_secret_history` (heavy lane) scans
   every blob reachable from any ref for high-confidence secrets — a
   committed-then-deleted secret still lives in history and is compromised.

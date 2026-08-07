@@ -69,6 +69,10 @@ class Config:
     # [secrets] — git-history secret scan (ADR-0042); fingerprints of already-rotated
     # / known-benign historical findings to acknowledge (74_secret_history).
     secrets_history_allow: tuple[str, ...] = ()
+    # [adr] — ADR-discipline gate (ADR-0043); a feature branch touching src must add
+    # an ADR. adr_dir defaults to docs/adr; require_prefixes to the feature prefix.
+    adr_dir: str = "docs/adr"
+    adr_require_prefixes: tuple[str, ...] = ("feat/",)
     # [api] — public-API breaking-change policy (ADR-0040). allow_breaking=true only
     # for a deliberate major-version release.
     api_allow_breaking: bool = False
@@ -148,4 +152,6 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         enhancements_interests=tuple(raw.get("enhancements", {}).get("interests", [])),
         api_allow_breaking=bool(raw.get("api", {}).get("allow_breaking", False)),
         secrets_history_allow=tuple(raw.get("secrets", {}).get("history_allow", [])),
+        adr_dir=str(raw.get("adr", {}).get("dir", "docs/adr")),
+        adr_require_prefixes=tuple(raw.get("adr", {}).get("require_prefixes", ["feat/"])),
     )

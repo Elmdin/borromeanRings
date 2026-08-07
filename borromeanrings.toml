@@ -91,6 +91,7 @@ required = [
   "07_layout",
   "08_branch",
   "09_commits",
+  "13_adr",
   "12_secrets",
   "11_changelog",
   "10_format",

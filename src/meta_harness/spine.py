@@ -76,6 +76,10 @@ class Config:
     # [api] — public-API breaking-change policy (ADR-0040). allow_breaking=true only
     # for a deliberate major-version release.
     api_allow_breaking: bool = False
+    # [container] — Dockerfile hygiene (ADR-0044); the SRE/operational slice. Which
+    # rules apply is per-project (a run-and-exit gate-runner omits `healthcheck`).
+    container_dockerfile: str = "Dockerfile"
+    container_require: tuple[str, ...] = ("non_root", "pinned_base", "healthcheck")
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -154,4 +158,8 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         secrets_history_allow=tuple(raw.get("secrets", {}).get("history_allow", [])),
         adr_dir=str(raw.get("adr", {}).get("dir", "docs/adr")),
         adr_require_prefixes=tuple(raw.get("adr", {}).get("require_prefixes", ["feat/"])),
+        container_dockerfile=str(raw.get("container", {}).get("dockerfile", "Dockerfile")),
+        container_require=tuple(
+            raw.get("container", {}).get("require", ["non_root", "pinned_base", "healthcheck"])
+        ),
     )

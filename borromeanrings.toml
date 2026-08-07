@@ -81,6 +81,16 @@ branch_patterns = [
 commit_types = ["feat", "fix", "refactor", "docs", "test", "chore", "perf", "ci"]
 subject_max_length = 72
 
+[container]
+# Container (Dockerfile) hygiene, enforced by check 14_container (matrix #4, SRE).
+# Off unless 14_container is in [checks].required. borromeanRings's own image is a
+# run-and-exit gate-runner (CMD runs verify.sh, then exits) — there's no long-lived
+# service to probe, so `healthcheck` is deliberately omitted; a service project keeps
+# the full default set ["non_root", "pinned_base", "healthcheck"]. See SPEC-container.md,
+# ADR-0044.
+dockerfile = "Dockerfile"
+require = ["non_root", "pinned_base"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -92,6 +102,7 @@ required = [
   "08_branch",
   "09_commits",
   "13_adr",
+  "14_container",
   "12_secrets",
   "11_changelog",
   "10_format",

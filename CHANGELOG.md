@@ -13,6 +13,18 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Container (Dockerfile) hygiene gate (ADR-0044): `14_container` +
+  `meta_harness.container` — the deterministic, threshold-free slice of matrix #4
+  (SRE / operational). Native stdlib Dockerfile parse (multi-stage, line-continuations,
+  comments, registry `host:port`, digests) reports violations for a per-project rule
+  set `[container].require`: `non_root` (final stage must end on a non-root `USER`),
+  `pinned_base` (external `FROM` pins a non-`latest` tag or digest; `scratch`/`$`-var
+  exempt), `healthcheck` (a `HEALTHCHECK` is declared). No Dockerfile ⇒ pass. A
+  run-and-exit gate-runner omits `healthcheck`; a service keeps the full set. Fixes
+  borromeanRings's **own** image (was root — added a non-root `USER`) and dogfoods
+  `["non_root", "pinned_base"]` on it; the full set is validated against AutoApply's
+  real service Dockerfile (flags its missing HEALTHCHECK). Unit-tested (13 cases) +
+  adversarially verified.
 - ADR-discipline gate (ADR-0043): `13_adr` + `meta_harness.adr_discipline` — on a
   feature branch (name starts with `[adr].require_prefixes`, default `feat/`), a
   change that touches `src` must also add/modify an ADR under `[adr].dir`

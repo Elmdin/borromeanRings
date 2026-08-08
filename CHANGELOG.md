@@ -13,6 +13,19 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Static accessibility (a11y) invariants gate (ADR-0045): `15_a11y` +
+  `meta_harness.accessibility` — the deterministic, threshold-free slice of matrix #6
+  (Product/UX). Native stdlib `html.parser` scan of tracked `*.html`/`*.htm`/`*.xhtml`
+  (minus `[a11y].exclude`) reports WCAG-cited violations for a per-project rule set
+  `[a11y].require`: `html_lang` (a full document declares a non-empty `<html lang>` —
+  WCAG 3.1.1), `img_alt` (every `<img>` carries an `alt`; `alt=""` allowed — WCAG
+  1.1.1), `page_title` (a full document has a non-empty `<title>` — WCAG 2.4.2).
+  Document-level rules gate on the presence of `<html>`, so HTML *fragments* are never
+  falsely flagged. No tracked HTML ⇒ pass. Dogfooded on **fire** (Electron; five
+  renderer pages, *all* missing `<html lang>` — the justified need); borromeanRings has
+  no HTML so it does not declare the check. Threshold-free (no Lighthouse-style score);
+  rendered a11y (contrast/ARIA/focus) is deferred to a future heavy lane. Unit-tested
+  (11 cases) + adversarially verified.
 - Container (Dockerfile) hygiene gate (ADR-0044): `14_container` +
   `meta_harness.container` — the deterministic, threshold-free slice of matrix #4
   (SRE / operational). Native stdlib Dockerfile parse (multi-stage, line-continuations,

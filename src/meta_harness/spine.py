@@ -80,6 +80,10 @@ class Config:
     # rules apply is per-project (a run-and-exit gate-runner omits `healthcheck`).
     container_dockerfile: str = "Dockerfile"
     container_require: tuple[str, ...] = ("non_root", "pinned_base", "healthcheck")
+    # [a11y] — static accessibility invariants for HTML (ADR-0045); the Product/UX
+    # slice. require selects rules; exclude drops build-output/vendored dirs.
+    a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
+    a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -161,5 +165,11 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         container_dockerfile=str(raw.get("container", {}).get("dockerfile", "Dockerfile")),
         container_require=tuple(
             raw.get("container", {}).get("require", ["non_root", "pinned_base", "healthcheck"])
+        ),
+        a11y_require=tuple(
+            raw.get("a11y", {}).get("require", ["html_lang", "img_alt", "page_title"])
+        ),
+        a11y_exclude=tuple(
+            raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
     )

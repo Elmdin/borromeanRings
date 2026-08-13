@@ -77,6 +77,7 @@ contributors pass CI — see ADR-0019).
 ## Layout
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
+- `status.sh` — the **portfolio view**: one table across every governed project (last verdict, config/adoption drift, non-git repos); `--run` re-gates, `--list` prints paths (ADR-0046)
 - `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set)
 - `borromeanrings.toml` — the policy spine: declared invariants enforced on every run
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate

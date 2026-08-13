@@ -13,6 +13,18 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Portfolio status / roster view (ADR-0046): `status.sh` + `meta_harness.status` +
+  `meta_harness.verdict` — the missing view *across* governed projects. One table shows,
+  per project: git-or-not, required-check count, last gate verdict
+  (`pass`/`fail`/never-gated), config drift (uncommitted `borromeanrings.toml`), and
+  adoption drift (recommended checks not yet required, via `plan_adoption`). The gate
+  now persists a compact last-known `Verdict` to `.meta-harness/last_verdict.json`
+  (best-effort — a write failure never turns a PASS into a FAIL); `status` reads it, so
+  the default view is instant. `--run` re-gates each project first (authoritative,
+  CI-usable exit); `--list` prints paths. Reuses the single sources of truth
+  (`load_config`, `plan_adoption`/`RECOMMENDED`, the gate's own verdict) — no duplicated
+  policy. Threshold-free (a per-project table, not a blended score). Unit-tested (100%,
+  23 cases) + dogfooded on the maintainer's real 10-project portfolio.
 - Static accessibility (a11y) invariants gate (ADR-0045): `15_a11y` +
   `meta_harness.accessibility` — the deterministic, threshold-free slice of matrix #6
   (Product/UX). Native stdlib `html.parser` scan of tracked `*.html`/`*.htm`/`*.xhtml`

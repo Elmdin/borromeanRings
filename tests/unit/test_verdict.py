@@ -6,7 +6,10 @@ from pathlib import Path
 
 from meta_harness.verdict import (
     LAST_VERDICT_FILE,
+    VERDICT_HISTORY_FILE,
     Verdict,
+    append_history,
+    read_history,
     read_last_verdict,
     write_last_verdict,
 )
@@ -85,6 +88,32 @@ def test_read_wrong_shape_returns_none(tmp_path: Path) -> None:
     for bad in ("[1, 2, 3]", '{"checks": []}', '{"ok": "yes"}', '{"ok": true, "checks": "nope"}'):
         path.write_text(bad, encoding="utf-8")
         assert read_last_verdict(tmp_path) is None
+
+
+def test_append_history_accumulates_in_order(tmp_path: Path) -> None:
+    # the project root may not exist yet ⇒ dirs are created; entries keep insertion order.
+    proj = tmp_path / "new" / "proj"
+    append_history(proj, Verdict(ok=True, run_id="r1"))
+    append_history(proj, Verdict(ok=False, run_id="r2"))
+    hist = read_history(proj)
+    assert [v.ok for v in hist] == [True, False]
+    assert [v.run_id for v in hist] == ["r1", "r2"]
+
+
+def test_read_history_missing_returns_empty(tmp_path: Path) -> None:
+    assert read_history(tmp_path) == []
+
+
+def test_read_history_skips_blank_and_malformed_lines(tmp_path: Path) -> None:
+    path = tmp_path / VERDICT_HISTORY_FILE
+    path.parent.mkdir(parents=True)
+    # a good line, a blank, a non-JSON line, and a valid-JSON-but-wrong-shape line.
+    path.write_text(
+        '{"ok": true}\n\n{not json\n[1, 2, 3]\n{"ok": false}\n',
+        encoding="utf-8",
+    )
+    hist = read_history(tmp_path)
+    assert [v.ok for v in hist] == [True, False]
 
 
 def test_to_dict_is_json_shaped() -> None:

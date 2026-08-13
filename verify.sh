@@ -70,7 +70,7 @@ from pathlib import Path
 from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
-from meta_harness.verdict import Verdict, write_last_verdict
+from meta_harness.verdict import Verdict, append_history, write_last_verdict
 
 config_path, receipt_dir, project_root, heavy = sys.argv[1:5]
 config = load_config(config_path)
@@ -122,18 +122,18 @@ if not ok:
     print("  One or more checks failed or produced no receipt; see logs in the run dir.")
 print()
 
-# Persist a compact last-known verdict for the portfolio status view (best-effort:
-# a write failure must never turn a real PASS into a FAIL). See ADR-0046.
+# Persist a compact last-known verdict for the portfolio status view, and append it to
+# the effectiveness-ledger history (best-effort: a write failure must never turn a real
+# PASS into a FAIL). See ADR-0046 (status) and ADR-0047 (ledger).
 try:
-    write_last_verdict(
-        Path(project_root),
-        Verdict(
-            ok=ok,
-            checks=tuple((cid, status.lower()) for cid, status in rows),
-            run_id=os.path.basename(receipt_dir),
-            digest=digest,
-        ),
+    _verdict = Verdict(
+        ok=ok,
+        checks=tuple((cid, status.lower()) for cid, status in rows),
+        run_id=os.path.basename(receipt_dir),
+        digest=digest,
     )
+    write_last_verdict(Path(project_root), _verdict)
+    append_history(Path(project_root), _verdict)
 except OSError:
     pass
 

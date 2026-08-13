@@ -13,6 +13,16 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
+  verdict history — answers "is governing this project actually *catching* anything?"
+  (which `status` can't). `verify.sh` now appends each run's `Verdict` to
+  `.meta-harness/verdict_history.jsonl` (best-effort, alongside the last-verdict write);
+  `read_history`/`append_history` are fail-soft (missing → `[]`, bad lines skipped).
+  `ledger.sh [PATH ...]` renders per project: gate RUNS, failures CAUGHT (the gate is
+  load-bearing, not decorative), and current pass/fail STREAK, plus a portfolio tally.
+  Reuses `discover_projects` + the gate's own verdict; pure core, unit-tested (100%),
+  threshold-free (counts + streak, no score). Ratchet-baseline movement deferred to a
+  follow-up.
 - Portfolio status / roster view (ADR-0046): `status.sh` + `meta_harness.status` +
   `meta_harness.verdict` — the missing view *across* governed projects. One table shows,
   per project: git-or-not, required-check count, last gate verdict

@@ -23,6 +23,9 @@ from pathlib import Path
 
 #: Where the compact verdict lives, relative to the governed project root.
 LAST_VERDICT_FILE = ".meta-harness/last_verdict.json"
+#: Append-only history of every gate verdict (one JSON object per line) — the raw
+#: material the effectiveness ledger summarises. See meta_harness.ledger, ADR-0047.
+VERDICT_HISTORY_FILE = ".meta-harness/verdict_history.jsonl"
 
 
 @dataclass(frozen=True)
@@ -95,3 +98,35 @@ def read_last_verdict(project_root: Path | str) -> Verdict | None:
     except json.JSONDecodeError:
         return None
     return _parse(data)
+
+
+def _history_path(project_root: Path | str) -> Path:
+    return Path(project_root) / VERDICT_HISTORY_FILE
+
+
+def append_history(project_root: Path | str, verdict: Verdict) -> None:
+    """Append ``verdict`` as one JSON line to the project's gate-history log (creates dirs)."""
+    path = _history_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(verdict.to_dict()) + "\n")
+
+
+def read_history(project_root: Path | str) -> list[Verdict]:
+    """Every recorded verdict for the project, oldest first (fail-soft, skips bad lines)."""
+    try:
+        raw = _history_path(project_root).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    history: list[Verdict] = []
+    for line in raw.splitlines():
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        verdict = _parse(data)
+        if verdict is not None:
+            history.append(verdict)
+    return history

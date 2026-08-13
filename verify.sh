@@ -70,6 +70,7 @@ from pathlib import Path
 from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
+from meta_harness.verdict import Verdict, write_last_verdict
 
 config_path, receipt_dir, project_root, heavy = sys.argv[1:5]
 config = load_config(config_path)
@@ -114,11 +115,28 @@ for cid, status in rows:
     print(f"  {cid.ljust(width)}   {status}")
 print("  " + "-" * (width + 14))
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
-if intact_hashes:
-    print(f"  run-digest: {run_digest(intact_hashes)}")
+digest = run_digest(intact_hashes) if intact_hashes else ""
+if digest:
+    print(f"  run-digest: {digest}")
 if not ok:
     print("  One or more checks failed or produced no receipt; see logs in the run dir.")
 print()
+
+# Persist a compact last-known verdict for the portfolio status view (best-effort:
+# a write failure must never turn a real PASS into a FAIL). See ADR-0046.
+try:
+    write_last_verdict(
+        Path(project_root),
+        Verdict(
+            ok=ok,
+            checks=tuple((cid, status.lower()) for cid, status in rows),
+            run_id=os.path.basename(receipt_dir),
+            digest=digest,
+        ),
+    )
+except OSError:
+    pass
+
 if ok:
     # Record this exact gated-input state as proven-green so a no-op Stop (a
     # question, a doc edit) can skip a redundant full gate. Best-effort: a

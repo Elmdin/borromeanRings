@@ -30,12 +30,19 @@ VERDICT_HISTORY_FILE = ".meta-harness/verdict_history.jsonl"
 
 @dataclass(frozen=True)
 class Verdict:
-    """One gate run's outcome: the overall pass bool and each check's status."""
+    """One gate run's outcome: the overall pass bool and each check's status.
+
+    ``harness_version`` records *which* borromeanRings governed the run (the on-disk
+    ``git describe`` of ``BORROMEANRINGS_HOME``, or the ``VERSION`` file) — so a governed
+    project's evidence answers "what version verified me?", not just "did it pass?".
+    Absent in records written before versioning ⇒ defaults to ``""`` (back-compatible).
+    """
 
     ok: bool
     checks: tuple[tuple[str, str], ...] = ()
     run_id: str = ""
     digest: str = ""
+    harness_version: str = ""
 
     def to_dict(self) -> dict[str, object]:
         """A JSON-serialisable view (tuples become lists)."""
@@ -43,6 +50,7 @@ class Verdict:
             "ok": self.ok,
             "run_id": self.run_id,
             "digest": self.digest,
+            "harness_version": self.harness_version,
             "checks": [list(pair) for pair in self.checks],
         }
 
@@ -67,6 +75,7 @@ def _parse(data: object) -> Verdict | None:
         checks=checks,
         run_id=str(data.get("run_id", "")),
         digest=str(data.get("digest", "")),
+        harness_version=str(data.get("harness_version", "")),
     )
 
 

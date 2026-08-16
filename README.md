@@ -70,16 +70,19 @@ step-by-step way to exercise every feature on a fresh project.
 | 40 | test + coverage **ratchet** | `pytest --cov` (no absolute % target) |
 | 50 | security | `bandit` |
 
-The required set is declared in `borromeanrings.toml` `[checks].required` (eight gates
+The required set is declared in `borromeanrings.toml` `[checks].required` (eighteen gates
 on this repo; `06_git_identity` exists but is intentionally excluded so external
-contributors pass CI — see ADR-0019).
+contributors pass CI — see ADR-0019). The table above is the v0 core; the full set of
+**27 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
+keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 ## Layout
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
 - `status.sh` — the **portfolio view**: one table across every governed project (last verdict, config/adoption drift, non-git repos); `--run` re-gates, `--list` prints paths (ADR-0046)
 - `ledger.sh` — the **effectiveness view**: per project, gate runs / failures caught / pass-fail streak from the recorded verdict history — is the gate actually catching anything (ADR-0047)
-- `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set)
+- `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set); catalogued in `docs/CHECKS.md`
+- `VERSION` — the declared release marker; every gate run is stamped with the governing borromeanRings version (ADR-0048)
 - `borromeanrings.toml` — the policy spine: declared invariants enforced on every run
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate
 - prompt rewriting: `.claude/hooks/prompt_rewrite.sh` (UserPromptSubmit) injects a spine-driven rewrite directive; toggle in `borromeanrings.toml`

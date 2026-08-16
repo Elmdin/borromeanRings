@@ -13,6 +13,21 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Harness versioning + per-run version stamping (ADR-0048): a top-level `VERSION` file
+  (`0.1.0`) as the human-declared release marker, and every gate run now records **which
+  borromeanRings governed it**. `verify.sh` computes `HARNESS_VERSION` from
+  `git describe --tags --always --dirty` on `BORROMEANRINGS_HOME` (honest about
+  dirty/ahead-of-tag state), falling back to `VERSION`. It's printed in the gate output
+  (`harness-version:`), carried on the persisted `Verdict` (new `harness_version` field →
+  `last_verdict.json` + `verdict_history.jsonl`, back-compatible default `""`), and written
+  as `harness_version.txt` into the receipt bundle. Answers "is it stable / which version
+  verified this project?". Surfacing it as a `status.sh` column is a deferred follow-up.
+- Checks catalog (`docs/CHECKS.md`): the single reference for **every** check (all 27 across
+  the shared / Python / heavy-CI lanes) — what each enforces, its `borromeanrings.toml`
+  config keys, its lane, whether it's a threshold-free ratchet, and its ADR. Plus how to
+  enable a check (`init.sh`/`adopt.sh`/manual) and how to opt a project into *automatic*
+  governance (the per-project hooks model). Closes the "how do I know how to use all its
+  features" gap.
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

@@ -117,6 +117,32 @@ def test_read_history_skips_blank_and_malformed_lines(tmp_path: Path) -> None:
 
 
 def test_to_dict_is_json_shaped() -> None:
-    v = Verdict(ok=True, checks=(("00_build", "pass"),), run_id="r", digest="d")
+    v = Verdict(
+        ok=True, checks=(("00_build", "pass"),), run_id="r", digest="d", harness_version="v1.2.3"
+    )
     d = v.to_dict()
-    assert d == {"ok": True, "run_id": "r", "digest": "d", "checks": [["00_build", "pass"]]}
+    assert d == {
+        "ok": True,
+        "run_id": "r",
+        "digest": "d",
+        "harness_version": "v1.2.3",
+        "checks": [["00_build", "pass"]],
+    }
+
+
+def test_harness_version_round_trips(tmp_path: Path) -> None:
+    # the governing borromeanRings version is persisted and read back verbatim.
+    write_last_verdict(tmp_path, Verdict(ok=True, harness_version="v1.0.0-3-gabc123"))
+    got = read_last_verdict(tmp_path)
+    assert got is not None
+    assert got.harness_version == "v1.0.0-3-gabc123"
+
+
+def test_read_verdict_without_harness_version_defaults_empty(tmp_path: Path) -> None:
+    # records written before versioning have no harness_version ⇒ "" (not "None").
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text('{"ok": true, "checks": []}', encoding="utf-8")
+    v = read_last_verdict(tmp_path)
+    assert v is not None
+    assert v.harness_version == ""

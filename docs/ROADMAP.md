@@ -87,7 +87,7 @@ under-reporting the harness; each landed only when a real need justified it.
 | Process gates | Branch, commit-convention, changelog, ADR-discipline, layout, hygiene | ADR-0018/0028/0043 |
 | Container + a11y gates | Dockerfile hygiene; static WCAG invariants | ADR-0044/0045 |
 | Portfolio status + effectiveness ledger | `status.sh` roster; `ledger.sh` — is the gate actually catching anything | ADR-0046/0047 |
-| Harness versioning | `VERSION` + every run stamped with the governing version | ADR-0048 |
+| Harness versioning | `VERSION` + every run stamped with the governing version | ADR-0048 (PR #122) |
 | Honest no-op status + self-status | `noop` receipts, source-coherence guard, single-project self-report | ADR-0049 (PR #122) |
 
 ## Separate products (built with borromeanRings — NOT on this roadmap)

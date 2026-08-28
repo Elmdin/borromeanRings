@@ -1,16 +1,22 @@
 # Repository Hygiene Audit (Phase 0)
 
-> **STATUS: DRAFT — not committed, not pushed.** Deliverable for issue #74
-> ("Audit GitHub Actions, CI/CD, workflows, and repository settings"). No GitHub
-> mutation (issue close, label, setting change) has been performed; every action
-> below is a *recommendation* awaiting maintainer approval. Audit date: 2026-08-14.
+> **STATUS: committed deliverable for issue #74** ("Audit GitHub Actions, CI/CD,
+> workflows, and repository settings"). Audited 2026-08-14; re-verified and landed
+> 2026-08-28.
+>
+> The §4 reconcile below was *proposed* when this was drafted and has since been
+> **carried out with maintainer approval**: issues #55, #56, #57 and #63 are closed
+> as already-shipped, and #60 is narrowed (see its comments). No repository
+> *settings* were changed — the `enforce_admins` gap in §2 remains a recommendation
+> awaiting a decision. Sections 2, 3 and 5 record verified state at the dates above;
+> re-check the live API before relying on them.
 
 ## 1. Executive summary
 
 The repository is **not** at "basics" — it already carries mature SE scaffolding:
 33 well-formed issues, 22 labels, 4 milestones, issue/PR templates, three CI
 workflows (gate + CodeQL + Dependency Graph), branch protection on `main` **and**
-`dev` (required `gate` check + linear history + 1 required review), 47 ADRs, 31
+`dev` (required `gate` check + linear history + 1 required review), 46 ADRs, 31
 specs, 100% coverage + a mutation ratchet, native secret scanning, and a security
 policy. The disciplined move is therefore **reconcile + fill narrow gaps**, not
 re-scaffold.
@@ -91,7 +97,7 @@ gate double-runs on PR then post-merge push) is worth trimming.
 | Definition-of-Done / acceptance-criteria convention | Specs exist per-feature; no single DoD contract | user request |
 
 Present docs already covering the user's list: `docs/ARCHITECTURE.md` (system
-design), 47 ADRs (design patterns/principles/decisions), 31 specs (per-feature
+design), 46 ADRs (design patterns/principles/decisions), 31 specs (per-feature
 contracts), `docs/ROADMAP.md`, `docs/ENFORCEMENT-COVERAGE.md`.
 
 ## 7. Recommended settings changes (Phase 2 — OUTWARD-FACING, needs explicit OK)

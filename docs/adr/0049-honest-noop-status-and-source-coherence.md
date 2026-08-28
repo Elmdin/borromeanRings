@@ -88,6 +88,26 @@ decide, it reports instead of failing: an unset `[project].package` blinds three
 package-scoped checks, so the check says so rather than rejecting a legitimately
 scripts-only project.
 
+### Where the guard deliberately stops (PR #122 review)
+
+Excluding tests/shims/docs still leaves a judgement call: a project with an empty
+`src_dir` and a single tracked `scripts/deploy.py` is flagged. Separating "one utility
+script" from "a whole second source tree" would need a **file-count threshold**, and
+threshold-free, non-regression signals are a standing constraint here — an arbitrary
+number is exactly what this project refuses to add. Nor can `scripts/` and `tools/` be
+excluded by name: those are precisely where the real implementation lived in the incident
+that motivated this ADR.
+
+So the guard errs toward flagging, and pays for that by being *actionable*: the failure
+names the directories it found and both legitimate remedies — point `src_dir` at the real
+source, or drop the check from `[checks].required`, since governance is per-project
+opt-in. A project that genuinely has no single source tree is meant to take the second.
+
+Likewise, the tracked-vs-untracked fallback is not allowed to absorb a git *failure*: the
+filesystem walk exists for a project that is genuinely not a repo. Inside a real repo
+where `git ls-files` fails, the check fails closed rather than counting untracked files,
+because it can fail a build and a scratch file must never be what does it.
+
 ## Consequences
 
 - A green verdict now carries its own caveat. A project cannot report full marks while

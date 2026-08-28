@@ -167,6 +167,8 @@ def assess(
         "fail",
         f"declared source path '{configured_path}' contains no source files, but "
         f"{len(tracked_sources)} tracked source file(s) exist elsewhere: {where}. "
-        f"Every source-reading check is inspecting NOTHING and passing vacuously — "
-        f"point [project].src_dir/package at the real source.",
+        f"Every source-reading check is inspecting NOTHING and passing vacuously. "
+        f"Fix by pointing [project].src_dir at the real source — or, if this project "
+        f"genuinely has no single source tree, drop 01_source_coherence from "
+        f"[checks].required (governance is per-project opt-in).",
     )

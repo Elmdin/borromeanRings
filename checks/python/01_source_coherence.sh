@@ -52,20 +52,40 @@ def _configured_count() -> int:
     return sum(1 for _ in target.rglob(f"*{SUFFIX}"))
 
 
-def _tracked_sources() -> list[str]:
-    """Version-controlled source anywhere in the project; [] when undecidable."""
+def _git(*argv: str) -> "subprocess.CompletedProcess[str] | None":
+    """Run a fixed git query; None when git itself is unavailable."""
     try:
-        result = subprocess.run(  # nosec B603 B607 — fixed argv, no shell
-            ["git", "-C", str(project_root), "ls-files"],
+        return subprocess.run(  # nosec B603 B607 — fixed argv, no shell
+            ["git", "-C", str(project_root), *argv],
             capture_output=True,
             text=True,
             check=False,
         )
     except OSError:
-        result = None
-    if result is not None and result.returncode == 0:
-        return [line for line in result.stdout.splitlines() if line.endswith(SUFFIX)]
-    # Not a git repo (or git absent): bounded walk, pruning caches/vendored trees.
+        return None
+
+
+def _tracked_sources() -> list[str]:
+    """The project's version-controlled source.
+
+    The filesystem walk is the fallback for a project that is genuinely NOT a git repo,
+    where "tracked" has no meaning. It must not also absorb a git *failure* inside a real
+    repo: the walk counts untracked files, and this check can fail a build, so a transient
+    git error would let a scratch file do it. When git is present and this IS a repo but
+    the query fails, we cannot tell tracked from untracked — fail closed and say so,
+    rather than answer from worse evidence (the 12_secrets doctrine, ADR-0042).
+    """
+    listed = _git("ls-files")
+    if listed is not None and listed.returncode == 0:
+        return [line for line in listed.stdout.splitlines() if line.endswith(SUFFIX)]
+
+    is_repo = _git("rev-parse", "--git-dir")
+    if is_repo is not None and is_repo.returncode == 0:
+        print("git is present and this is a repository, but `git ls-files` failed —")
+        print("cannot distinguish tracked source from scratch files; failing closed.")
+        sys.exit(1)
+
+    # Genuinely not a git repo (or git absent): bounded walk, pruning vendored trees.
     return walk_sources(project_root, SUFFIX)
 
 

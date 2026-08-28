@@ -24,6 +24,7 @@ forbid_cycles = true
 # gates are borromeanRings-repo policy, not needed for a standalone library example.)
 required = [
   "00_build",
+  "01_source_coherence",
   "05_hygiene",
   "07_layout",
   "10_format",

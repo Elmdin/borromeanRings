@@ -154,6 +154,27 @@ def test_unset_package_is_reported_not_failed(tmp_path: Path) -> None:
     assert "package" in text and "32_complexity" in text
 
 
+def test_unreadable_git_index_fails_closed_rather_than_counting_untracked(
+    tmp_path: Path,
+) -> None:
+    """A git failure inside a real repo must not silently fall back to a filesystem walk.
+
+    The walk counts UNTRACKED files, and this check can fail a build — so absorbing a git
+    error into that fallback would let a scratch file fail someone's gate. "Cannot tell
+    tracked from untracked" is not "there is nothing tracked" (the 12_secrets doctrine).
+    """
+    project = _git_project(
+        tmp_path / "brokenindex",
+        {"borromeanrings.toml": CONFIG, "code.py": "def f() -> None:\n    pass\n"},
+    )
+    (project / ".git" / "index").write_text("GARBAGE-NOT-AN-INDEX", encoding="utf-8")
+    code, stdout, statuses = _run_gate(project)
+    assert code != 0, f"an undecidable git state must fail closed:\n{stdout}"
+    assert statuses.get("01_source_coherence") == "fail"
+    log = next((project / ".meta-harness" / "receipts").glob("*/01_source_coherence.log"))
+    assert "failing closed" in log.read_text(encoding="utf-8")
+
+
 def test_correctly_configured_project_passes_for_the_right_reason(tmp_path: Path) -> None:
     """Negative control: source at the declared path is a real pass, not a noop."""
     project = _git_project(

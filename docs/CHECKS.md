@@ -10,8 +10,15 @@ built). Each check's rationale lives in its ADR (`docs/adr/`).
 
 - **By reference.** A governed project doesn't copy borromeanRings; it *invokes* the on-disk
   code at `BORROMEANRINGS_HOME` — via Claude hooks (automatic) or `./verify.sh` (manual).
-- **Fail-closed.** The gate exits `0` only if **every required check** produced a `pass`
-  receipt. A missing receipt, a failed check, or a tampered receipt ⇒ FAIL.
+- **Fail-closed.** The gate exits `0` only if **every required check** produced a
+  non-failing receipt. A missing receipt, a failed check, or a tampered receipt ⇒ FAIL.
+  Non-failing is an explicit allowlist (`pass`, `noop`), never "anything but fail", so an
+  unknown or forged status still fails (ADR-0049).
+- **Four statuses, and `noop` matters.** `pass` (inspected something, found nothing wrong) ·
+  `noop` (**ran but inspected NOTHING** — no source yet, no Dockerfile, rule not declared) ·
+  `fail` · `error` (tool missing). A run that leans on `noop` checks prints
+  `inspected NOTHING: N of M`, because a green resting on checks that looked at nothing
+  proves less than it appears to. `./status.sh` surfaces the same count.
 - **Evidence.** Every run writes tamper-evident receipts to
   `<project>/.meta-harness/receipts/<run_id>/`, a compact `last_verdict.json`, and appends to
   `verdict_history.jsonl`. Each run is stamped with the governing `harness-version`
@@ -76,9 +83,10 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | Check | Enforces | Config / notes | ADR |
 |-------|----------|----------------|-----|
 | `00_build` | Source compiles and the declared package imports cleanly | `[project].package`, `src_dir` | — |
+| `01_source_coherence` | **Fails** when the declared source path resolves to no files *while tracked source exists elsewhere* — the misconfiguration that makes every source-reading check pass vacuously. Genuine greenfield ⇒ `noop` | `[project].src_dir`, `package` | 0049 |
 | `10_format` | No unformatted files (black) | toolchain | — |
 | `20_lint` | No lint violations (ruff) | toolchain | — |
-| `30_typecheck` | No type errors (mypy); vacuous-pass on a greenfield with no source | toolchain | — |
+| `30_typecheck` | No type errors (mypy); greenfield with no source ⇒ `noop` | toolchain | — |
 | `32_complexity` | **Ratchet**: worst-case cyclomatic complexity doesn't regress (no absolute ceiling) | baseline file, seeded by `adopt.sh` | 0031 |
 | `33_coupling` | **Ratchet**: worst efferent coupling (fan-out) doesn't regress | baseline file | 0038 |
 | `34_api_diff` | Public-API breaking change (removed/renamed symbol, new required param) fails unless allowed | `[api].allow_breaking` | 0040 |

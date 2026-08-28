@@ -13,6 +13,29 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
+  **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
+  checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code
+  lived in `tools/`. Root cause: `_lib.sh` derived status from the exit code alone, so "I
+  inspected nothing" and "I inspected everything and it's clean" were indistinguishable
+  (`50_security` was worst — `bandit -r src` on a missing dir exits 0 with *empty* output).
+  Four parts: (1) a fourth receipt status **`noop`** (`emit_noop`, plus exit code 3 as the
+  heredoc→bash signal), surfaced in the gate output (`inspected NOTHING: N of M`), the
+  persisted verdict and its history; (2) **fail-closed by allowlist** —
+  `verdict.NON_FAILING_STATUSES` / `is_failing()` replace the old `status != "pass"`
+  negation, so an unknown/typo'd/forged status still fails (regression-tested), and
+  `status_assess` no longer mislabels a `noop` check as *failed*; (3) **`01_source_coherence`**,
+  which fails the gate when a declared source path resolves to nothing *while tracked
+  source exists elsewhere*, naming where the code actually is — genuine greenfield stays
+  green as `noop`, and untracked files never fail a gate; (4) **self-status**: `status.sh`
+  now reports **this project** by default (governed? enforcement AUTO/PARTIAL/MANUAL? last
+  verdict? how many checks were hollow?), with the `$HOME` portfolio roster demoted to
+  opt-in `--all`, plus a `borromeanrings-status` skill so any session can be asked "check
+  my borromeanRings status". Enforcement is detected by hook *script name*, not path, so a
+  self-governing repo isn't misreported as unenforced. Unit- + integration-tested
+  (misconfigured fixture gates red; greenfield gates green-as-noop; correctly-configured
+  passes for the right reason). Remaining vacuity in `05_hygiene`/`07_layout`/`09_commits`
+  is documented as deferred in the ADR — the hollow count is a floor, not a total.
 - Harness versioning + per-run version stamping (ADR-0048): a top-level `VERSION` file
   (`0.1.0`) as the human-declared release marker, and every gate run now records **which
   borromeanRings governed it**. `verify.sh` computes `HARNESS_VERSION` from

@@ -79,7 +79,7 @@ from pathlib import Path
 from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
-from meta_harness.verdict import Verdict, append_history, write_last_verdict
+from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
 
 config_path, receipt_dir, project_root, heavy, harness_version = sys.argv[1:6]
 config = load_config(config_path)
@@ -112,7 +112,10 @@ for cid in expected:
         rows.append((cid, f"{status.upper()} !TAMPERED"))
         continue
     intact_hashes.append(receipt.get("content_sha256", ""))
-    if status != "pass":
+    # Fail-closed by ALLOWLIST, never by negation: only statuses meta_harness.verdict
+    # declares non-failing (pass, noop) survive, so an unknown/typo'd/forged status
+    # still fails. See ADR-0049.
+    if is_failing(status):
         ok = False
     rows.append((cid, status.upper()))
 
@@ -125,6 +128,11 @@ for cid, status in rows:
     print(f"  {cid.ljust(width)}   {status}")
 print("  " + "-" * (width + 14))
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
+# A green built partly on checks that inspected NOTHING is not the same green as one
+# where every check did real work. Say so here, or the verdict over-claims (ADR-0049).
+hollow = [cid for cid, status in rows if status == "NOOP"]
+if hollow:
+    print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} — {', '.join(hollow)}")
 digest = run_digest(intact_hashes) if intact_hashes else ""
 if digest:
     print(f"  run-digest: {digest}")

@@ -27,6 +27,24 @@ LAST_VERDICT_FILE = ".meta-harness/last_verdict.json"
 #: material the effectiveness ledger summarises. See meta_harness.ledger, ADR-0047.
 VERDICT_HISTORY_FILE = ".meta-harness/verdict_history.jsonl"
 
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+
+def is_failing(status: str) -> bool:
+    """Does this receipt status fail the run? Fail-closed: unknown ⇒ ``True``.
+
+    The single source of truth for the gate's pass/fail classification, so ``verify.sh``
+    and every downstream view agree on what a status means.
+    """
+    return status not in NON_FAILING_STATUSES
+
 
 @dataclass(frozen=True)
 class Verdict:

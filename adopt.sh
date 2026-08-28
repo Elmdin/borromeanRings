@@ -95,3 +95,13 @@ print(f"  [checks].required is now {len(plan.new_required)} checks.")
 print("  next: run the gate to confirm green:")
 print(f'    BORROMEANRINGS_PROJECT="{project}" bash "{home}/verify.sh"')
 PY
+
+# Refresh borromeanRings's skills in the adopted project. init.sh installs these for NEW
+# projects; without the same step here, an already-governed project would never receive a
+# newly-added skill (e.g. borromeanrings-status) and could not self-report. Copy-only —
+# it never edits the project's settings/hooks, which stay the owner's decision.
+if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
+  mkdir -p "$PROJECT_DIR/.claude/skills"
+  cp -R "$BORROMEANRINGS_HOME/.claude/skills/." "$PROJECT_DIR/.claude/skills/"
+  echo "  refreshed borromeanRings skills in $PROJECT_DIR/.claude/skills/"
+fi

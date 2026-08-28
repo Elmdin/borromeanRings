@@ -56,6 +56,30 @@ with open(out, "w") as fh:
 PY
 }
 
+# emit_noop <id> <command> <log>
+# The check RAN but inspected NOTHING — no source yet, no Dockerfile, no rule declared.
+# Distinct from "pass" on purpose: "I inspected nothing" must never be indistinguishable
+# from "I inspected everything and found nothing wrong". Without this, a project whose
+# src_dir points at an empty path reports a full green while every source-reading check
+# is blind. Non-failing, but reported everywhere (gate output, verdict, self-status).
+# See meta_harness.verdict.NON_FAILING_STATUSES and ADR-0049.
+emit_noop() {
+  emit_receipt "$1" "$2" 0 "$3" "noop"
+}
+
+# Exit code an embedded python step uses to signal "nothing to inspect". A heredoc's only
+# channel back to bash is its exit code, and 0 there is indistinguishable from a real pass.
+BORROMEANRINGS_NOOP_EXIT=3
+
+# borromeanrings_status_for_code <exit_code> — map a check's exit code to a receipt status.
+borromeanrings_status_for_code() {
+  case "$1" in
+    0) echo "pass" ;;
+    "$BORROMEANRINGS_NOOP_EXIT") echo "noop" ;;
+    *) echo "fail" ;;
+  esac
+}
+
 # borromeanrings_run_bounded <log> <command>
 # Run <command> from PROJECT_ROOT, stdout+stderr -> <log>, bounded by a wall-clock
 # timeout so a hanging tool fails CLOSED instead of hanging the gate forever (and

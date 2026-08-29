@@ -60,12 +60,34 @@ esac
 is_force_push "$cmd" &&
   deny "Refusing bare force-push. Use --force-with-lease (allowed) so you never clobber unseen upstream commits."
 
+# What git subcommand is this, however the invocation is spelled? Matching the literal
+# substring "git commit" misses every form that puts something between the two words --
+# a global option, a directory switch, a leading VAR=value environment assignment -- and
+# those are exactly the spellings that walked past this guard (issue #54). The shell
+# pattern below is a cheap pre-filter; the parser decides. Fail-open on any error, as
+# everywhere else here: the gate check is the backstop.
+git_action=""
+case "$cmd" in
+  *git*commit* | *git*push*)
+    git_action="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$cmd" <<'SUBCMD' 2>/dev/null || true
+import sys
+
+try:
+    from meta_harness.git_identity import git_subcommand
+
+    print(git_subcommand(sys.argv[1]))
+except Exception:
+    print("")
+SUBCMD
+)" ;;
+esac
+
 # Protected-branch guard (Tier A collaboration): block 'git commit'/'git push'
 # while ON a declared [collaboration].protected_branches branch — work belongs on
 # feature branches (Gitflow-lite, ADR-0021). Local aid; the platform branch
 # protection is the backstop. Fail-open on any error.
-case "$cmd" in
-  *"git commit"* | *"git push"*)
+case "$git_action" in
+  commit | push)
     branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
     reason="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
       "$PROJECT_DIR/borromeanrings.toml" "$branch" 2>/dev/null <<'PY'
@@ -92,17 +114,22 @@ esac
 # Wrong git-identity guard: block 'git commit'/'git push' when the governed repo's
 # configured identity doesn't match borromeanrings.toml [git]. Catches the systemic case
 # (repo configured under the wrong account); the gate backstop catches the rest.
-case "$cmd" in
-  *"git commit"* | *"git push"*)
+case "$git_action" in
+  commit | push)
     reason="$(
       cfg_name="$(git -C "$PROJECT_DIR" config user.name 2>/dev/null || true)" \
       cfg_email="$(git -C "$PROJECT_DIR" config user.email 2>/dev/null || true)" \
+      cmd_text="$cmd" \
       PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR/borromeanrings.toml" <<'PY'
 import os
 import sys
 
 try:
-    from meta_harness.git_identity import Identity, configured_violation
+    from meta_harness.git_identity import (
+        Identity,
+        command_override_violation,
+        configured_violation,
+    )
     from meta_harness.spine import load_config
 
     cfg = load_config(sys.argv[1])
@@ -118,6 +145,17 @@ try:
             f"git config user.name '{cfg.git_name}' && "
             f"git config user.email '{cfg.git_email}'."
         )
+    else:
+        # Correct repo config does not mean a correct COMMIT: --author,
+        # -c user.email= and the GIT_AUTHOR_*/GIT_COMMITTER_* variables each
+        # override config for one invocation, and configured_violation cannot
+        # see any of them (issue #54, ADR-0017).
+        o = command_override_violation(os.environ.get("cmd_text", ""), declared)
+        if o:
+            print(
+                f"Git identity override refused: {o}. borromeanRings requires "
+                f"{cfg.git_name} <{cfg.git_email}> for commits in this repo."
+            )
 except Exception:
     pass  # never block on guard error — fail open here (the gate is the backstop)
 PY

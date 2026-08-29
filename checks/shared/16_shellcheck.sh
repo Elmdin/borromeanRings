@@ -54,10 +54,36 @@ except OSError:
 
 if listed is not None and listed.returncode == 0:
     print("\n".join(line for line in listed.stdout.splitlines() if line.strip()))
-else:
-    print("\n".join(walk_sources(root, ".sh")))
+    sys.exit(0)
+
+# The walk is the fallback for a project that is genuinely NOT a repo, where "tracked"
+# has no meaning. It must not also absorb a git *failure* inside a real repo: the walk
+# includes UNTRACKED files, and this check fails builds, so a scratch script could then
+# fail someone's gate. Same split 01_source_coherence makes (ADR-0049).
+try:
+    is_repo = subprocess.run(  # nosec B603 B607 — fixed argv, no shell
+        ["git", "-C", str(root), "rev-parse", "--git-dir"],
+        capture_output=True,
+        check=False,
+    )
+except OSError:
+    is_repo = None
+if is_repo is not None and is_repo.returncode == 0:
+    sys.stderr.write(
+        "git is present and this is a repository, but `git ls-files` failed — "
+        "cannot distinguish tracked shell from scratch files; failing closed.\n"
+    )
+    sys.exit(1)
+
+print("\n".join(walk_sources(root, ".sh")))
 PY
 )"
+list_code=$?
+if [ "$list_code" -ne 0 ]; then
+  echo "cannot enumerate this project's shell scripts — failing closed" >"$log"
+  emit_receipt "$id" "$cmd" "$list_code" "$log" "fail"
+  exit "$list_code"
+fi
 
 if [ -z "$files" ]; then
   echo "no shell scripts in this project — nothing to lint" >"$log"
@@ -78,13 +104,27 @@ print("\n".join(getattr(load_config(sys.argv[1]), sys.argv[2])))
 CFG
 }
 
+# A failing config read must be loud. Swallowing it emptied `flags`, which dropped
+# `-P SCRIPTDIR` and resurrected 33 stale SC1091 findings — a confusing failure that
+# hides its own cause.
+if ! source_paths="$(cfg_lines shell_source_paths)"; then
+  echo "cannot read [shell].source_paths from borromeanrings.toml — failing closed" >"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
+if ! excludes="$(cfg_lines shell_exclude)"; then
+  echo "cannot read [shell].exclude from borromeanrings.toml — failing closed" >"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
+
 flags=()
 while IFS= read -r value; do
   [ -n "$value" ] && flags+=("-P" "$value")
-done < <(cfg_lines shell_source_paths)
+done <<<"$source_paths"
 while IFS= read -r value; do
   [ -n "$value" ] && flags+=("-e" "$value")
-done < <(cfg_lines shell_exclude)
+done <<<"$excludes"
 
 # Deliberately NOT xargs: on a long file list xargs splits into several invocations and
 # reports only the LAST exit code, silently dropping findings from earlier batches — a
@@ -92,11 +132,12 @@ done < <(cfg_lines shell_exclude)
 mapfile -t filelist <<<"$files"
 count="${#filelist[@]}"
 
-# Run from PROJECT_ROOT so relative paths and SCRIPTDIR resolution are correct.
-(
-  cd "$PROJECT_ROOT" || exit 1
-  shellcheck -x -f gcc "${flags[@]}" "${filelist[@]}"
-) >"$log" 2>&1
+# Through the shared bounded runner (like every other tool-wrapping check) so a hung
+# tool fails closed instead of hanging the gate. printf %q quotes every argument, so
+# paths containing spaces survive the command-string round trip.
+# (Careful: a comment line starting with the linter's own name parses as a directive.)
+argv="$(printf '%q ' "${flags[@]}" "${filelist[@]}")"
+borromeanrings_run_bounded "$log" "shellcheck -x -f gcc $argv"
 code=$?
 
 if [ "$code" -eq 0 ]; then

@@ -39,9 +39,9 @@ findings — a fail-open hole in gate plumbing.
 | `exclude` | `[]` | `-e` per-code escape hatch; each entry needs a written justification |
 
 **Why `source_paths` rather than excluding SC1091.** Scripts source a sibling library via
-a runtime-computed path shellcheck cannot follow, producing 31 SC1091 notes in this repo.
+a runtime-computed path shellcheck cannot follow, producing 33 SC1091 notes in this repo.
 `-e SC1091` would silence them *and* every genuine unreadable-source bug. `-x` plus
-`SCRIPTDIR` resolves all 31 correctly, so the escape hatch stays empty.
+`SCRIPTDIR` resolves all 33 correctly, so the escape hatch stays empty.
 
 ## 5. Edge cases
 
@@ -57,4 +57,4 @@ a runtime-computed path shellcheck cannot follow, producing 31 SC1091 notes in t
 - Integration: a planted shell defect is **rejected**; clean shell **passes** (negative
   control); a project with no shell reports **`noop`** and the gate prints
   `inspected NOTHING`.
-- borromeanRings's own 41 scripts pass at zero findings.
+- borromeanRings's own 43 scripts pass at zero findings.

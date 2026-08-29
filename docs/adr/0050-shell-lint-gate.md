@@ -6,7 +6,7 @@
 
 ## Context
 
-borromeanRings gates Python with twenty checks. Its **shell** — 41 tracked scripts, ~3,900
+borromeanRings gates Python with twenty checks. Its **shell** — 43 tracked scripts, ~2,800
 lines — had none, and that shell is not incidental: it is the gate itself (`verify.sh`),
 every check under `checks/`, the four Claude hooks that enforce governance in a session,
 and `merge.sh`. **The trust root was the one part of the codebase nobody linted.**
@@ -35,10 +35,10 @@ finding is binary, the suite is small, and it starts at zero.
 
 **Resolve sources, do not suppress them.** Scripts here `source` a sibling library through
 a runtime-computed path (`$(dirname "${BASH_SOURCE[0]}")/../_lib.sh`), which shellcheck
-cannot follow statically and reports as SC1091 — **31 times**. The obvious move is
+cannot follow statically and reports as SC1091 — **33 times**. The obvious move is
 `-e SC1091`, which would also mute genuine unreadable-source bugs. Instead the check
 passes `-x` with `[shell].source_paths` (`SCRIPTDIR` = the checked script's own
-directory), which resolves **all 31** properly. `[shell].exclude` remains a per-code
+directory), which resolves **all 33** properly. `[shell].exclude` remains a per-code
 escape hatch and is empty; prior art (ESLint's single `--no-warn-ignored` suppressing
 several distinct reasons at once) is the warning against coarse suppression.
 

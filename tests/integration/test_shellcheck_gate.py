@@ -81,3 +81,37 @@ def test_project_without_shell_is_noop_not_a_hollow_pass(tmp_path: Path) -> None
     assert code == 0, stdout
     assert statuses.get("16_shellcheck") == "noop"
     assert "inspected NOTHING" in stdout
+
+
+def test_unreadable_git_index_fails_closed_rather_than_scanning_untracked(
+    tmp_path: Path,
+) -> None:
+    """A git failure inside a real repo must not fall back to the untracked walk.
+
+    The walk includes UNTRACKED files and this check fails builds, so absorbing a git
+    error into that fallback would let a scratch script fail someone's gate. Mirrors the
+    same guarantee 01_source_coherence makes.
+    """
+    project = _git_project(
+        tmp_path / "brokenindex",
+        {"borromeanrings.toml": CONFIG, "ok.sh": "#!/usr/bin/env bash\nprintf 'hi\\n'\n"},
+    )
+    (project / ".git" / "index").write_text("GARBAGE-NOT-AN-INDEX", encoding="utf-8")
+    code, stdout, statuses = _run_gate(project)
+    assert code != 0, f"an undecidable git state must fail closed:\n{stdout}"
+    assert statuses.get("16_shellcheck") == "fail"
+
+
+def test_unreadable_config_fails_closed_not_with_stale_findings(tmp_path: Path) -> None:
+    """A broken config must fail loudly, not silently drop -P and flood with SC1091.
+
+    Swallowing the config error emptied the flag list, so the scan reported dozens of
+    stale "can't follow sourced file" notes with no trace of the real cause.
+    """
+    project = _git_project(
+        tmp_path / "brokencfg",
+        {"borromeanrings.toml": CONFIG, "ok.sh": "#!/usr/bin/env bash\nprintf 'hi\\n'\n"},
+    )
+    (project / "borromeanrings.toml").write_text(CONFIG + "\n[shell\nbroken", encoding="utf-8")
+    code, stdout, statuses = _run_gate(project)
+    assert code != 0, f"an unreadable config must fail closed:\n{stdout}"

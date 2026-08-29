@@ -58,9 +58,20 @@ def test_merge_operates_on_the_governed_project_not_the_harness(tmp_path: Path) 
         ["git", "rev-parse", "--abbrev-ref", "HEAD"], BORROMEANRINGS_HOME
     ).stdout.strip()
 
+    # Force the plain-git merge path deterministically. Prepending a bogus PATH entry
+    # does NOT work — `gh` is still found further along PATH, so the test would pass for
+    # an incidental reason (the fixture has no GitHub remote) rather than the stated one.
+    # A stub that always fails makes `command -v gh && gh pr view ...` take the git path
+    # for exactly the reason the comment claims.
+    stub_bin = tmp_path / "stub-bin"
+    stub_bin.mkdir()
+    gh_stub = stub_bin / "gh"
+    gh_stub.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    gh_stub.chmod(0o755)
+
     env = dict(os.environ)
     env["BORROMEANRINGS_PROJECT"] = str(work)
-    env["PATH"] = "/nonexistent-so-gh-is-absent:" + env["PATH"]  # force the plain-git path
+    env["PATH"] = f"{stub_bin}:" + env["PATH"]
     proc = subprocess.run(
         ["bash", str(MERGE), "main"],
         cwd=work,
@@ -82,8 +93,16 @@ def test_merge_operates_on_the_governed_project_not_the_harness(tmp_path: Path) 
     ).stdout.strip()
     assert harness_branch_after == harness_branch_before
 
-    # The audit receipt belongs to the merged project, not the harness.
-    assert list((work / ".meta-harness" / "merges").glob("*.json"))
+    # The audit receipt belongs to the merged project, not the harness, and records the
+    # merge commit this path actually produced.
+    receipts = list((work / ".meta-harness" / "merges").glob("*.json"))
+    assert receipts
+    import json
+
+    record = json.loads(receipts[0].read_text(encoding="utf-8"))
+    assert record["merge_commit_sha"], "the local-git path must record its merge commit"
+    local_head = _run(["git", "rev-parse", "main"], work).stdout.strip()
+    assert record["merge_commit_sha"] == local_head
 
 
 def test_refuses_when_the_target_is_not_governed(tmp_path: Path) -> None:

@@ -12,6 +12,19 @@ queue is merged.
 
 ## [Unreleased]
 
+### Fixed
+- `merge.sh` now merges the **governed project**, not borromeanRings itself (closes #121).
+  It unconditionally `cd`-ed into `BORROMEANRINGS_HOME`, so invoking it from a governed
+  project checked *borromeanRings's* working tree for dirtiness and would have merged
+  *borromeanRings's* branches — the wrong repository. Found in the field: an untracked file
+  in the harness blocked a clean merge in another repo. `verify.sh` has always honoured
+  `BORROMEANRINGS_PROJECT`/`CLAUDE_PROJECT_DIR`; `merge.sh` now resolves the same two roots
+  (ADR-0013) and runs every git/`gh` call, the gate, the policy check and the audit receipt
+  against `PROJECT_ROOT`, while loading harness code from `BORROMEANRINGS_HOME`. It also
+  refuses outright when the target has no `borromeanrings.toml`. Regression-tested against
+  a real fixture repo with a local bare origin; both tests fail against the pre-fix script
+  with the exact symptom from the report.
+
 ### Added
 - Shell lint gate (ADR-0050, closes #52): `16_shellcheck` lints the project's own shell,
   **fail-closed on any finding at any severity**. borromeanRings is 43 scripts / ~2.8k lines

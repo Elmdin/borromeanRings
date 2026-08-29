@@ -17,10 +17,31 @@
 # See docs/specs/SPEC-merge.md and docs/adr/{0007,0009}-*.md.
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Fail loudly rather than run git operations from whatever directory we happen
-# to be in if the cd fails.
-cd "$ROOT" || { echo "merge: cannot cd to $ROOT" >&2; exit 1; }
+# Two distinct roots, exactly as verify.sh resolves them (ADR-0013): BORROMEANRINGS_HOME
+# is where the harness lives; PROJECT_ROOT is the repository being merged. They coincide
+# only when borromeanRings governs itself.
+#
+# This script used to cd into BORROMEANRINGS_HOME and operate there unconditionally, so
+# invoking it from a governed project checked *borromeanRings's* working tree for
+# dirtiness and would have merged *borromeanRings's* branches — the wrong repository
+# entirely. Every git/gh call below now runs in PROJECT_ROOT.
+BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd)" || {
+  echo "borromeanRings merge: cannot resolve project directory." >&2
+  exit 1
+}
+export BORROMEANRINGS_HOME PROJECT_ROOT
+# Fail loudly rather than run git operations from whatever directory we happen to be in.
+cd "$PROJECT_ROOT" || {
+  echo "borromeanRings merge: cannot cd to $PROJECT_ROOT" >&2
+  exit 1
+}
+
+if [ ! -f "$PROJECT_ROOT/borromeanrings.toml" ]; then
+  echo "borromeanRings merge: $PROJECT_ROOT is not governed (no borromeanrings.toml)." >&2
+  exit 1
+fi
 
 AUTO=0
 positional=()
@@ -45,13 +66,13 @@ fi
 
 # --- Gate is the precondition (fail-closed) ---------------------------------
 echo "borromeanRings merge: running the gate on '$branch'…"
-if ! ./verify.sh; then
+if ! BORROMEANRINGS_PROJECT="$PROJECT_ROOT" bash "$BORROMEANRINGS_HOME/verify.sh"; then
   echo "borromeanRings merge: REFUSED — gate did not pass. Nothing merged." >&2
   exit 1
 fi
 
 # --- Policy: explicit request (we are one) + gate passed --------------------
-decision="$(PYTHONPATH=src python3 -c "from meta_harness.merge_policy import decide_merge; d=decide_merge(gate_passed=True, explicitly_requested=True); print('ALLOW' if d.allowed else 'DENY', d.reason)")"
+decision="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c "from meta_harness.merge_policy import decide_merge; d=decide_merge(gate_passed=True, explicitly_requested=True); print('ALLOW' if d.allowed else 'DENY', d.reason)")"
 if [ "${decision%% *}" != "ALLOW" ]; then
   echo "borromeanRings merge: REFUSED by policy: ${decision#* }" >&2
   exit 1
@@ -109,7 +130,7 @@ fi
 # --- Audit receipt ----------------------------------------------------------
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p .meta-harness/merges
-PYTHONPATH=src python3 - "$branch" "$BASE" "$ts" "$mode" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$branch" "$BASE" "$ts" "$mode" <<'PY'
 import json
 import subprocess
 import sys

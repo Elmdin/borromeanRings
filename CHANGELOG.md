@@ -12,6 +12,22 @@ queue is merged.
 
 ## [Unreleased]
 
+### Added
+- Tests for the portability entry points (closes #53). `init.sh`, `install-global.sh` and
+  `merge.sh` are the code that reaches *outside* this repository — into a governed
+  project's config, into a user's global Claude settings, into another repo's git history
+  — and none of it was tested. `init.sh`: the written config loads through the spine, all
+  four hooks are wired at this borromeanRings, an existing config is not clobbered, skills
+  are installed, and **the gate then runs green in the freshly-initialised project** (a
+  starter config that cannot pass its own gate would make every adoption start red).
+  `install-global.sh`: hooks are installed, unrelated settings survive, a *foreign* hook on
+  the same event is kept, re-running does not duplicate entries, and the
+  `__BORROMEANRINGS_HOME__` placeholder is substituted. Every one of those redirects the
+  script with `CLAUDE_CONFIG_DIR` — a test that wrote to the real `~/.claude` would
+  silently re-enable global governance on the developer's machine. `merge.sh`: refuses a
+  dirty tree, refuses when already on the base branch, and refuses when the gate fails,
+  asserting in each case that nothing was merged.
+
 ### Fixed
 - Git-identity guard hardened against per-command overrides and exotic invocations
   (closes #54). Two independent holes, both preventive-layer only (check `06_git_identity`

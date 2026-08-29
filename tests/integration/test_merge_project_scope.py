@@ -117,3 +117,64 @@ def test_refuses_when_the_target_is_not_governed(tmp_path: Path) -> None:
     )
     assert proc.returncode != 0
     assert "not governed" in (proc.stdout + proc.stderr)
+
+
+# --- preconditions: merge.sh refuses before it can do damage (issue #53) --------------
+
+
+def _merge(work: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run merge.sh against ``work`` with gh forced to fail (plain-git path)."""
+    stub_bin = work.parent / "stub-bin"
+    stub_bin.mkdir(exist_ok=True)
+    gh_stub = stub_bin / "gh"
+    gh_stub.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    gh_stub.chmod(0o755)
+    env = dict(os.environ)
+    env["BORROMEANRINGS_PROJECT"] = str(work)
+    env["PATH"] = f"{stub_bin}:" + env["PATH"]
+    return subprocess.run(
+        ["bash", str(MERGE), *args],
+        cwd=work,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_S,
+        check=False,
+    )
+
+
+def test_refuses_a_dirty_working_tree(tmp_path: Path) -> None:
+    """Merging an uncommitted tree would merge something nobody reviewed."""
+    work, _ = _governed_repo_with_origin(tmp_path)
+    (work / "scratch.txt").write_text("uncommitted\n", encoding="utf-8")
+    proc = _merge(work, "main")
+    assert proc.returncode != 0
+    assert "dirty" in (proc.stdout + proc.stderr)
+
+
+def test_refuses_when_already_on_the_base_branch(tmp_path: Path) -> None:
+    """There is nothing to merge, and proceeding would be a no-op with side effects."""
+    work, _ = _governed_repo_with_origin(tmp_path)
+    _run(["git", "checkout", "-q", "main"], work)
+    proc = _merge(work, "main")
+    assert proc.returncode != 0
+    assert "already on" in (proc.stdout + proc.stderr)
+
+
+def test_refuses_when_the_gate_fails(tmp_path: Path) -> None:
+    """The gate is the precondition for merging at all — fail-closed (ADR-0007)."""
+    work, _ = _governed_repo_with_origin(tmp_path)
+    # Require a check this fixture cannot satisfy: a declared hygiene file that is absent.
+    (work / "borromeanrings.toml").write_text(
+        '[project]\nlanguage = "python"\nsrc_dir = "src"\n\n'
+        '[checks]\nrequired = ["05_hygiene"]\n\n'
+        '[hygiene]\nrequires = ["NOT-PRESENT.md"]\n',
+        encoding="utf-8",
+    )
+    _run(["git", "add", "-A"], work)
+    _run(["git", "commit", "-qm", "chore: require a missing file"], work)
+    proc = _merge(work, "main")
+    assert proc.returncode != 0
+    assert "REFUSED" in (proc.stdout + proc.stderr)
+    # And nothing was merged.
+    assert "require a missing file" not in _run(["git", "log", "--oneline", "main"], work).stdout

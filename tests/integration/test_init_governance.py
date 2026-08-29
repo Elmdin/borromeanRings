@@ -106,5 +106,13 @@ def test_init_installs_the_skills(tmp_path: Path) -> None:
     project = tmp_path / "fresh"
     project.mkdir()
     _init(project)
-    installed = {p.name for p in (project / ".claude" / "skills").iterdir() if p.is_dir()}
+    skills_dir = project / ".claude" / "skills"
+    installed = {p.name for p in skills_dir.iterdir() if p.is_dir()}
     assert installed, "no skills installed"
+    # A skill still carrying the home placeholder would tell the agent to run a path
+    # that does not exist. install-global.sh substitutes it; init.sh must too.
+    placeholder = "__BORROMEANRINGS_" + "HOME__"
+    for doc in skills_dir.rglob("*.md"):
+        assert placeholder not in doc.read_text(encoding="utf-8"), (
+            f"{doc.name} still carries the unsubstituted home placeholder"
+        )

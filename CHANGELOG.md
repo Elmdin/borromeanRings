@@ -16,7 +16,10 @@ queue is merged.
 - Tests for the portability entry points (closes #53). `init.sh`, `install-global.sh` and
   `merge.sh` are the code that reaches *outside* this repository — into a governed
   project's config, into a user's global Claude settings, into another repo's git history
-  — and none of it was tested. `init.sh`: the written config loads through the spine, all
+  — and none of it was tested. `init.sh` also now substitutes the `__BORROMEANRINGS_HOME__` placeholder in copied
+  skills, which `install-global.sh` always did and it did not — a skill still carrying
+  it tells the agent to run a path that does not exist. `init.sh`: the written config
+  loads through the spine, all
   four hooks are wired at this borromeanRings, an existing config is not clobbered, skills
   are installed, and **the gate then runs green in the freshly-initialised project** (a
   starter config that cannot pass its own gate would make every adoption start red).

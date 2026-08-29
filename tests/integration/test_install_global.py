@@ -16,7 +16,13 @@ from pathlib import Path
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 INSTALL = BORROMEANRINGS_HOME / "install-global.sh"
 TIMEOUT_S = 120
-HOOK_EVENTS = ("UserPromptSubmit", "Stop", "PostToolUse", "PreToolUse")
+HOOK_SCRIPTS = {
+    "UserPromptSubmit": "prompt_rewrite.sh",
+    "Stop": "stop_gate.sh",
+    "PostToolUse": "post_edit_format.sh",
+    "PreToolUse": "pre_bash_guard.sh",
+}
+HOOK_EVENTS = tuple(HOOK_SCRIPTS)
 
 
 def _install(config_dir: Path) -> subprocess.CompletedProcess[str]:
@@ -40,9 +46,14 @@ def test_installs_every_hook_pointing_at_this_borromeanrings(tmp_path: Path) -> 
     config = tmp_path / "claude"
     assert _install(config).returncode == 0
     hooks = _settings(config)["hooks"]
-    for event in HOOK_EVENTS:
+    for event, script in HOOK_SCRIPTS.items():
         commands = [h["command"] for entry in hooks[event] for h in entry["hooks"]]
-        assert any(str(BORROMEANRINGS_HOME) in c for c in commands), f"{event} not wired here"
+        # Both halves matter: the RIGHT script, from THIS install. Asserting only the
+        # path would pass even if the wrong hook were wired under the event.
+        assert any(script in c for c in commands), f"{event} is not wired to {script}"
+        assert any(str(BORROMEANRINGS_HOME) in c for c in commands), (
+            f"{event} does not point at this borromeanRings"
+        )
 
 
 def test_unrelated_settings_survive(tmp_path: Path) -> None:

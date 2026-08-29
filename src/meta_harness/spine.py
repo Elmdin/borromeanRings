@@ -85,6 +85,14 @@ class Config:
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
 
+    # [shell] — shellcheck lint over the project's own shell (ADR-0050). borromeanRings
+    # is roughly half bash, and that bash IS the trust root: the gate, the hooks, every
+    # check. `source_paths` are shellcheck -P entries so `source`d libraries resolve
+    # statically (SCRIPTDIR = the checked script's own directory) rather than being
+    # blanket-suppressed; `exclude` is a per-code escape hatch that should stay empty.
+    shell_source_paths: tuple[str, ...] = ("SCRIPTDIR", "SCRIPTDIR/..")
+    shell_exclude: tuple[str, ...] = ()
+
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     """Load and validate the policy spine from ``borromeanrings.toml``.
@@ -172,4 +180,8 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        shell_source_paths=tuple(
+            raw.get("shell", {}).get("source_paths", ["SCRIPTDIR", "SCRIPTDIR/.."])
+        ),
+        shell_exclude=tuple(raw.get("shell", {}).get("exclude", [])),
     )

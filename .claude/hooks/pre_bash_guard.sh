@@ -47,7 +47,7 @@ is_force_push() {
 }
 
 case "$cmd" in
-  *"rm -rf /"* | *"rm -rf ~"* | *"rm -rf /*"*)
+  *"rm -rf /"* | *"rm -rf ~"*)
     deny "Refusing destructive recursive delete of a root or home path." ;;
   *":(){ :|:& };:"*)
     deny "Refusing fork bomb." ;;

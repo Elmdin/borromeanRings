@@ -13,6 +13,23 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Shell lint gate (ADR-0050, closes #52): `16_shellcheck` lints the project's own shell,
+  **fail-closed on any finding at any severity**. borromeanRings is ~41 scripts / 3.9k lines
+  of bash and that bash IS the trust root — the gate itself, every check, the four Claude
+  hooks — yet it was the one part of the codebase nobody linted while the Python beside it
+  faced twenty checks. Running it found five issues, **two of them real defects**:
+  `scripts/critic-judge.sh` piped its prompt into `python3 - <<'PY'`, where the heredoc
+  overrides the pipe, so `sys.stdin.read()` returned `""` and the API-key judge path was
+  sending an **empty prompt** to the model (SC2259); and `pre_bash_guard.sh` carried a dead
+  `case` alternative in the dangerous-command guard, unreachable because an earlier pattern
+  subsumed it (SC2221/SC2222). Both fixed, plus an unchecked `cd` in `merge.sh` (SC2164) and
+  a missing shell directive. Design notes: sources are **resolved, not suppressed** — `-x`
+  with `[shell].source_paths` (`SCRIPTDIR`) clears all 31 SC1091 notes that a blanket
+  `-e SC1091` would have muted along with real unreadable-source bugs; the file list is
+  git-tracked shell (an untracked scratch script never fails a gate) with a filesystem-walk
+  fallback; no shell ⇒ `noop`, not a hollow pass; and **no `xargs`**, which would split a
+  long list across invocations and report only the last exit code. `shellcheck-py` is added
+  to the dev extras so CI needs no apt step. A missing shellcheck is `error`, never a skip.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

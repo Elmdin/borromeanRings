@@ -20,6 +20,9 @@ dev = [
   "pip-audit>=2.7",
   "mutmut>=3",
   "pip-licenses>=5",
+  # Ships the real shellcheck binary as a wheel, so CI needs no apt/brew step and
+  # local installs match CI exactly (check 16_shellcheck, ADR-0050).
+  "shellcheck-py>=0.10",
 ]
 
 [tool.setuptools.packages.find]

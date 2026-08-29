@@ -59,40 +59,134 @@ def author_violations(authors: Sequence[Identity], declared: Identity) -> list[s
     return offenders
 
 
-#: git's own global options that take a value, so a subcommand scan can step over them.
+#: git's own global options that consume the following argument.
 _GIT_GLOBAL_WITH_VALUE: frozenset[str] = frozenset(
-    {"-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
+    {"-c", "-C", "--git-dir", "--work-tree", "--namespace", "--config-env"}
 )
 
+#: Shell operators that end one command and begin another.
+_SEPARATORS: frozenset[str] = frozenset({"&&", "||", ";", "|", "&", "(", ")", "{", "}"})
 
-def git_subcommand(command: str) -> str:
-    """The git subcommand ``command`` invokes (``"commit"``, ``"push"``, ...), else ``""``.
+#: Words that precede and then run another command, e.g. `env git commit`.
+_WRAPPERS: frozenset[str] = frozenset(
+    {"env", "command", "builtin", "exec", "nohup", "time", "sudo", "nice", "then", "do", "else"}
+)
 
-    Substring matching on ``"git commit"`` misses every spelling that puts something
-    between the two words -- ``git -c user.email=... commit``, ``git -C path commit``, a leading
-    ``VAR=value`` environment assignment -- which is exactly how a guard keyed on that
-    substring is walked past (issue #54). This steps over leading environment
-    assignments and git's global options instead.
+#: Shells whose `-c` argument is itself a command line to look inside.
+_SHELLS: frozenset[str] = frozenset({"sh", "bash", "zsh", "dash", "ksh"})
+
+
+def _tokenize(command: str) -> list[str]:
+    """Split a command line into tokens, with shell operators as tokens of their own.
+
+    ``shlex.split`` keeps ``x;`` as a single token, so ``x; git commit`` would look like
+    one command whose head is ``x;`` and the git invocation after it would be missed.
+    ``punctuation_chars`` makes the lexer break on the operators instead.
     """
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return ""
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    return list(lexer)
+
+
+def _split_segments(tokens: Sequence[str]) -> list[list[str]]:
+    """Split a token stream on shell operators into individual commands."""
+    segments: list[list[str]] = [[]]
+    for token in tokens:
+        if token in _SEPARATORS:
+            segments.append([])
+        else:
+            segments[-1].append(token)
+    return [segment for segment in segments if segment]
+
+
+def _head_index(segment: Sequence[str]) -> int:
+    """Index of the actual command word, past leading assignments and wrapper words."""
     index = 0
-    while index < len(tokens) and "=" in tokens[index] and not tokens[index].startswith("-"):
-        index += 1
-    if index >= len(tokens) or tokens[index].rsplit("/", 1)[-1] != "git":
-        return ""
-    index += 1
+    while index < len(segment):
+        token = segment[index]
+        if (
+            "=" in token
+            and not token.startswith("-")
+            or token.rsplit("/", 1)[-1].lstrip("\\") in _WRAPPERS
+        ):
+            index += 1
+        else:
+            break
+    return index
+
+
+def _logical_lines(command: str) -> list[str]:
+    """``command`` split into logical lines, backslash continuations joined.
+
+    A command's arguments live on its own logical line. Tokenizing the whole payload at
+    once flattens a heredoc body into the argv of the command that opened it, so a commit
+    whose MESSAGE mentions an identity flag looks like a commit that USES one.
+    Continuations are joined first so a genuinely wrapped invocation is still seen whole.
+    """
+    return command.replace("\\\n", " ").splitlines() or [command]
+
+
+def git_invocations(command: str) -> list[list[str]]:
+    """Every git invocation in a (possibly compound) command line, as token lists.
+
+    A command line is rarely one command. ``cd dir && git commit``, ``x; git commit``,
+    ``( git commit )`` and ``sh -c 'git commit'`` all run git while containing it
+    somewhere other than the front — and a parser that only inspects the head of the
+    line misses every one of them. That is *narrower* than the substring match this
+    replaced, which is a regression a guard cannot afford: precision must not cost
+    coverage. Segments the line first, then parses each segment.
+    """
+    found: list[list[str]] = []
+    for line in _logical_lines(command):
+        try:
+            tokens = _tokenize(line)
+        except ValueError:
+            continue
+        found.extend(_invocations_in_line(tokens))
+    return found
+
+
+def _invocations_in_line(tokens: Sequence[str]) -> list[list[str]]:
+    """git invocations within one already-tokenized logical line."""
+    found: list[list[str]] = []
+    for segment in _split_segments(tokens):
+        start = _head_index(segment)
+        if start >= len(segment):
+            continue
+        head = segment[start].rsplit("/", 1)[-1].lstrip("\\")
+        if head == "git":
+            # The WHOLE segment, assignments included -- they carry overrides.
+            found.append(list(segment))
+        elif head in _SHELLS and "-c" in segment:
+            index = segment.index("-c")
+            if index + 1 < len(segment):
+                found.extend(git_invocations(segment[index + 1]))
+    return found
+
+
+def _subcommand_of(tokens: Sequence[str]) -> str:
+    """The subcommand of one already-isolated git invocation."""
+    index = _head_index(tokens) + 1
     while index < len(tokens):
-        arg = tokens[index]
-        if not arg.startswith("-"):
-            return arg
-        if arg in _GIT_GLOBAL_WITH_VALUE:
+        token = tokens[index]
+        if not token.startswith("-"):
+            return token
+        if token in _GIT_GLOBAL_WITH_VALUE:
             index += 2
             continue
         index += 1
     return ""
+
+
+def git_subcommands(command: str) -> list[str]:
+    """Every git subcommand invoked anywhere in ``command``."""
+    return [sub for sub in (_subcommand_of(inv) for inv in git_invocations(command)) if sub]
+
+
+def git_subcommand(command: str) -> str:
+    """The first git subcommand ``command`` invokes, else ``""``."""
+    subs = git_subcommands(command)
+    return subs[0] if subs else ""
 
 
 #: Environment variables git honours for authorship, each overriding config for one run.
@@ -105,7 +199,15 @@ AUTHOR_ENV_VARS: tuple[str, ...] = (
 
 #: Substrings that mean "this command carries its own identity". Cheap pre-filter: if
 #: none appears, there is nothing to parse and nothing to enforce.
-OVERRIDE_MARKERS: tuple[str, ...] = ("--author", "-c user.", "-cuser.", *AUTHOR_ENV_VARS)
+OVERRIDE_MARKERS: tuple[str, ...] = (
+    "--author",
+    "-c user.",
+    "-cuser.",
+    "--config-env=",
+    "GIT_CONFIG_KEY_",
+    "GIT_CONFIG_COUNT",
+    *AUTHOR_ENV_VARS,
+)
 
 
 def _email_of(value: str) -> str:
@@ -137,15 +239,63 @@ def _override_in_arg(arg: str, nxt: str) -> tuple[str, str] | None:
     if arg == "-c" and nxt.startswith(("user.email=", "user.name=")):
         key, _, value = nxt.partition("=")
         return ("email" if key == "user.email" else "name", value)
+    if arg.startswith("--config-env="):
+        key = arg.split("=", 1)[1].split("=", 1)[0]
+        return ("opaque", key) if key in ("user.email", "user.name") else None
     if arg.startswith(("-cuser.email=", "-cuser.name=")):
         key, _, value = arg[2:].partition("=")
         return ("email" if key == "user.email" else "name", value)
     return _env_override(arg)
 
 
+#: A git invocation in COMMAND position: start of line or just after a shell operator,
+#: optionally preceded by environment assignments. Used only when tokenizing failed.
+_GIT_AT_COMMAND_START = re.compile(r"(?:^|[;&|(]|\n)\s*(?:\w+=\S*\s+)*(?:\S*/)?git\s", re.MULTILINE)
+
+
+def _git_command_lines(command: str) -> list[str]:
+    """The lines of ``command`` that actually start a git invocation."""
+    return [line for line in command.splitlines() if _GIT_AT_COMMAND_START.search(line)]
+
+
+def _looks_like_git_commit(command: str) -> bool:
+    """Best-effort check that an UNPARSEABLE command line really invokes git commit/push.
+
+    The fallback used to accept git appearing anywhere in the text, which flagged any
+    unparseable command that merely discussed git -- a heredoc writing these very tests,
+    for instance. Requiring command position keeps the fail-closed behaviour for a
+    genuinely malformed git invocation without blocking prose that mentions one.
+    """
+    if not _GIT_AT_COMMAND_START.search(command):
+        return False
+    return re.search(r"\b(commit|push)\b", command) is not None
+
+
+def _config_env_pairs(tokens: Sequence[str]) -> list[tuple[str, str]]:
+    """Identity overrides supplied through git's numbered config environment variables.
+
+    git's numbered config environment (a count plus indexed key/value pairs) sets
+    arbitrary config for one invocation, including ``user.email``. Real git honours it,
+    so a guard that does not read it can be walked past with three variables.
+    """
+    keys: dict[str, str] = {}
+    values: dict[str, str] = {}
+    for arg in tokens:
+        for prefix, sink in (("GIT_CONFIG_KEY_", keys), ("GIT_CONFIG_VALUE_", values)):
+            if arg.startswith(prefix):
+                number, _, value = arg[len(prefix) :].partition("=")
+                sink[number] = value
+    found: list[tuple[str, str]] = []
+    for number, key in keys.items():
+        if key in ("user.email", "user.name"):
+            kind = "email" if key == "user.email" else "name"
+            found.append((kind, values.get(number, "")) if number in values else ("opaque", key))
+    return found
+
+
 def _overrides_in(tokens: Sequence[str]) -> list[tuple[str, str]]:
     """Identity overrides carried by ``tokens`` as (kind, value) pairs."""
-    found: list[tuple[str, str]] = []
+    found: list[tuple[str, str]] = _config_env_pairs(tokens)
     for index, arg in enumerate(tokens):
         nxt = tokens[index + 1] if index + 1 < len(tokens) else ""
         hit = _override_in_arg(arg, nxt)
@@ -166,6 +316,11 @@ def _author_violation(value: str, declared: Identity) -> str | None:
 
 def _override_violation(kind: str, value: str, declared: Identity) -> str | None:
     """Reason one parsed override conflicts with the declared identity, else ``None``."""
+    if kind == "opaque":
+        return (
+            f"{value} is set from an environment variable this guard cannot read; "
+            "refusing rather than assuming it is correct"
+        )
     if not value:
         return None
     if kind == "author":
@@ -175,6 +330,26 @@ def _override_violation(kind: str, value: str, declared: Identity) -> str | None
     if kind == "name" and declared.name and value != declared.name:
         return f"an inline override sets user.name={value}, requires {declared.name}"
     return None
+
+
+def _unparseable_violation(command: str) -> str | None:
+    """Verdict for a command line that could not be tokenized.
+
+    Refusing everything unparseable would block ordinary work; allowing it would make
+    the guard evadable by mangling quotes. The middle ground: refuse only when the line
+    that actually invokes git carries an identity marker. Anything else on the command
+    line -- a heredoc body, a commit message documenting these very flags -- is data,
+    not arguments.
+    """
+    if not _looks_like_git_commit(command):
+        return None
+    git_lines = _git_command_lines(command)
+    if not any(marker in line for line in git_lines for marker in OVERRIDE_MARKERS):
+        return None
+    return (
+        "this command carries a git identity override that could not be parsed "
+        "(unbalanced quotes); refusing rather than guessing"
+    )
 
 
 def command_override_violation(command: str, declared: Identity) -> str | None:
@@ -195,24 +370,16 @@ def command_override_violation(command: str, declared: Identity) -> str | None:
     if not any(marker in command for marker in OVERRIDE_MARKERS):
         return None
     try:
-        tokens = shlex.split(command)
+        _tokenize(command)  # probe: we only need to know whether the line parses
     except ValueError:
-        # Unparseable. Refuse only if this looks like a git commit/push -- otherwise an
-        # unbalanced quote anywhere near an identity flag (a shell one-liner, a grep, a
-        # heredoc that merely mentions git) would be blocked for no reason.
-        if not re.search(r"\bgit\b.*\b(commit|push)\b", command):
-            return None
-        return (
-            "this command carries a git identity override that could not be parsed "
-            "(unbalanced quotes); refusing rather than guessing"
-        )
-    # Only a real git commit/push is this guard's business. Testing merely for a "git"
-    # token would flag any script or heredoc that happens to mention one.
-    if git_subcommand(command) not in {"commit", "push"}:
-        return None
-
-    for kind, value in _overrides_in(tokens):
-        violation = _override_violation(kind, value, declared)
-        if violation:
-            return violation
+        return _unparseable_violation(command)
+    # Scan each invocation separately. A flat scan of the outer tokens misses anything
+    # inside a shell -c argument, where the whole inner command is one opaque token.
+    for invocation in git_invocations(command):
+        if _subcommand_of(invocation) not in {"commit", "push"}:
+            continue
+        for kind, value in _overrides_in(invocation):
+            violation = _override_violation(kind, value, declared)
+            if violation:
+                return violation
     return None

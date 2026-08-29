@@ -82,6 +82,18 @@ SUBCMD
 )" ;;
 esac
 
+# Never do WORSE than the substring match this replaced. Both guards now read one
+# computed value, so a single failure upstream (python missing, import error, a parse
+# this tokenizer cannot handle) would silence both at once. When the parser yields
+# nothing, fall back to the old coarse test: broader and dumber, but it is the floor
+# this guard used to provide and must not drop below.
+if [ -z "$git_action" ]; then
+  case "$cmd" in
+    *"git commit"*) git_action="commit" ;;
+    *"git push"*) git_action="push" ;;
+  esac
+fi
+
 # Protected-branch guard (Tier A collaboration): block 'git commit'/'git push'
 # while ON a declared [collaboration].protected_branches branch — work belongs on
 # feature branches (Gitflow-lite, ADR-0021). Local aid; the platform branch

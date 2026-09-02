@@ -60,8 +60,11 @@ decisions when appropriate.
 ## Scope
 
 This Code of Conduct applies within all community spaces — the repository, its
-issues and pull requests, and any space where an individual is officially
-representing the project in public.
+issues and pull requests — and also applies when an individual is officially
+representing the community in public spaces. Examples of representing our
+community include using an official email address, posting via an official social
+media account, or acting as an appointed representative at an online or offline
+event.
 
 ## Enforcement
 
@@ -80,7 +83,7 @@ the consequences for any action they deem in violation of this Code of Conduct:
 ### 1. Correction
 
 **Community Impact**: Use of inappropriate language or other behavior deemed
-unprofessional or unwelcome.
+unprofessional or unwelcome in the community.
 
 **Consequence**: A private, written warning from community leaders, providing
 clarity around the nature of the violation and an explanation of why the
@@ -93,7 +96,10 @@ actions.
 
 **Consequence**: A warning with consequences for continued behavior. No
 interaction with the people involved, including unsolicited interaction with
-those enforcing the Code of Conduct, for a specified period of time.
+those enforcing the Code of Conduct, for a specified period of time. This
+includes avoiding interactions in community spaces as well as external channels
+like social media. Violating these terms may lead to a temporary or permanent
+ban.
 
 ### 3. Temporary Ban
 
@@ -101,7 +107,10 @@ those enforcing the Code of Conduct, for a specified period of time.
 sustained inappropriate behavior.
 
 **Consequence**: A temporary ban from any sort of interaction or public
-communication with the community for a specified period of time.
+communication with the community for a specified period of time. No public or
+private interaction with the people involved, including unsolicited interaction
+with those enforcing the Code of Conduct, is allowed during this period.
+Violating these terms may lead to a permanent ban.
 
 ### 4. Permanent Ban
 

@@ -67,6 +67,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 
 | Check | Enforces | Config (`borromeanrings.toml`) | ADR |
 |-------|----------|--------------------------------|-----|
+| `04_self_description` | README-stated check/gate counts equal the registry on disk (noop when none stated) | — | 0052 |
 | `05_hygiene` | The engineering surround exists (README, LICENSE, CI dir, …) | `[hygiene].requires` | 0012 |
 | `06_git_identity` | Commits unique to the branch are authored by the declared identity | `[git].name`, `[git].email` | 0019 |
 | `07_layout` | Repo layout: specs live under `specs_dir`; only allow-listed `.md` at root; test grouping past a threshold | `[layout].specs_dir`, `root_doc_allowlist`, `test_grouping_threshold`, `test_groups` | 0018 |

@@ -28,6 +28,7 @@ them at once turns a healthy project red.
    | `32_complexity` | `.borromeanrings-complexity-baseline` | `worst_complexity(src, pkg)` |
    | `33_coupling` | `.borromeanrings-coupling-baseline` | `worst_fan_out(src, pkg)` |
    | `45_docstrings` | `.borromeanrings-docstring-baseline` | `measure_package(src, pkg).coverage` |
+   | `19_context_budget` | `.borromeanrings-context-baseline` | `measure_context_budget(project, directive).total_bytes` (seeded even without a package) |
    Skipped when there is no package to measure (the ratchet is greenfield-pass).
 3. **Seed changelog** — if `11_changelog` is added and none exists, write a
    minimal Keep-a-Changelog file with an `## [Unreleased]` section.
@@ -36,7 +37,8 @@ them at once turns a healthy project red.
    all other text/comments. Fail-closed: a missing table or array raises.
 
 **Recommended set:** `12_secrets`, `11_changelog`, `32_complexity`,
-`33_coupling`, `45_docstrings` — the safe-after-seeding quality/security core.
+`33_coupling`, `45_docstrings`, `01_source_coherence`, `19_context_budget` — the
+safe-after-seeding quality/security core.
 Excludes library-only (`34_api_diff`), config-gated (`35_architecture`), the
 heavy CI lane, and collaboration gates (a separate wave).
 

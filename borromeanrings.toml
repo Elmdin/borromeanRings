@@ -106,6 +106,7 @@ required = [
   "14_container",
   "12_secrets",
   "11_changelog",
+  "19_context_budget",
   "10_format",
   "20_lint",
   "30_typecheck",

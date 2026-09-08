@@ -40,7 +40,8 @@ heavy    = ["60_mutation", "70_pip_audit", ...]        # heavy lane — gates un
 
 - **New project:** `./init.sh <path>` writes a starter `borromeanrings.toml` + the hook wiring.
 - **Existing project:** `./adopt.sh <path>` adds the recommended quality/security set
-  (`12_secrets, 11_changelog, 32_complexity, 33_coupling, 45_docstrings`), seeds each ratchet
+  (`12_secrets, 11_changelog, 32_complexity, 33_coupling, 45_docstrings, 01_source_coherence,
+  19_context_budget`), seeds each ratchet
   baseline from the current state, and rewrites `[checks].required` (idempotent — ADR-0041).
 - **Manually:** add the check ID to `[checks].required` (or `heavy`) and provide any config it
   needs (below). Ratchet checks also need their baseline file seeded.
@@ -77,6 +78,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
+| `19_context_budget` | **Ratchet**: the bytes borromeanRings itself puts in the agent's context (prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, `SKILL.md` files, hook message templates) don't regress (no absolute cap; tokens ≈ bytes/4); nothing measurable ⇒ `noop` | `.borromeanrings-context-baseline`, seeded by `adopt.sh` | 0055 |
 
 ## Fast lane — Python checks
 

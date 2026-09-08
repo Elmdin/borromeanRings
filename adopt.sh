@@ -25,14 +25,33 @@ if [ ! -f "$PROJECT_DIR/borromeanrings.toml" ]; then
   exit 1
 fi
 
+# Refresh borromeanRings's skills in the adopted project. init.sh installs these for NEW
+# projects; without the same step here, an already-governed project would never receive a
+# newly-added skill (e.g. borromeanrings-status) and could not self-report. Copy-only —
+# it never edits the project's settings/hooks, which stay the owner's decision. Runs
+# BEFORE seeding so the context-budget baseline counts the refreshed skills (seeding
+# first would leave the very first gate run tripping its own ratchet).
+if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
+  mkdir -p "$PROJECT_DIR/.claude/skills"
+  cp -R "$BORROMEANRINGS_HOME/.claude/skills/." "$PROJECT_DIR/.claude/skills/"
+  echo "  refreshed borromeanRings skills in $PROJECT_DIR/.claude/skills/"
+fi
+
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" "$BORROMEANRINGS_HOME" <<'PY'
 import sys
 from pathlib import Path
 
-from meta_harness.adopt import RATCHET_BASELINES, plan_adoption, rewrite_required
+from meta_harness.adopt import (
+    PACKAGE_FREE_RATCHETS,
+    RATCHET_BASELINES,
+    plan_adoption,
+    rewrite_required,
+)
 from meta_harness.complexity import worst_complexity
+from meta_harness.context_budget import measure_context_budget
 from meta_harness.coupling import worst_fan_out
 from meta_harness.docstrings import measure_package
+from meta_harness.prompt_rewrite import build_directive
 from meta_harness.spine import load_config
 
 CHANGELOG_TEMPLATE = """\
@@ -45,7 +64,8 @@ All notable changes to this project are documented here, following
 
 ### Added
 - borromeanRings governance adopted: secret scanning, changelog discipline, and
-  docstring / complexity / coupling ratchets (baselines seeded from current state).
+  docstring / complexity / coupling / context-budget ratchets (baselines seeded
+  from current state).
 """
 
 project = Path(sys.argv[1])
@@ -64,15 +84,22 @@ src_root = project / config.src_dir
 package = config.package
 
 # Seed each newly-added ratchet's baseline from the project's current value. With
-# no package to measure, the ratchet is greenfield-pass, so seeding is skipped.
+# no package to measure, a package-bound ratchet is greenfield-pass, so seeding is
+# skipped; the context budget measures the tree itself and is always seeded.
 seeders = {
     "32_complexity": lambda: str(worst_complexity(src_root, package)[0]),
     "33_coupling": lambda: str(worst_fan_out(src_root, package)[0]),
     "45_docstrings": lambda: f"{measure_package(src_root, package).coverage:.6f}",
+    "19_context_budget": lambda: str(
+        measure_context_budget(
+            project,
+            build_directive(config.context) if config.prompt_rewriting_enabled else "",
+        ).total_bytes
+    ),
 }
 seeded: list[str] = []
 for check in plan.seed_baselines:
-    if not package:
+    if not package and check not in PACKAGE_FREE_RATCHETS:
         continue
     value = seeders[check]()
     (project / RATCHET_BASELINES[check]).write_text(value + "\n", encoding="utf-8")
@@ -95,13 +122,3 @@ print(f"  [checks].required is now {len(plan.new_required)} checks.")
 print("  next: run the gate to confirm green:")
 print(f'    BORROMEANRINGS_PROJECT="{project}" bash "{home}/verify.sh"')
 PY
-
-# Refresh borromeanRings's skills in the adopted project. init.sh installs these for NEW
-# projects; without the same step here, an already-governed project would never receive a
-# newly-added skill (e.g. borromeanrings-status) and could not self-report. Copy-only —
-# it never edits the project's settings/hooks, which stay the owner's decision.
-if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
-  mkdir -p "$PROJECT_DIR/.claude/skills"
-  cp -R "$BORROMEANRINGS_HOME/.claude/skills/." "$PROJECT_DIR/.claude/skills/"
-  echo "  refreshed borromeanRings skills in $PROJECT_DIR/.claude/skills/"
-fi

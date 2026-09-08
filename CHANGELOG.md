@@ -13,6 +13,18 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
+  `meta_harness.context_budget` measure what borromeanRings **itself** puts into the
+  agent's context — the prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, every installed
+  `SKILL.md`, and the message templates in `.claude/hooks/*.sh` — as bytes and approximate
+  tokens (bytes/4, no tokenizer dependency), and **ratchet the total** against
+  `.borromeanrings-context-baseline`: above the baseline fails naming both numbers, at or
+  below passes with the per-source rows in the log, nothing measurable ⇒ `noop`, an
+  unreadable baseline fails closed. Non-regression only, no absolute cap. Registered in
+  `[checks].required`, in `adopt.py` `RECOMMENDED`/`RATCHET_BASELINES` (seeded even when
+  the project declares no package), catalogued in `docs/CHECKS.md`; borromeanRings's own
+  baseline seeded at 31893 B (~8K tokens). Unit- (100% line+branch) and integration-tested
+  (pass / regression / noop / unseeded / unreadable).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

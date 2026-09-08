@@ -1,5 +1,8 @@
 """Tests for the policy spine loader (docs/specs/SPEC-spine.md §5)."""
 
+import os
+import subprocess
+import sys
 import warnings
 from pathlib import Path
 
@@ -250,7 +253,7 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
 def test_legacy_config_name_loads_with_deprecation_warning(tmp_path: Path) -> None:
     (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
     canonical = tmp_path / "borromeanrings.toml"
-    with pytest.warns(DeprecationWarning, match="borromeo.toml.*borromeanrings.toml"):
+    with pytest.warns(FutureWarning, match="borromeo.toml.*borromeanrings.toml"):
         loaded = load_config(canonical)
     assert loaded.required_checks == ("00_build",)
 
@@ -279,8 +282,28 @@ def test_resolve_config_path_falls_back_only_for_canonical_name(tmp_path: Path) 
         assert resolve_config_path(str(other)) == other
     assert caught == []
     canonical = str(tmp_path / "borromeanrings.toml")
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(FutureWarning):
         assert resolve_config_path(canonical) == tmp_path / "borromeo.toml"
+
+
+def test_legacy_notice_reaches_stderr_under_default_filters(tmp_path: Path) -> None:
+    # Review of PR #165: a DeprecationWarning is hidden by Python's default filters
+    # outside __main__, so status.sh / the hooks saw nothing. The notice must reach
+    # stderr through a plain `python3 -c` with default filters (no -W flag).
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    code = (
+        "from meta_harness import status\n"  # a non-__main__ caller, like status.sh
+        f"status.gather({str(tmp_path)!r})\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[2] / "src")},
+    )
+    assert "borromeo.toml" in result.stderr and "borromeanrings.toml" in result.stderr
+    assert result.stderr.count("deprecated config name") == 1  # once per process, not per call
 
 
 def test_config_name_constants_are_the_two_spellings() -> None:

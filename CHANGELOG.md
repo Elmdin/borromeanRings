@@ -15,9 +15,11 @@ queue is merged.
 ### Deprecated
 - The pre-rename config file name `borromeo.toml` (issue #62). It still loads —
   `meta_harness.spine.resolve_config_path` falls back to it when `borromeanrings.toml`
-  is absent, with a `DeprecationWarning`; `verify.sh` prints a notice on every run and
-  the hooks/`status.sh` still recognise the project — so no already-governed project
-  silently falls out of governance. Migrate with `git mv borromeo.toml borromeanrings.toml`.
+  is absent and prints a `FutureWarning` to stderr (once per process per legacy file;
+  shown by Python's default filters, which a `DeprecationWarning` is not). Visible from
+  `verify.sh` (its own notice on every run), `status.sh`, `ledger.sh`, the Stop and
+  UserPromptSubmit hooks; the PreToolUse branch guard swallows stderr by design and stays
+  silent but still governs — so no already-governed project falls out of governance. Migrate with `git mv borromeo.toml borromeanrings.toml`.
   The `meta_harness` package and the `.meta-harness/` evidence directory are deliberately
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 

@@ -336,11 +336,23 @@ def test_gather_legacy_project_loads_config_and_tracks_dirty(tmp_path: Path) -> 
     _git_init(proj)
     subprocess.run(["git", "-C", str(proj), "add", "-A"], check=True)
     subprocess.run(["git", "-C", str(proj), "commit", "-q", "-m", "init"], check=True)
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(FutureWarning):
         clean = gather(proj)
     assert clean.required_count == 2
     assert clean.config_dirty is False
     (proj / "borromeo.toml").write_text(_MINIMAL_TOML + "\n# edit\n", encoding="utf-8")
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(FutureWarning):
         dirty = gather(proj)
     assert dirty.config_dirty is True
+
+
+def test_stray_legacy_file_does_not_dirty_a_clean_canonical_config(tmp_path: Path) -> None:
+    # Review of PR #165 nit: dirtiness follows the file that was actually resolved.
+    proj = _write_project(tmp_path / "proj")
+    _git_init(proj)
+    subprocess.run(["git", "-C", str(proj), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(proj), "commit", "-q", "-m", "init"], check=True)
+    (proj / "borromeo.toml").write_text("stale = true\n", encoding="utf-8")  # untracked stray
+    assert gather(proj).config_dirty is False
+    (proj / "borromeanrings.toml").write_text(_MINIMAL_TOML + "\n# edit\n", encoding="utf-8")
+    assert gather(proj).config_dirty is True

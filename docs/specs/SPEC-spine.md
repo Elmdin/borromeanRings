@@ -37,9 +37,11 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
   is a misconfiguration, never "nothing to enforce so pass."
 - **Legacy name (deprecated, issue #62):** `resolve_config_path` — when the canonical
   `borromeanrings.toml` is absent and a sibling pre-rename `borromeo.toml` exists, that file
-  loads instead with a `DeprecationWarning` (the canonical file always wins when present; any
-  other file name is never redirected). `verify.sh` and the hooks accept either name so an
-  already-governed project never silently falls out of governance. Migration: `docs/RENAME.md`.
+  loads instead with a `FutureWarning` on stderr — that category is shown by Python's default
+  filters from any module (a `DeprecationWarning` is not, outside `__main__`), once per process
+  per legacy file (the canonical file always wins when present; any other file name is never
+  redirected). `verify.sh` and the hooks accept either name so an already-governed project never
+  silently falls out of governance. Migration: `docs/RENAME.md`.
 - `verify.sh` reads the required set from the spine (replacing `checks/manifest.json` as the single
   source — Single Choice Principle) and enforces config-compliance: every required check must have a
   pass receipt.

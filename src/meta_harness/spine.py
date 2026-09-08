@@ -17,7 +17,7 @@ import tomllib
 
 # The policy-spine file name, and the pre-rename spelling still accepted (issue #62).
 # Projects governed before the borromeo -> borromeanRings rename may still carry the
-# legacy file; it keeps loading (with a deprecation warning) so they never silently
+# legacy file; it keeps loading (with a FutureWarning on stderr) so they never silently
 # fall out of governance. Migration: `git mv borromeo.toml borromeanrings.toml`.
 CONFIG_NAME = "borromeanrings.toml"
 LEGACY_CONFIG_NAME = "borromeo.toml"
@@ -101,6 +101,11 @@ def resolve_config_path(path: str | Path) -> Path:
     the canonical file always wins when present, and any other file name is returned
     untouched (a missing file then surfaces as ``FileNotFoundError`` in the caller).
 
+    The notice is a ``FutureWarning``, not a ``DeprecationWarning``: Python's default
+    filters hide the latter outside ``__main__``, so it never reached stderr through the
+    real call paths (``status.sh``, the hooks — PR #165 review). A ``FutureWarning`` is
+    the end-user-facing category, shown by default, once per process per legacy file.
+
     Args:
         path: the requested TOML config path.
 
@@ -117,7 +122,7 @@ def resolve_config_path(path: str | Path) -> Path:
         f"{legacy} uses the deprecated config name {LEGACY_CONFIG_NAME}; rename it to "
         f"{CONFIG_NAME} (git mv {LEGACY_CONFIG_NAME} {CONFIG_NAME}). The legacy name "
         "still loads for now — see docs/RENAME.md.",
-        DeprecationWarning,
+        FutureWarning,
         stacklevel=2,
     )
     return legacy

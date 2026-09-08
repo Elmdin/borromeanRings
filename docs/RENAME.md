@@ -37,12 +37,22 @@ fall out of governance, so:
 
 - `meta_harness.spine.resolve_config_path(path)`: when the requested file is the canonical
   `borromeanrings.toml` and it is absent, a sibling `borromeo.toml` is loaded instead and a
-  `DeprecationWarning` is emitted. The canonical file always wins when both exist; no other
-  file name is ever redirected. Every check and hook loads through `load_config`, so this one
-  seam covers them all (tests: `tests/unit/test_spine.py`, `tests/unit/test_status.py`).
-- `verify.sh` prints a `DEPRECATED config name` notice on every run of a legacy-named project.
+  `FutureWarning` (`... uses the deprecated config name borromeo.toml; rename it ...`) is
+  printed to stderr, once per process per legacy file. It is a `FutureWarning` because
+  Python's default filters show that category from any module; a `DeprecationWarning` is
+  hidden outside `__main__` and never reached stderr through the real call paths. The
+  canonical file always wins when both exist; no other file name is ever redirected. Every
+  check and hook loads through `load_config`, so this one seam covers them all (tests:
+  `tests/unit/test_spine.py`, `tests/unit/test_status.py`).
+- Where you see it: `verify.sh` prints its own `DEPRECATED config name` notice on every
+  run; `status.sh` and `ledger.sh` print the `FutureWarning` per legacy project; the Stop
+  hook (`stop_gate`, via the gate output) and the UserPromptSubmit hook (`prompt_rewrite`)
+  surface it too. The PreToolUse branch guard (`pre_bash_guard`) redirects its Python
+  stderr to `/dev/null` by design, so it governs a legacy project silently.
 - The substrate hooks (`prompt_rewrite`, `stop_gate`, `pre_bash_guard`, `post_edit_format`)
-  and `status.sh` / `ledger.sh` discovery recognise either file name.
+  and `status.sh` / `ledger.sh` discovery recognise either file name; `status.sh` reports
+  "config uncommitted" against the file it actually resolved (a stray untracked
+  `borromeo.toml` beside a clean `borromeanrings.toml` is not drift).
 - `adopt.sh` stays strict: it rewrites the canonical file, so it asks you to rename first.
 
 **Migrate** (one command, in the governed project):

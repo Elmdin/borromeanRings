@@ -33,6 +33,27 @@ fi
 borromeanrings_claim stop "$session_id" || exit 0
 trap 'borromeanrings_release stop "$session_id"' EXIT TERM INT
 
+# Rewrite-contract receipt (ADR-0059, #81): did the reply that just ended open with the
+# "Reading this as:" line the UserPromptSubmit directive asked for? Decided from the
+# session transcript the substrate names in the payload (transcript_path) — nothing else
+# is read — and appended to .meta-harness/rewrite_contract.jsonl. Runs BEFORE the no-op
+# guard: a reply that only answered a question is exactly where the reading matters.
+# Record, don't nag: advisory in v1 — never blocks, never fails this hook. Skipped when
+# the directive is off ([prompt_rewriting].enabled) so an absent reading is never
+# recorded as a broken promise nobody made.
+# The payload travels over stdin (as for the parse above), never argv.
+printf '%s' "$input" | PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c '
+import sys
+from pathlib import Path
+
+from meta_harness.rewrite_contract import record_from_payload
+from meta_harness.spine import load_config
+
+project = Path(sys.argv[1])
+if load_config(project / "borromeanrings.toml").prompt_rewriting_enabled:
+    record_from_payload(project, sys.stdin.read())
+' "$PROJECT_DIR" >/dev/null 2>&1 || true
+
 # No-op guard: if the governed input state is identical to the last proven-green
 # state (e.g. the agent only answered a question), skip the full gate — re-running
 # it adds no assurance and wastes compute/tokens. Fail-closed: any error or change

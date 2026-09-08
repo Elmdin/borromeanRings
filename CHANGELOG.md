@@ -13,6 +13,7 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Rewrite contract (ADR-0059, #81): the prompt-rewrite directive is now *verified*, not just injected. `meta_harness.rewrite_contract` reads the tail of the session transcript the Stop hook receives (`transcript_path`), finds the reply to the last human prompt and decides deterministically — no model call — whether it opened with `Reading this as:` (trivial yes/no/continue prompts exempt). `stop_gate.sh` appends the verdict with its evidence to `.meta-harness/rewrite_contract.jsonl` (append-only; `unknown` when the transcript is missing/malformed; never blocks), and `status.sh` shows the tally (`Rewrite: contract honoured N of M in this project`). Record, don't nag: a ratchet check is the documented next step. Unit + stdin-protocol integration tested.
 - PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
 
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a

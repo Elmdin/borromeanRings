@@ -24,7 +24,13 @@ from pathlib import Path
 from typing import Any
 
 from meta_harness.adopt import plan_adoption
-from meta_harness.verdict import Verdict, is_failing, read_last_verdict
+from meta_harness.verdict import (
+    RewriteTally,
+    Verdict,
+    is_failing,
+    read_last_verdict,
+    read_rewrite_tally,
+)
 
 __all__ = [
     "HOOK_EVENTS",
@@ -32,13 +38,16 @@ __all__ = [
     "NOOP",
     "Enforcement",
     "ProjectStatus",
+    "RewriteTally",
     "Verdict",
     "build_status",
     "classify_enforcement",
     "hollow_checks",
     "obligations",
     "read_project_verdict",
+    "read_rewrite_tally",
     "render",
+    "render_rewrite_line",
     "render_self_status",
     "summarize",
 ]
@@ -251,6 +260,22 @@ def hollow_checks(verdict: Verdict | None) -> tuple[str, ...]:
     return tuple(cid for cid, status in verdict.checks if status == NOOP)
 
 
+def render_rewrite_line(tally: RewriteTally | None) -> str:
+    """The rewrite-contract line of the self-status report (ADR-0059).
+
+    How often replies opened with the reading the UserPromptSubmit directive asks for.
+    A statement about the RECORD: exempt and unknown verdicts are shown as such, never
+    folded into either side of the tally.
+    """
+    if tally is None or tally.total == 0:
+        return "no record"
+    line = f"honoured {tally.honoured} of {tally.judged} in this project"
+    aside = [f"{tally.exempt} exempt"] if tally.exempt else []
+    if tally.unknown:
+        aside.append(f"{tally.unknown} unknown")
+    return f"{line} ({', '.join(aside)})" if aside else line
+
+
 def render_self_status(
     *,
     project: str,
@@ -260,6 +285,7 @@ def render_self_status(
     enforcement: Enforcement,
     harness_home: str,
     installed_version: str = "",
+    rewrite_tally: RewriteTally | None = None,
 ) -> str:
     """Render the one-project report (pure; safe on missing/partial facts)."""
     name = project.rstrip("/").rsplit("/", maxsplit=1)[-1] or project
@@ -308,6 +334,7 @@ def render_self_status(
 
     marker = {"auto": "", "partial": "⚠ ", "manual": "⚠ "}[enforcement.mode]
     lines.append(f"  {marker}Enforcement: {enforcement.mode.upper()} — {enforcement.detail}")
+    lines.append(f"  Rewrite:      contract {render_rewrite_line(rewrite_tally)}")
     if installed_version:
         lines.append(f"  Installed:    borromeanRings {installed_version} at {harness_home}")
     lines += [f"  Re-gate:      {harness_home}/verify.sh", ""]

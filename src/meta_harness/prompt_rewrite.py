@@ -15,6 +15,10 @@ dictate a plan. See docs/specs/SPEC-prompt-rewrite.md and docs/adr/0011-*.md.
 from collections.abc import Mapping
 from typing import Any
 
+#: The line the directive asks the agent to open its reply with. The single source for
+#: both the directive text and the Stop-side verification (meta_harness.rewrite_contract).
+MARKER = "Reading this as:"
+
 
 def build_directive(context: Mapping[str, Any]) -> str:
     """Build the prompt-rewrite directive injected into the agent's context.
@@ -39,7 +43,7 @@ def build_directive(context: Mapping[str, Any]) -> str:
         lines.append(f"- honor these value priorities (highest first): {', '.join(priorities)};")
     lines.append(
         "Then act on your improved reading, and OPEN your reply with one line — "
-        '"Reading this as: <your sharpened version of the request>" — so the user can '
+        f'"{MARKER} <your sharpened version of the request>" — so the user can '
         "correct course immediately. Skip that line only for trivial follow-ups (a bare "
         "yes/no/continue). If your reading changes the request's scope, or acting on it is "
         "irreversible (merge, publish, delete, deploy), STOP and get confirmation first. "

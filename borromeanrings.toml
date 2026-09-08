@@ -91,6 +91,13 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[prior_art]
+# Prior-art discipline (check 17_prior_art, ADR-0051): on a feature branch, new public
+# surface must be accompanied by a survey record of what already existed. The 13_adr
+# pattern applied to reuse. Off unless 17_prior_art is in [checks].required.
+dir = "docs/surveys"
+require_prefixes = ["feat/"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -103,6 +110,7 @@ required = [
   "08_branch",
   "09_commits",
   "13_adr",
+  "17_prior_art",
   "14_container",
   "12_secrets",
   "11_changelog",

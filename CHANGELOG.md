@@ -13,6 +13,22 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Prior-art gate (ADR-0051, closes #131): `17_prior_art` — on a feature branch, a change
+  that **adds public surface** must also add or modify a survey record under
+  `docs/surveys/` saying what already existed (in the repo, a dependency, the ecosystem)
+  and why building was still right. The `13_adr` pattern applied to reuse; the practice the
+  maintainer most often re-stated to agents by hand, now enforced. New surface is computed
+  by diffing `api_diff.public_api` at the merge-base vs HEAD; no new surface ⇒ `noop`.
+  Ships with its own survey (`docs/surveys/0001-prior-art-gate.md`) and a `TEMPLATE.md`.
+  Two honest limits from the research (`docs/research/AGENT-TOOLING-SURVEY.md`): the
+  ecosystem "is there a library?" half is **advisory only** — no key-free package API
+  supports free-text search, so a gate could not answer its own question; and clone
+  detectors catch copy-paste, not reinvention (renamed clones evade them), so jscpd is
+  deferred and will be described as copy-paste detection. Reimplementation-of-a-builtin
+  IS deterministic: Ruff's `PIE807`/`PERF401-403`/`PLR0402` are now enabled — selected
+  **individually**, because the `PIE`/`PERF`/`PL` groups measured 50 findings on this
+  tree, 37 magic-value nits and 3 `too-many-arguments` (a numeric threshold, the exact
+  thing this project rejects). Their one finding was fixed, not suppressed.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

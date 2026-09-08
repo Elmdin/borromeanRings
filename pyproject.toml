@@ -32,6 +32,12 @@ extend-exclude = ["cs130", ".meta-harness", "examples"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+# The "you reimplemented something that exists" rules — the only shipping rules of their
+# kind (ADR-0051, docs/research/AGENT-TOOLING-SURVEY.md). Selected INDIVIDUALLY, not as
+# the PIE/PERF/PL groups: measured on this tree, the groups bring 50 findings of which
+# 37 are magic-value nits and 3 are `too-many-arguments` — a numeric threshold, which is
+# exactly the arbitrary-number style this project rejects. These five are binary.
+extend-select = ["PIE807", "PERF401", "PERF402", "PERF403", "PLR0402"]
 
 [tool.mypy]
 python_version = "3.12"

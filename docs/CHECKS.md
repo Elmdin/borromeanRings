@@ -84,6 +84,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 |-------|----------|----------------|-----|
 | `00_build` | Source compiles and the declared package imports cleanly | `[project].package`, `src_dir` | — |
 | `01_source_coherence` | **Fails** when the declared source path resolves to no files *while tracked source exists elsewhere* — the misconfiguration that makes every source-reading check pass vacuously. Genuine greenfield ⇒ `noop` | `[project].src_dir`, `package` | 0049 |
+| `17_prior_art` | Feature branch adding **public surface** must add/modify a survey record — the reuse question asked on the record. Ecosystem lookup deliberately advisory. No new surface ⇒ `noop` | `[prior_art].dir`, `require_prefixes` | 0051 |
 | `10_format` | No unformatted files (black) | toolchain | — |
 | `20_lint` | No lint violations (ruff) | toolchain | — |
 | `30_typecheck` | No type errors (mypy); greenfield with no source ⇒ `noop` | toolchain | — |

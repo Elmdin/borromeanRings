@@ -19,9 +19,17 @@ recommend → hint at integration). Declared via `[enhancements].interests`.
 **Advisory only** — it proposes; the human verifies and wires. It never gates.
 
 Each `EnhancementTool` carries a `verified` flag: entries the maintainer has
-confirmed are `True`; user-suggested / unconfirmed ones (OmniRoute) are `False`
-and rendered with a "verify" marker, so a recommendation never asserts more
-certainty than it has.
+confirmed are `True`; user-suggested / unconfirmed ones are `False` and rendered
+with a "verify" marker, so a recommendation never asserts more certainty than it
+has.
+
+**Amended 2026-09-08 (#133):** the 2026-09-02 tooling survey found the catalog
+recommending a dead router (RouteLLM, last commit 2024-08-10), a search-query URL
+(OmniRoute), and four tools that act only on API-key traffic and so cannot affect a
+subscription agent CLI at all. Entries now carry `maintained_as_of`, `needs_api_key`
+and `applies_to`; `recommend()` filters by substrate (default `claude-code`); dead
+entries are removed and the phantom dropped. Correctness-first was the module's
+stated contract and this is what honouring it costs: evidence per entry.
 
 ## Alternatives considered
 - **A fail-closed gate that *requires* certain tools** — rejected hard: it would

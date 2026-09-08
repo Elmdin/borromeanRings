@@ -5,8 +5,9 @@
 # need no rendered DOM: a full document declares <html lang>, every <img> carries an
 # alt, and a full document has a non-empty <title>. Native (stdlib html.parser; no
 # axe-core/node). Threshold-free — presence facts only, no score target. No tracked
-# HTML ⇒ pass (not a UI project). Off unless 15_a11y is in [checks].required.
-# See SPEC-accessibility.md, ADR-0045.
+# HTML ⇒ `noop` (not a UI project: legitimate, but never a green that claims a11y was
+# inspected — ADR-0049). Off unless 15_a11y is in [checks].required.
+# See SPEC-accessibility.md, ADR-0045, ADR-0049.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
 
@@ -46,8 +47,12 @@ def _tracked_html() -> list[str]:
 
 files = _tracked_html()
 if not files:
-    print("no tracked HTML — not a UI project, nothing to check")
-    sys.exit(0)
+    # Inspected nothing: say so (exit 3 → `noop`), and say what was searched and where,
+    # so a reader can tell "not a UI project" from "the HTML lives in an excluded dir".
+    print(f"no tracked HTML — searched git-tracked *.html/*.htm/*.xhtml under {root}")
+    print(f"(excluding directories: {', '.join(cfg.a11y_exclude) or 'none'})")
+    print("not a UI project, nothing to check — reporting noop, not pass")
+    sys.exit(3)
 
 total = 0
 for rel in files:
@@ -68,7 +73,7 @@ if total:
 print(f"a11y invariants satisfied ({', '.join(cfg.a11y_require)}) across {len(files)} HTML file(s)")
 PY
 code=$?
-status="fail"
-[ "$code" -eq 0 ] && status="pass"
+status="$(borromeanrings_status_for_code "$code")"
+[ "$status" = "noop" ] && code=0
 emit_receipt "$id" "$cmd" "$code" "$log" "$status"
 exit "$code"

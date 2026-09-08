@@ -12,6 +12,14 @@ queue is merged.
 
 ## [Unreleased]
 
+### Fixed
+- `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
+  Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
+  the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus
+  `[a11y].exclude`) and where, and the gate output counts it under `inspected NOTHING`.
+  Clean HTML ⇒ `pass`, violations ⇒ `fail`, unchanged. Locked down by an integration
+  suite (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on all three fixtures.
+
 ### Added
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those

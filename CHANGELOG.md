@@ -13,6 +13,17 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Issue forms, PR template, and label scheme (closes #61): YAML issue forms for bug
+  report (repro, expected/actual, gate output + receipt path, `harness-version`),
+  feature request (user story, acceptance checkboxes, quality attributes, the check
+  that would enforce it, ADR/milestone fit) and research/spike (question, sources,
+  deliverable under `docs/research/`); blank issues disabled, vulnerabilities routed to
+  the private advisory. `PULL_REQUEST_TEMPLATE.md` now mirrors the real definition of
+  done (fast gate, `--heavy` with `60_mutation`/`74_secret_history`, sub-agent review
+  on the PR, ADR/CHANGELOG/spec when applicable, no new CI/packaging, subject ≤ 72).
+  `docs/LABELS.md` documents the label + milestone vocabulary reconciled with the
+  labels that exist; `scripts/labels.sh` (idempotent, `--dry-run`, shellcheck-clean)
+  applies it — run by a human on purpose, never by a hook.
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

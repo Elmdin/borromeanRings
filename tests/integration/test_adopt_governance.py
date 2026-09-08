@@ -55,6 +55,7 @@ def test_adopt_adds_the_recommended_set_and_preserves_tuned_config(tmp_path: Pat
     toml = (project / "borromeanrings.toml").read_text(encoding="utf-8")
     assert "# tuned by hand -- must survive" in toml, "adopt clobbered the owner's config"
     assert '"00_build"' in toml and '"10_format"' in toml, "existing required checks were dropped"
+    assert "[hygiene]\nrequires = []" in toml, "an unrelated section was rewritten"
     from meta_harness.adopt import RECOMMENDED
 
     for check in RECOMMENDED:
@@ -108,16 +109,21 @@ def test_adopt_creates_a_changelog_only_when_missing(tmp_path: Path) -> None:
     )
 
 
-def test_adopt_refreshes_skills_with_the_placeholder_substituted(tmp_path: Path) -> None:
+def test_adopt_refreshes_skills_to_match_the_harness(tmp_path: Path) -> None:
+    """Refresh means: every skill the harness ships is present, and a stale copy is
+    brought back to the harness's content on the next run (the reason adopt.sh copies)."""
     project = _governed(tmp_path / "p")
     _adopt(project)
-    skills = list((project / ".claude" / "skills").rglob("*.md"))
-    assert skills, "no skills installed"
-    placeholder = "__BORROMEANRINGS_" + "HOME__"
-    for doc in skills:
-        assert placeholder not in doc.read_text(encoding="utf-8"), (
-            f"{doc.name} carries the placeholder"
-        )
+    source = BORROMEANRINGS_HOME / ".claude" / "skills"
+    shipped = sorted(p.name for p in source.iterdir() if p.is_dir())
+    assert shipped, "fixture assumption: the harness ships at least one skill"
+    installed = project / ".claude" / "skills"
+    assert sorted(p.name for p in installed.iterdir() if p.is_dir()) == shipped
+    doc = installed / shipped[0] / "SKILL.md"
+    original = doc.read_text(encoding="utf-8")
+    doc.write_text("stale\n", encoding="utf-8")
+    _adopt(project)
+    assert doc.read_text(encoding="utf-8") == original, "a stale skill was not refreshed"
 
 
 def test_adopt_refuses_an_ungoverned_directory(tmp_path: Path) -> None:

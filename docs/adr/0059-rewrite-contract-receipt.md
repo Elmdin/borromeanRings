@@ -30,7 +30,10 @@ deterministically, without a model call.
 3. Robustness is fail-honest: a missing, unreadable, non-`.jsonl`, symlinked or malformed
    transcript, or a payload without the path, records `unknown` — never a guess, never a
    crash. Reads are bounded to the transcript's tail (8 MiB); the prefix is only streamed to
-   keep line numbers exact. Nothing but the substrate-supplied path is read.
+   keep line numbers exact. Nothing but the substrate-supplied path is read, and only when
+   it resolves under the substrate's transcript directory (`$CLAUDE_CONFIG_DIR/projects`,
+   else `~/.claude/projects`, else home) — defense in depth against a crafted payload. The
+   hook step is wall-clock bounded (10 s default).
 4. The record I/O lives in `meta_harness.verdict` beside the other persisted `.meta-harness`
    records, so `status_assess` and `status` keep their fan-out at the coupling baseline
    instead of growing a third import.

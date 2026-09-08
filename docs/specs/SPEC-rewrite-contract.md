@@ -36,8 +36,12 @@ in the project's own status — so a standard that decayed into a suggestion bec
 - **`read_tail(path, max_bytes=8 MiB) -> (first_line_no, lines)`** — bounded: only the tail
   is decoded; the skipped prefix is streamed in 1 MiB chunks solely to count newlines so
   line numbers are exact. A cut that does not provably start a line drops the first line.
-  Refuses (`ValueError`) anything not a `.jsonl` path or that is a symlink; missing ⇒
-  `OSError`. Nothing but the substrate-supplied `transcript_path` is ever read.
+  Refuses (`TranscriptRefused`, before reading a byte) anything not a `.jsonl` path, anything
+  whose *resolved* path is not under the substrate's transcript root (symlink escapes and
+  `..` traversal included), or a symlink; missing ⇒ `OSError`. The root
+  (`default_transcript_root`) is `$CLAUDE_CONFIG_DIR/projects`, else `~/.claude/projects` when
+  it exists, else the user's home; undeterminable ⇒ refuse. Nothing but the substrate-supplied
+  `transcript_path` is ever read, whatever the payload says.
 - **`evaluate_transcript(path) -> RewriteVerdict`** — never raises: unreadable/refused path,
   no human prompt in the tail, or a prompt with no assistant text ⇒ `unknown` with the
   reason.
@@ -70,7 +74,9 @@ in the project's own status — so a standard that decayed into a suggestion bec
   in ADR-0059, not part of this change — the issue asks for visibility, not a block.
 
 ## Edge cases
-- Transcript missing, unreadable, not `.jsonl`, or a symlink ⇒ `unknown`, hook exit 0.
+- Transcript missing, unreadable, not `.jsonl`, a symlink, or outside the transcript root ⇒
+  `unknown` (reason `transcript path outside the substrate's transcript directory` for the
+  last), hook exit 0.
 - Malformed JSON lines anywhere ⇒ skipped; a wholly malformed tail ⇒ `unknown`.
 - Last prompt older than the tail window ⇒ `unknown` ("no human prompt found").
 - Reply opens with `**Reading this as:**` ⇒ honoured; opens with "Sure." then the marker ⇒
@@ -80,7 +86,9 @@ in the project's own status — so a standard that decayed into a suggestion bec
 
 ## Constraints
 - No model calls, no network, no API keys; stdlib only. Advisory: never blocks the Stop.
-- Bounded memory (tail only) and bounded time (the gate's 600 s hook budget is untouched).
+- Bounded memory (tail only) and bounded time: the hook step runs under
+  `borromeanrings_bounded` (`BORROMEANRINGS_REWRITE_TIMEOUT`, default 10 s), so a stalled
+  filesystem can never park the Stop hook; the gate's 600 s budget is untouched.
 - Coupling ratchet (fan-out ≤ 2): `rewrite_contract` imports `prompt_rewrite` and `verdict`;
   `status_assess`/`status` gain no new sibling import (the record reader lives in `verdict`).
 

@@ -41,8 +41,11 @@ trap 'borromeanrings_release stop "$session_id"' EXIT TERM INT
 # Record, don't nag: advisory in v1 — never blocks, never fails this hook. Skipped when
 # the directive is off ([prompt_rewriting].enabled) so an absent reading is never
 # recorded as a broken promise nobody made.
-# The payload travels over stdin (as for the parse above), never argv.
-printf '%s' "$input" | PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c '
+# The payload travels over stdin (as for the parse above), never argv. Bounded
+# (BORROMEANRINGS_REWRITE_TIMEOUT seconds, default 10): a stalled filesystem under the
+# transcript must never park the Stop hook.
+printf '%s' "$input" | borromeanrings_bounded "${BORROMEANRINGS_REWRITE_TIMEOUT:-10}" \
+  env PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c '
 import sys
 from pathlib import Path
 

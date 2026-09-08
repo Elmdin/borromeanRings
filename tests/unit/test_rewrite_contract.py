@@ -18,7 +18,9 @@ from meta_harness.rewrite_contract import (
     TRIVIAL_PROMPTS,
     Exchange,
     RewriteVerdict,
+    TranscriptRefused,
     assess_reply,
+    default_transcript_root,
     evaluate_transcript,
     find_last_exchange,
     is_trivial,
@@ -249,7 +251,7 @@ def test_no_human_prompt_means_no_exchange() -> None:
 
 def test_read_tail_of_a_small_file_is_the_whole_file(tmp_path: Path) -> None:
     path = _write(tmp_path / "t.jsonl", ["a", "b", "c"])
-    assert read_tail(path) == (1, ["a", "b", "c", ""])
+    assert read_tail(path, allowed_root=tmp_path) == (1, ["a", "b", "c", ""])
 
 
 def test_read_tail_drops_the_partial_first_line_and_keeps_line_numbers(tmp_path: Path) -> None:
@@ -257,7 +259,7 @@ def test_read_tail_drops_the_partial_first_line_and_keeps_line_numbers(tmp_path:
     path.write_bytes(b"line1\nline2\nline3\nline4\n")
     # 14 bytes back from the end lands mid-"line2" (bytes: "e2\nline3\nline4\n"): one
     # newline was skipped, the partial line is dropped, so "line3" is line 3.
-    assert read_tail(path, max_bytes=14) == (3, ["line3", "line4", ""])
+    assert read_tail(path, max_bytes=14, allowed_root=tmp_path) == (3, ["line3", "line4", ""])
 
 
 def test_read_tail_exact_boundary_still_drops_the_first_line(tmp_path: Path) -> None:
@@ -265,13 +267,13 @@ def test_read_tail_exact_boundary_still_drops_the_first_line(tmp_path: Path) -> 
     path.write_bytes(b"ab\ncd\n")
     # 3 bytes back is exactly the start of "cd\n"; the boundary is not provably a line
     # start without reading further back, so the (possibly partial) first line goes.
-    assert read_tail(path, max_bytes=3) == (3, [""])
+    assert read_tail(path, max_bytes=3, allowed_root=tmp_path) == (3, [""])
 
 
 def test_read_tail_is_bounded_and_streams_the_skipped_prefix(tmp_path: Path) -> None:
     path = tmp_path / "t.jsonl"
     path.write_bytes(b"x" * 300_000 + b"\n" + b"y\n" * 5)
-    first, lines = read_tail(path, max_bytes=8)
+    first, lines = read_tail(path, max_bytes=8, allowed_root=tmp_path)
     # start = 300_003: two newlines skipped (after the x's, and the first "y\n"), the
     # partial "y" line dropped ⇒ the first kept line is line 4.
     assert (first, lines) == (4, ["y", "y", "y", ""])
@@ -279,15 +281,78 @@ def test_read_tail_is_bounded_and_streams_the_skipped_prefix(tmp_path: Path) -> 
 
 
 def test_read_tail_refuses_non_jsonl_symlink_and_missing(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="not a .jsonl"):
-        read_tail(tmp_path / "t.txt")
+    with pytest.raises(TranscriptRefused, match="not a .jsonl"):
+        read_tail(tmp_path / "t.txt", allowed_root=tmp_path)
     real = _write(tmp_path / "real.jsonl", ["{}"])
     link = tmp_path / "link.jsonl"
     link.symlink_to(real)
-    with pytest.raises(ValueError, match="symlink"):
-        read_tail(link)
+    with pytest.raises(TranscriptRefused, match="symlink"):
+        read_tail(link, allowed_root=tmp_path)
     with pytest.raises(OSError):
-        read_tail(tmp_path / "missing.jsonl")
+        read_tail(tmp_path / "missing.jsonl", allowed_root=tmp_path)
+    assert issubclass(TranscriptRefused, ValueError)
+
+
+OUTSIDE = "transcript path outside the substrate's transcript directory"
+
+
+def test_read_tail_refuses_paths_outside_the_transcript_root(tmp_path: Path) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    inside = _write(root / "s.jsonl", ["{}"])
+    outside = _write(tmp_path / "elsewhere.jsonl", ["{}"])
+    assert read_tail(inside, allowed_root=root) == (1, ["{}", ""])
+    with pytest.raises(TranscriptRefused, match=OUTSIDE):
+        read_tail(outside, allowed_root=root)
+    # a traversal that only LOOKS inside is resolved before the check
+    with pytest.raises(TranscriptRefused, match=OUTSIDE):
+        read_tail(root / ".." / "elsewhere.jsonl", allowed_root=root)
+    # a root that resolves to the same place is honoured either way
+    assert read_tail(root / "." / "s.jsonl", allowed_root=root / "..")[0] == 1
+
+
+def test_read_tail_refuses_a_symlink_escape_as_outside(tmp_path: Path) -> None:
+    root = tmp_path / "projects"
+    root.mkdir()
+    secret = _write(tmp_path / "secret.jsonl", ['{"leak": 1}'])
+    escape = root / "escape.jsonl"
+    escape.symlink_to(secret)
+    with pytest.raises(TranscriptRefused, match=OUTSIDE):
+        read_tail(escape, allowed_root=root)
+    v = evaluate_transcript(escape, allowed_root=root)
+    assert v == RewriteVerdict("unknown", OUTSIDE, "")
+
+
+def test_default_transcript_root_prefers_config_dir_then_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "cfg"))
+    assert default_transcript_root() == tmp_path / "cfg" / "projects"
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    assert default_transcript_root() == tmp_path / "home"  # no ~/.claude/projects yet
+    (tmp_path / "home" / ".claude" / "projects").mkdir(parents=True)
+    assert default_transcript_root() == tmp_path / "home" / ".claude" / "projects"
+
+    def no_home(cls: type[Path]) -> Path:
+        raise RuntimeError("no home")
+
+    monkeypatch.setattr(Path, "home", classmethod(no_home))
+    assert default_transcript_root() is None
+    with pytest.raises(TranscriptRefused, match=OUTSIDE):
+        read_tail(tmp_path / "x.jsonl")
+
+
+def test_evaluate_uses_the_default_root_when_none_is_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    root = tmp_path / "projects"
+    root.mkdir()
+    path = _write(root / "s.jsonl", [_user("ship it"), _assistant(_text("Reading this as: ship"))])
+    assert evaluate_transcript(path).status == "honoured"
+    stray = _write(tmp_path / "stray.jsonl", [_user("ship it")])
+    assert evaluate_transcript(stray) == RewriteVerdict("unknown", OUTSIDE, "")
 
 
 # --- evaluate_transcript ------------------------------------------------------------------
@@ -303,7 +368,7 @@ def test_evaluate_honoured_transcript(tmp_path: Path) -> None:
             _assistant(_text("Reading this as: add bounded retries to HttpClient.get.\nOn it.")),
         ],
     )
-    v = evaluate_transcript(path)
+    v = evaluate_transcript(path, allowed_root=tmp_path)
     assert v == RewriteVerdict(
         status="honoured",
         reason="reply opened with the marker",
@@ -317,18 +382,18 @@ def test_evaluate_not_honoured_transcript(tmp_path: Path) -> None:
     path = _write(
         tmp_path / "s.jsonl", [_user("add a retry"), _assistant(_text("Sure! Adding it now."))]
     )
-    v = evaluate_transcript(path)
+    v = evaluate_transcript(path, allowed_root=tmp_path)
     assert (v.status, v.line, v.matched) == ("not_honoured", 2, "Sure! Adding it now.")
 
 
 def test_evaluate_exempt_transcript(tmp_path: Path) -> None:
     path = _write(tmp_path / "s.jsonl", [_user("continue"), _assistant(_text("Continuing."))])
-    v = evaluate_transcript(path)
+    v = evaluate_transcript(path, allowed_root=tmp_path)
     assert (v.status, v.prompt_hash) == ("exempt", prompt_hash("continue"))
 
 
 def test_evaluate_missing_transcript_is_unknown(tmp_path: Path) -> None:
-    v = evaluate_transcript(tmp_path / "nope.jsonl")
+    v = evaluate_transcript(tmp_path / "nope.jsonl", allowed_root=tmp_path)
     assert v.status == "unknown"
     assert v.reason.startswith("transcript unreadable: ")
     assert (v.prompt_hash, v.line, v.matched, v.honoured) == ("", None, "", None)
@@ -336,19 +401,19 @@ def test_evaluate_missing_transcript_is_unknown(tmp_path: Path) -> None:
 
 def test_evaluate_non_jsonl_path_is_unknown(tmp_path: Path) -> None:
     (tmp_path / "t.txt").write_text("{}", encoding="utf-8")
-    v = evaluate_transcript(tmp_path / "t.txt")
-    assert v == RewriteVerdict("unknown", "transcript unreadable: not a .jsonl transcript", "")
+    v = evaluate_transcript(tmp_path / "t.txt", allowed_root=tmp_path)
+    assert v == RewriteVerdict("unknown", "not a .jsonl transcript", "")
 
 
 def test_evaluate_malformed_transcript_is_unknown(tmp_path: Path) -> None:
     path = _write(tmp_path / "s.jsonl", ["{garbage", "more garbage"])
-    v = evaluate_transcript(path)
+    v = evaluate_transcript(path, allowed_root=tmp_path)
     assert v == RewriteVerdict("unknown", "no human prompt found in the transcript tail", "")
 
 
 def test_evaluate_prompt_without_reply_is_unknown(tmp_path: Path) -> None:
     path = _write(tmp_path / "s.jsonl", [_user("do the thing")])
-    v = evaluate_transcript(path)
+    v = evaluate_transcript(path, allowed_root=tmp_path)
     assert v == RewriteVerdict(
         "unknown", "no assistant text after the last prompt", prompt_hash("do the thing")
     )
@@ -359,7 +424,7 @@ def test_evaluate_reads_only_the_tail(tmp_path: Path) -> None:
         tmp_path / "s.jsonl",
         [_user("old"), _assistant(_text("Reading this as: old")), _user("new" * 10)],
     )
-    v = evaluate_transcript(path, max_bytes=40)
+    v = evaluate_transcript(path, max_bytes=40, allowed_root=tmp_path)
     assert v.status == "unknown"
 
 
@@ -398,9 +463,14 @@ def test_record_default_timestamp_is_utc_iso(tmp_path: Path) -> None:
     assert ts.endswith("Z") and len(ts) == 20
 
 
-def test_record_from_payload_records_the_transcript_verdict(tmp_path: Path) -> None:
+def test_record_from_payload_records_the_transcript_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    (tmp_path / "projects").mkdir()
     transcript = _write(
-        tmp_path / "s.jsonl", [_user("build it"), _assistant(_text("Reading this as: build X"))]
+        tmp_path / "projects" / "s.jsonl",
+        [_user("build it"), _assistant(_text("Reading this as: build X"))],
     )
     payload = json.dumps({"session_id": "s9", "transcript_path": str(transcript)})
     v = record_from_payload(tmp_path, payload, now="t")

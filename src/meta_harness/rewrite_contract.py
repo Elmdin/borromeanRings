@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -36,7 +37,9 @@ __all__ = [
     "TRIVIAL_PROMPTS",
     "Exchange",
     "RewriteVerdict",
+    "TranscriptRefused",
     "assess_reply",
+    "default_transcript_root",
     "evaluate_transcript",
     "find_last_exchange",
     "is_trivial",
@@ -83,6 +86,14 @@ TRIVIAL_PROMPTS = frozenset(
 _STRIP_PUNCTUATION = ".!?"
 #: Markdown decoration an agent may wrap the opening line in (``**Reading this as:**``).
 _DECORATION = "*_#>`~ \t"
+#: Where the substrate keeps session transcripts, relative to its config directory.
+_TRANSCRIPT_SUBDIR = ("projects",)
+_CONFIG_DIR_ENV = "CLAUDE_CONFIG_DIR"
+_OUTSIDE = "transcript path outside the substrate's transcript directory"
+
+
+class TranscriptRefused(ValueError):
+    """The transcript path was refused before any byte of it was read."""
 
 
 @dataclass(frozen=True)
@@ -239,23 +250,54 @@ def find_last_exchange(entries: Sequence[tuple[int, Mapping[str, Any]]]) -> Exch
 # --- bounded I/O -------------------------------------------------------------------------
 
 
-def read_tail(path: Path, max_bytes: int = DEFAULT_TAIL_BYTES) -> tuple[int, list[str]]:
+def default_transcript_root() -> Path | None:
+    """The directory the substrate's transcripts must live under (defense in depth).
+
+    ``$CLAUDE_CONFIG_DIR/projects`` when the substrate relocated its config; otherwise
+    ``~/.claude/projects`` when it exists, else the current user's home. ``None`` when
+    even the home directory cannot be determined — the caller then refuses to read.
+    """
+    config_dir = os.environ.get(_CONFIG_DIR_ENV)
+    if config_dir:
+        return Path(config_dir).joinpath(*_TRANSCRIPT_SUBDIR)
+    try:
+        home = Path.home()
+    except RuntimeError:
+        return None
+    default = home.joinpath(".claude", *_TRANSCRIPT_SUBDIR)
+    return default if default.is_dir() else home
+
+
+def _refuse_unless_allowed(path: Path, allowed_root: Path | None) -> None:
+    """Raise :class:`TranscriptRefused` unless ``path`` is a plain ``.jsonl`` file that
+    resolves (symlinks followed) to somewhere under ``allowed_root``."""
+    if path.suffix != ".jsonl":
+        raise TranscriptRefused("not a .jsonl transcript")
+    if allowed_root is None or not path.resolve().is_relative_to(allowed_root.resolve()):
+        raise TranscriptRefused(_OUTSIDE)
+    if path.is_symlink():
+        raise TranscriptRefused("transcript path is a symlink")
+
+
+def read_tail(
+    path: Path, max_bytes: int = DEFAULT_TAIL_BYTES, allowed_root: Path | None = None
+) -> tuple[int, list[str]]:
     """The last ``max_bytes`` of ``path`` as lines, with the 1-based number of the first.
 
     Reads only the tail; the skipped prefix is streamed in chunks purely to count
     newlines so the reported line numbers stay exact. When the read starts mid-file the
-    first (possibly partial) line is dropped. Refuses anything that is not a plain
-    ``.jsonl`` file — the hook passes the substrate's own transcript path and nothing
-    else may be read through it.
+    first (possibly partial) line is dropped. Refuses, before reading a byte, anything
+    that is not a plain ``.jsonl`` file resolving under ``allowed_root`` (default:
+    :func:`default_transcript_root`) — the hook passes the substrate's own transcript
+    path and nothing else may be read through it, whatever the payload says.
 
     Raises:
-        ValueError: not a ``.jsonl`` path, or a symlink.
+        TranscriptRefused: not a ``.jsonl`` path, outside the transcript directory
+            (symlink escapes included), or a symlink.
         OSError: the file is missing or unreadable.
     """
-    if path.suffix != ".jsonl":
-        raise ValueError("not a .jsonl transcript")
-    if path.is_symlink():
-        raise ValueError("transcript path is a symlink")
+    root = default_transcript_root() if allowed_root is None else allowed_root
+    _refuse_unless_allowed(path, root)
     start = max(0, path.stat().st_size - max_bytes)
     skipped_newlines = 0
     with path.open("rb") as fh:
@@ -273,14 +315,18 @@ def read_tail(path: Path, max_bytes: int = DEFAULT_TAIL_BYTES) -> tuple[int, lis
     return first_line_no, lines
 
 
-def evaluate_transcript(path: Path, max_bytes: int = DEFAULT_TAIL_BYTES) -> RewriteVerdict:
+def evaluate_transcript(
+    path: Path, max_bytes: int = DEFAULT_TAIL_BYTES, allowed_root: Path | None = None
+) -> RewriteVerdict:
     """The contract verdict for the last exchange in the transcript at ``path``.
 
-    Never raises: an unreadable, malformed or promptless transcript is ``unknown``.
+    Never raises: a refused, unreadable, malformed or promptless transcript is ``unknown``.
     """
     try:
-        first_line_no, lines = read_tail(path, max_bytes)
-    except (OSError, ValueError) as exc:
+        first_line_no, lines = read_tail(path, max_bytes, allowed_root)
+    except TranscriptRefused as exc:
+        return RewriteVerdict("unknown", str(exc), "")
+    except OSError as exc:
         return RewriteVerdict("unknown", f"transcript unreadable: {exc}", "")
     exchange = find_last_exchange(parse_entries(lines, first_line_no))
     if exchange is None:

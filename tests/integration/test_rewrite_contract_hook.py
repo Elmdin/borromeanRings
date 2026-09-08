@@ -36,6 +36,7 @@ def _project(root: Path, *, rewriting: bool = True) -> Path:
 
 
 def _transcript(path: Path, prompt: str, reply: str) -> Path:
+    path.parent.mkdir(exist_ok=True)
     entries = [
         {"type": "user", "origin": {"kind": "human"}, "message": {"content": prompt}},
         {"type": "assistant", "message": {"content": [{"type": "text", "text": reply}]}},
@@ -47,6 +48,8 @@ def _transcript(path: Path, prompt: str, reply: str) -> Path:
 def _stop(project: Path, payload: object) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(project)
+    # The transcript fixtures live under <tmp>/projects: the substrate's transcript root.
+    env["CLAUDE_CONFIG_DIR"] = str(project.parent)
     stdin = payload if isinstance(payload, str) else json.dumps(payload)
     return subprocess.run(
         ["bash", str(STOP)], input=stdin, env=env, capture_output=True, text=True, timeout=120
@@ -61,7 +64,9 @@ def _records(project: Path) -> list[dict[str, object]]:
 def test_stop_records_an_honoured_verdict_with_evidence(tmp_path: Path) -> None:
     project = _project(tmp_path / "p")
     transcript = _transcript(
-        tmp_path / "s.jsonl", "add retries", "Reading this as: add bounded retries.\nDone."
+        tmp_path / "projects" / "s.jsonl",
+        "add retries",
+        "Reading this as: add bounded retries.\nDone.",
     )
     proc = _stop(project, {"session_id": "s1", "transcript_path": str(transcript)})
     assert proc.returncode == 0, proc.stderr
@@ -76,7 +81,7 @@ def test_stop_records_an_honoured_verdict_with_evidence(tmp_path: Path) -> None:
 
 def test_stop_records_a_broken_contract_without_blocking(tmp_path: Path) -> None:
     project = _project(tmp_path / "p")
-    transcript = _transcript(tmp_path / "s.jsonl", "add retries", "Sure, adding them.")
+    transcript = _transcript(tmp_path / "projects" / "s.jsonl", "add retries", "Sure, adding them.")
     proc = _stop(project, {"session_id": "s1", "transcript_path": str(transcript)})
     assert proc.returncode == 0, proc.stderr
     (row,) = _records(project)
@@ -91,16 +96,30 @@ def test_stop_records_unknown_on_a_missing_transcript_and_still_exits_zero(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path / "p")
-    proc = _stop(project, {"session_id": "s1", "transcript_path": str(tmp_path / "gone.jsonl")})
+    gone = tmp_path / "projects" / "gone.jsonl"
+    gone.parent.mkdir()
+    proc = _stop(project, {"session_id": "s1", "transcript_path": str(gone)})
     assert proc.returncode == 0, proc.stderr
     (row,) = _records(project)
     assert row["honoured"] is None and row["status"] == "unknown"
     assert str(row["reason"]).startswith("transcript unreadable: ")
 
 
+def test_stop_never_reads_a_transcript_outside_the_substrate_root(tmp_path: Path) -> None:
+    project = _project(tmp_path / "p")
+    stray = _transcript(tmp_path / "stray" / "s.jsonl", "q", "Reading this as: q")
+    proc = _stop(project, {"session_id": "s1", "transcript_path": str(stray)})
+    assert proc.returncode == 0, proc.stderr
+    (row,) = _records(project)
+    assert (row["status"], row["reason"]) == (
+        "unknown",
+        "transcript path outside the substrate's transcript directory",
+    )
+
+
 def test_stop_records_nothing_when_rewriting_is_disabled(tmp_path: Path) -> None:
     project = _project(tmp_path / "p", rewriting=False)
-    transcript = _transcript(tmp_path / "s.jsonl", "add retries", "Sure.")
+    transcript = _transcript(tmp_path / "projects" / "s.jsonl", "add retries", "Sure.")
     proc = _stop(project, {"session_id": "s1", "transcript_path": str(transcript)})
     assert proc.returncode == 0, proc.stderr
     assert not (project / REWRITE_CONTRACT_FILE).exists()
@@ -108,7 +127,7 @@ def test_stop_records_nothing_when_rewriting_is_disabled(tmp_path: Path) -> None
 
 def test_stop_does_not_record_on_a_re_stop_or_garbage_payload(tmp_path: Path) -> None:
     project = _project(tmp_path / "p")
-    transcript = _transcript(tmp_path / "s.jsonl", "q", "Reading this as: q")
+    transcript = _transcript(tmp_path / "projects" / "s.jsonl", "q", "Reading this as: q")
     re_stop = {"session_id": "s1", "transcript_path": str(transcript), "stop_hook_active": True}
     assert _stop(project, re_stop).returncode == 0
     assert not (project / REWRITE_CONTRACT_FILE).exists()  # same prompt, already judged

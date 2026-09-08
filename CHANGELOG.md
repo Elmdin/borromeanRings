@@ -13,6 +13,17 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- README quickstart + scripted demo (#66): the README now opens with a one-paragraph
+  what/why and a 60-second quickstart (`init.sh` / `adopt.sh` / `verify.sh` / `status.sh`)
+  whose green, hollow-green (`inspected NOTHING: …`) and red verdicts are real captured
+  output; `demo.sh` builds a throwaway project in a temp dir, governs it by reference,
+  walks hollow green → real green → red → green → `adopt.sh` → `status.sh`, and asserts
+  each verdict (non-zero exit on any deviation, so it is itself a test; `--keep` retains
+  the project). `docs/DEMO.md` explains what each step proves and carries the transcript.
+  Hand-written check counts are gone from README prose — the generated describe block is
+  the only source of counts — and the stale v0 check table is replaced by a lane summary
+  that links to `docs/CHECKS.md`. Read-next links: CHECKS, HANDOFF, ADR index,
+  ENFORCEMENT-COVERAGE (matrices land with #153), CONTRIBUTING, SECURITY, PLUGIN (once #166).
 - `describe.sh` (`--json`, `--readme`) + `04_self_description`: the capability report is generated from the check registry, the README block is regenerated in place, and a README that states a check/gate count must match the registry (ADR-0052, #132).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those

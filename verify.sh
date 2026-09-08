@@ -163,9 +163,12 @@ print()
 try:
     # Intent: which branch/commit was gated, over which gated-input digest (the same
     # fingerprint the no-op Stop skip trusts). Read from git with a fixed argv.
+    # Evidence is best-effort by contract (ADR-0056): whatever the digest raises, the
+    # verdict's exit code must not depend on it — so this catches everything, not
+    # just OSError, and records an empty digest ("not recorded"), never a crash.
     try:
         input_digest = compute_state_hash(Path(project_root), config)
-    except OSError:
+    except Exception:  # noqa: BLE001 - best-effort evidence, gate exit must not depend on it
         input_digest = ""
     _verdict = Verdict(
         ok=ok,

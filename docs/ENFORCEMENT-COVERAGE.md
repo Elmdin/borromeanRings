@@ -66,7 +66,7 @@ harder to game.
 | Static SAST | T0 | ✅ | bandit (`50_security`) |
 | Dependency / CVE audit | T0 | ✅ | `checks/ci/70_pip_audit.sh` (heavy lane) — pip-audit, `[audit]` ignores (ADR-0034) |
 | Secret scanning | T0 | ✅ | `checks/shared/12_secrets.sh` — native high-confidence scan (tracked files); gitleaks (entropy) is the heavy-lane follow-up (ADR-0032). **Hardening candidate:** fails vacuously on a non-git dir (empty `git ls-files`) — a "can't-scan ≠ nothing-to-find" gap found in rollout (spaceThink) |
-| Git-history secret scan | T0 | ❌ | candidate — a deleted-then-committed secret stays compromised; scan history, not just HEAD |
+| Git-history secret scan | T0 | ✅ | `74_secret_history` (heavy lane, ADR-0042): no high-confidence secret in any blob reachable from any ref |
 | Pinned deps / lockfile integrity / SBOM | T0 | ✅ | `checks/ci/78_pins.sh` (upper bound / exact pin per requirement), `checks/ci/76_lockfile.sh` (manifest change ⇒ lockfile change; `noop` here — no lockfile), `sbom.sh` (CycloneDX 1.5, stdlib, unsigned) — ADR-0061. Signing/provenance + Dependabot are maintainer decisions (CI-dependent; exact config in the ADR) |
 | License compliance | T0 | ✅ | `checks/ci/72_licenses.sh` (heavy lane) — pip-licenses denylist (ADR-0035) |
 | Fuzzing / DAST | T1/T3 | ❌ | |

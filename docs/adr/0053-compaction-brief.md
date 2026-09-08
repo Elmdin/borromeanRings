@@ -15,7 +15,7 @@ awareness of it is gone. The 2026-09-02 tooling survey listed this among its top
    from the same evidence the self-status view reads.
 2. `PreCompact` snapshots it to `.meta-harness/compaction_brief.txt` (the event cannot
    inject context; the snapshot is the record of what was known at compaction).
-3. `SessionStart` with matcher `compact|resume` re-injects a **fresh** brief via stdout.
+3. `SessionStart` with matchers `compact` and `resume` re-injects a **fresh** brief via stdout.
    Fresh, not the snapshot: a gate that ran in between must win.
 4. Both are advisory (exit 0 always, never `blockCompaction`), inert outside a governed
    project, and listed in `HOOK_SCRIPTS`, so the self-status view reports partial wiring

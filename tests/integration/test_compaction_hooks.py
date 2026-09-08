@@ -94,3 +94,19 @@ def test_hooks_survive_garbage_stdin(tmp_path: Path) -> None:
         assert proc.returncode == 0, proc.stderr
     snap = (project / ".meta-harness" / "compaction_brief.txt").read_text(encoding="utf-8")
     assert "(trigger: unknown)" in snap
+
+
+def test_session_start_dedupes_a_concurrent_duplicate(tmp_path: Path) -> None:
+    """Project-level + user-level entries fire the hook twice at once; the brief must
+    land once. A duplicate is one that arrives while the first claim is still held."""
+    from meta_harness.hook_dedupe import claim, release
+
+    project = _project(tmp_path / "p")
+    markers = project / ".meta-harness" / "hook_markers"
+    payload = {"hook_event_name": "SessionStart", "trigger": "compact", "session_id": "s1"}
+    assert claim(markers, "session_start", "s1", window_seconds=60) is True  # first copy
+    duplicate = _run(START, project, payload)
+    assert (duplicate.returncode, duplicate.stdout) == (0, "")  # second copy yields
+    release(markers, "session_start", "s1")
+    later = _run(START, project, payload)  # a later, legitimate event is served
+    assert "context restored" in later.stdout

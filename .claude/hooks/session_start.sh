@@ -16,7 +16,14 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 [ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
 
 input="$(borromeanrings_read_stdin)"
-trigger="$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('trigger','unknown'))" 2>/dev/null || echo unknown)"
+read -r trigger session_id <<EOF
+$(printf '%s' "$input" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('trigger','unknown'), d.get('session_id','default'))" 2>/dev/null || echo "unknown default")
+EOF
+# Duplicate-registration dedupe: with both a project-level and a user-level entry active
+# this runs twice per event, and this hook INJECTS text — twice the brief in context.
+# First claim wins; the winner releases on exit (same pattern as stop_gate.sh).
+borromeanrings_claim session_start "$session_id" || exit 0
+trap 'borromeanrings_release session_start "$session_id"' EXIT TERM INT
 # Only the events where state was just summarised or reloaded; a fresh startup already
 # gets the project's CLAUDE.md and the status skill.
 case "$trigger" in compact|resume) ;; *) exit 0 ;; esac

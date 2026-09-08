@@ -47,7 +47,10 @@ cat >"$TARGET/.claude/settings.json" <<EOF
     "PostToolUse": [ { "matcher": "Edit|Write|MultiEdit", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/post_edit_format.sh", "timeout": 60 } ] } ],
     "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/pre_bash_guard.sh", "timeout": 30 } ] } ],
     "PreCompact": [ { "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/pre_compact.sh", "timeout": 30 } ] } ],
-    "SessionStart": [ { "matcher": "compact|resume", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/session_start.sh", "timeout": 30 } ] } ]
+    "SessionStart": [
+      { "matcher": "compact", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/session_start.sh", "timeout": 30 } ] },
+      { "matcher": "resume", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/session_start.sh", "timeout": 30 } ] }
+    ]
   }
 }
 EOF

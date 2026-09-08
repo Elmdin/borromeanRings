@@ -22,6 +22,10 @@ from pathlib import Path
 
 import tomllib
 
+#: Where the shipped rule packs live: inside the package, so a by-reference install and a
+#: mutation sandbox both find them next to the code that loads them.
+PACKS_DIR = Path(__file__).resolve().parent / "contracts"
+
 #: ``forbidden_in`` scope token meaning "any ``async def``" (a coroutine body).
 ASYNC_SCOPE = "<async>"
 
@@ -100,7 +104,7 @@ def parse_rules(raw: Sequence[Mapping[str, object]]) -> tuple[Rule, ...]:
     return tuple(rules)
 
 
-def load_pack(name: str, packs_dir: Path | str) -> tuple[Rule, ...]:
+def load_pack(name: str, packs_dir: Path | str = PACKS_DIR) -> tuple[Rule, ...]:
     """Rules from ``<packs_dir>/<name>.toml``; every pack rule must cite a ``source``."""
     path = Path(packs_dir) / f"{name}.toml"
     raw = tomllib.loads(path.read_text(encoding="utf-8"))

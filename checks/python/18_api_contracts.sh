@@ -3,7 +3,8 @@
 #
 # [api_contracts] declares rules (banned / forbidden_in / must_check / required_arg /
 # paired / requires_before) or references rule packs under contracts/. Native stdlib-ast
-# analysis, binary per rule, no LLM, no thresholds. Off when nothing is declared; noop
+# analysis, binary per rule, no LLM, no thresholds. Packs ship in src/meta_harness/contracts/.
+# Off when nothing is declared; noop
 # (exit 3) when the declared rules matched no call site at all — a green that inspected
 # nothing must say so (ADR-0049). Fail closed on unreadable config or source.
 # See docs/specs/SPEC-api-contracts.md, ADR-0054 (#130).
@@ -15,7 +16,7 @@ log="$RECEIPT_DIR/$id.log"
 cmd="API-usage contracts (declared [api_contracts] rules over every call site)"
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
-  "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" "$BORROMEANRINGS_HOME/contracts" >"$log" 2>&1 <<'PY'
+  "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from meta_harness.api_contracts import check_tree, load_pack, parse_rules
 from meta_harness.source_coherence import walk_sources
 from meta_harness.spine import load_config
 
-root, config_path, packs_dir = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+root, config_path = Path(sys.argv[1]), sys.argv[2]
 cfg = load_config(config_path)
 
 if not cfg.api_contracts_rules and not cfg.api_contracts_packs:
@@ -32,7 +33,7 @@ if not cfg.api_contracts_rules and not cfg.api_contracts_packs:
 
 rules = list(parse_rules(cfg.api_contracts_rules))
 for pack in cfg.api_contracts_packs:
-    rules.extend(load_pack(pack, packs_dir))
+    rules.extend(load_pack(pack))
 
 src_root = root / cfg.src_dir
 files = sorted(src_root / rel for rel in walk_sources(src_root))

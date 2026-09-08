@@ -2,7 +2,7 @@
 
 Issue #130 · ADR-0054 · module `meta_harness.api_contracts` · check
 `checks/python/18_api_contracts.sh` · hook layer in `post_edit_format.sh` · packs in
-`contracts/*.toml`
+`src/meta_harness/contracts/*.toml`
 
 ## User story
 As a maintainer whose project targets a specific API (a HAL, a driver, an SDK, a
@@ -39,7 +39,7 @@ three different spellings; a glob covers them: `*create_task`).
   symbol, whether or not they violated. Unparseable source ⇒ one violation of kind
   `syntax` (a file the gate cannot read is not a pass).
 - `check_tree(files, rules) -> Report`: fold over files.
-- `load_pack(name, packs_dir) -> tuple[Rule, ...]`: reads `contracts/<name>.toml`; a pack
+- `load_pack(name, packs_dir) -> tuple[Rule, ...]`: reads `<packs_dir>/<name>.toml` (default: the package's `contracts/`); a pack
   rule without `source` ⇒ `ValueError`.
 
 ## Gate `18_api_contracts`
@@ -55,7 +55,7 @@ three different spellings; a glob covers them: `*create_task`).
 at the point of writing. Advisory there (exit 0); the gate is the backstop (ADR-0017).
 
 ## Packs
-`contracts/python-asyncio.toml`: rules with sources from docs.python.org. A pack is data
+`src/meta_harness/contracts/python-asyncio.toml`: rules with sources from docs.python.org. A pack is data
 (a PR adds one); the loader refuses a pack rule without provenance.
 
 ## Honest limits
@@ -70,4 +70,4 @@ at the point of writing. Advisory there (exit 0); the gate is the backstop (ADR-
 Unit: `tests/unit/test_api_contracts.py` (each rule kind: violation caught, compliant
 code passes, references counted; parse/pack validation). Integration:
 `tests/integration/test_api_contracts_gate.py` (fixture project: fail / pass / noop).
-Hook: `tests/integration/test_api_contracts_hook.py`. Pack: `contracts/python-asyncio.toml`.
+Hook: `tests/integration/test_api_contracts_hook.py`. Pack: `src/meta_harness/contracts/python-asyncio.toml`.

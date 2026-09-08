@@ -14,7 +14,7 @@ the same shape with different predicates.
 ## Decision
 1. **A rule taxonomy, each rule binary.** `banned`, `forbidden_in`, `must_check`,
    `required_arg`, `paired`, `requires_before` — declared in `[api_contracts]` or in a
-   pack under `contracts/`. A violation is a fact about a call site, so there is no
+   pack shipped inside the package (`src/meta_harness/contracts/`, so a by-reference install finds it next to the loader). A violation is a fact about a call site, so there is no
    threshold to tune (the threshold-free rule holds).
 2. **Deterministic, AST-level, no LLM.** An LLM judge could be asked "does this code
    respect the HAL rules?", and would answer differently on different days, with no

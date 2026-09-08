@@ -173,8 +173,7 @@ def test_load_pack_requires_provenance_on_every_rule(tmp_path: Path) -> None:
 
 
 def test_shipped_asyncio_pack_loads_and_cites_python_docs() -> None:
-    packs_dir = Path(__file__).resolve().parents[2] / "contracts"
-    rules = load_pack("python-asyncio", packs_dir)
+    rules = load_pack("python-asyncio")  # PACKS_DIR: shipped inside the package
     assert rules
     assert all(r.source.startswith("https://docs.python.org/") for r in rules)
     # the pack's headline rule: a fire-and-forget create_task is a real bug class

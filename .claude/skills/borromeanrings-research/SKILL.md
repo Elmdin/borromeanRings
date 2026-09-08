@@ -1,73 +1,65 @@
 ---
 name: borromeanrings-research
 description: >
-  borromeanRings enhanced web research — steer THIS agent's OWN search (its WebSearch/
-  browse tools) to be far more exhaustive and trustworthy: many query mutations,
-  multiple engines + Google dorking + platform-specific tricks + social/specialized
-  sources, going beyond the top results to build a result graph and synthesize
-  across everything, with citation verification (fail-closed) and full user
-  visibility + steering. borromeanRings ENFORCES the discipline; the agent PERFORMS the
-  searches with its own tools. Use when the user wants to research/search online
-  thoroughly and wants agency + visibility into the process.
+  borromeanRings enhanced web research — steer THIS agent's OWN search (WebSearch/
+  browse) to be exhaustive and trustworthy: many query mutations, multiple engines +
+  Google dorking + platform/social/specialized sources, beyond the top results into a
+  result graph, synthesis across everything, citation verification (fail-closed), full
+  user visibility + steering — inside a declared token budget, with working state on
+  disk, not in context. Use when the user wants thorough online research with agency.
 ---
 
 # borromeanRings enhanced research
 
-You (the wrapped agent) do the searching with **your own** search/browse tools.
-borromeanRings does **not** search for you — it makes your search dramatically better and
-keeps the user in control. Follow this protocol every time this skill is invoked.
+You (the wrapped agent) search with **your own** tools; borromeanRings enforces the
+protocol. Context is the scarce resource (issue #47: one run ate ~70% of a session):
+**working state lives in files, only summaries enter the conversation.**
 
-## 1. Plan, and let the user steer (agency first)
-Before searching, produce an explicit **search plan** and show it to the user:
-- the **sub-questions** the topic decomposes into;
-- the **query mutations/variations** you'll run — aim for *many* (synonyms,
-  reformulations, narrower/broader phrasings, sub-question queries, a
-  pseudo-answer/HyDE query). Don't settle for one or two;
-- the **engines + platforms** you'll use — *more than one*: general web, plus
-  **Google dorking** (`site:`, `filetype:`, `intitle:`, `inurl:`, quotes for exact
-  phrases, `-` to exclude), and platform-specific search where relevant
-  (social media, forums, scholarly/structured sources, docs, code hosts);
-- **date / region / language** variants where they matter.
+## 0. Budget (declared, editable — never silent)
+State these in the plan; the user may change them. Defaults: **3 rounds**,
+**8 queries/round**, **5 sources fetched/round**, **≤40 lines extracted/source**.
+Extra rounds only when the user asks after the coverage report.
 
-Ask the user to **approve, edit, or redirect** the plan. They have agency here.
+## 1. Plan, and let the user steer
+Write `docs/research/<slug>/plan.md` and show it: the **sub-questions**; the **query
+mutations** (synonyms, reformulations, narrower/broader, per sub-question, one
+pseudo-answer/HyDE query); the **engines + platforms** — general web *plus* **Google
+dorking** (`site:` `filetype:` `intitle:` `inurl:` quotes `-`) and platform search
+where relevant (social, forums, scholarly/structured, docs, code hosts); **date /
+region / language** variants; the budget. Ask the user to **approve, edit, or redirect**.
 
-## 2. Search broadly (not just the top 20)
-- Run the full set of mutations across the chosen engines/platforms.
-- **Go wide**: don't ingest only the first page. Sample across many results,
-  **cluster + dedupe**, and **follow citation chains** (sources cited by good
-  sources) to reach what a shallow search misses.
-- Build a **result graph**: track sources and how they connect (who cites/links
-  whom, agreement vs. contradiction), so coverage is visible and gaps are obvious.
-- **Handle hostile pages gracefully**: ads / paywalls / cookie walls / anti-bot /
-  suspected-malware pages — route around them, try cached/alternate/primary
-  sources, and **note** when a source was blocked rather than silently dropping it.
+## 2. Search wide, fetch narrow, cache everything
+- Run the round's mutations across the chosen engines; sample **beyond page one**,
+  **cluster + dedupe**, and **follow citation chains** from good sources.
+- **Extract, never ingest**: fetch a page with a prompt for the passages relevant to
+  the sub-question only; save them to `sources/<n>.md` (URL, title, date, passages).
+  Never fetch a URL already in `sources/`; never repeat a query in `log.md`.
+- For code hosts, read symbols/sections, not whole files (pyright-lsp / Serena in the
+  enhancement catalog do this natively).
+- Keep the **result graph** in `graph.md`: who cites/links whom, agree vs contradict.
+- **Hostile pages** (ads, paywalls, cookie walls, anti-bot, suspected malware): route
+  around via cached/alternate/primary copies; **note** the block, never drop silently.
+- If you can run sub-agents, delegate each round's fetch+extract to one that writes
+  `sources/` and returns one line per source.
+- Stop early at **saturation**: a round with no new relevant source ends the search.
 
-## 3. Show your work (visibility)
-As you go, surface **each query you send and each source you read** (briefly), so
-the user can watch the process and steer mid-flight. Keep it skimmable.
+## 3. Show your work
+Append every query and every source read to `log.md`; echo **one line each** in the
+conversation so the user can watch and steer. Skimmable, never the page text.
 
 ## 4. Synthesize across everything
-Synthesize over the **whole gathered set**, not just the first few hits. Note
-agreements, contradictions, and uncertainty across sources.
+Write `report.md` over the **whole** `sources/` set, noting agreements, contradictions
+and uncertainty.
 
 ## 5. Verify every claim (fail-closed)
-For each claim in your answer, cite the **specific source** and confirm that
-source's text **actually supports** the claim (entailment — not just shared
-keywords). **Drop or explicitly flag** anything you cannot verify. No unverified
-claim appears as a stated fact. (This is borromeanRings's gate, applied to research.)
+For each claim, cite the specific source and confirm its **saved passage actually
+entails** the claim (not shared keywords). Re-fetch only if the passage is missing.
+**Drop or flag** anything unverified — no unverified claim appears as fact.
 
 ## 6. Report coverage
-End with: what was searched (engines/queries), what's well-supported, and what's
-**still uncertain or missing** — and offer to dig further on the gaps.
+End with what was searched (engines/queries), what's well-supported, what's **still
+uncertain or missing**, the budget used, and an offer to dig further on the gaps.
 
-## Tactics to draw on
-Query: synonyms, reformulation, decomposition, pseudo-answer, narrow↔broad.
-Reach: multiple engines, dorking operators, social/forum/scholarly/structured
-sources, region/language variants, recency filters. Quality: prefer primary +
-credible + diverse sources; rank by credibility; avoid ad/SEO spam. Efficiency:
-stop when new searches stop yielding new relevant material (saturation); don't
-repeat queries; budget effort to the question's importance.
-
-> Config (optional): a project's `borromeanrings.toml` may declare research preferences
-> (e.g. minimum mutations, preferred engines/platforms, dorking on/off) — honor
-> them. borromeanRings enforces this protocol; you execute it with your own tools.
+> Config (optional): a project's `borromeanrings.toml` may declare research
+> preferences (minimum mutations, engines/platforms, dorking, budget defaults) —
+> honor them.

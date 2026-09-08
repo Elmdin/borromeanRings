@@ -42,8 +42,8 @@ gates).
 
 ### borromeanRings's baseline
 
-`32174` B (~8049 tokens): the directive (862), `AGENTS.md` (1230), nine `SKILL.md`
-files (29594), and the `pre_bash_guard.sh` + `stop_gate.sh` templates (281 + 207). A
+`31690` B (~7928 tokens): the directive (862), `AGENTS.md` (1230), nine `SKILL.md`
+files (29110), and the `pre_bash_guard.sh` + `stop_gate.sh` templates (281 + 207). A
 new or longer skill that pushes the total up fails the gate until trimmed — or the
 baseline is raised on purpose, in a reviewed commit.
 

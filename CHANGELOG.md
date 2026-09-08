@@ -12,6 +12,20 @@ queue is merged.
 
 ## [Unreleased]
 
+### Changed
+- `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
+  cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,
+  per-file and per-section), and the dynamic drivers are traced and ranked — working state
+  kept in context, whole-page ingestion, unbounded fan-out, re-fetch on verification. The
+  protocol now declares an editable budget (rounds, queries/round, sources/round, extracted
+  lines/source — knobs the user approves, never gates), writes plan/log/sources/graph/report
+  to `docs/research/<slug>/`, extracts passages instead of ingesting pages, caches URLs and
+  queries, verifies against the saved passage, delegates fetch+extract to a sub-agent where
+  available, reads symbols not files on code hosts, and stops at saturation. Same contract;
+  the redundant "Tactics" section is folded into the numbered steps.
+  `.borromeanrings-context-baseline` re-seeded downward to 31690 (the ratchet tightens on
+  purpose) and a unit test pins the skill at ≤ 3692 B.
+
 ### Added
 - Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
   `meta_harness.context_budget` measure what borromeanRings **itself** puts into the

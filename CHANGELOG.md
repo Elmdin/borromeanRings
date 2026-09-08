@@ -13,6 +13,9 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- `18_api_contracts` + `[api_contracts]`: a project's own API-usage rules (banned / forbidden_in / must_check / required_arg / paired / requires_before) enforced as deterministic AST checks, `noop` when they match nothing, with a PostToolUse preventive layer and a cited `python-asyncio` rule pack (ADR-0054, #130).
+
+### Added
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

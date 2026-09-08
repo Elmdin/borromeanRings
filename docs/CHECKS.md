@@ -90,6 +90,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `32_complexity` | **Ratchet**: worst-case cyclomatic complexity doesn't regress (no absolute ceiling) | baseline file, seeded by `adopt.sh` | 0031 |
 | `33_coupling` | **Ratchet**: worst efferent coupling (fan-out) doesn't regress | baseline file | 0038 |
 | `34_api_diff` | Public-API breaking change (removed/renamed symbol, new required param) fails unless allowed | `[api].allow_breaking` | 0040 |
+| `18_api_contracts` | The project's own API-usage rules hold at every call site; `noop` when none matched | `[api_contracts].rules`, `packs` | 0054 |
 | `35_architecture` | Import-direction fitness: leaves import no domain module, private modules stay unimported, no cycles | `[architecture].leaves`, `private`, `forbidden`, `forbid_cycles` | 0027 |
 | `40_test` | Tests pass **and** coverage doesn't regress (**ratchet**, not an absolute %) | `[project].tests_dir`; coverage baseline | — |
 | `45_docstrings` | **Ratchet**: public-API docstring coverage doesn't regress | baseline file | 0029 |

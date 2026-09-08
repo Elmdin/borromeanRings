@@ -50,6 +50,10 @@ class Config:
     architecture_private: tuple[str, ...] = ()
     architecture_forbidden: tuple[tuple[str, str], ...] = ()
     architecture_forbid_cycles: bool = False
+    # [api_contracts] — the project's own API-usage rules (ADR-0054); raw rule tables are
+    # validated by meta_harness.api_contracts.parse_rules at check time (fail closed).
+    api_contracts_rules: tuple[dict[str, object], ...] = ()
+    api_contracts_packs: tuple[str, ...] = ()
     # [changelog] — Keep a Changelog discipline (ADR-0028); off when disabled.
     changelog_enabled: bool = False
     changelog_path: str = "CHANGELOG.md"
@@ -116,6 +120,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     layout = raw.get("layout", {})
     collaboration = raw.get("collaboration", {})
     architecture = raw.get("architecture", {})
+    api_contracts = raw.get("api_contracts", {})
     changelog = raw.get("changelog", {})
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
@@ -146,6 +151,8 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
             (str(pair[0]), str(pair[1])) for pair in architecture.get("forbidden", [])
         ),
         architecture_forbid_cycles=bool(architecture.get("forbid_cycles", False)),
+        api_contracts_rules=tuple(dict(rule) for rule in api_contracts.get("rules", [])),
+        api_contracts_packs=tuple(str(pack) for pack in api_contracts.get("packs", [])),
         changelog_enabled=bool(changelog.get("enabled", False)),
         changelog_path=str(changelog.get("path", "CHANGELOG.md")),
         changelog_require_entry_on_src_change=bool(

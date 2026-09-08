@@ -103,6 +103,7 @@ required = [
   "08_branch",
   "09_commits",
   "13_adr",
+  "18_api_contracts",
   "14_container",
   "12_secrets",
   "11_changelog",

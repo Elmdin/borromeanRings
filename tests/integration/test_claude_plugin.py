@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -183,14 +184,55 @@ def test_self_status_reads_plugin_wiring_as_automatic_enforcement() -> None:
 # --- skills -----------------------------------------------------------------------------
 
 
+def skill_link_state(link: Path, target: Path) -> str:
+    """How ``skills/<name>`` reached this checkout: ``symlink``, ``degraded`` or ``broken``.
+
+    ``degraded`` is a Windows clone without ``core.symlinks``: git writes the symlink as a
+    plain text file whose whole content is the relative target path. It is a recognised
+    state with a documented remedy (docs/PLUGIN.md, "Windows checkouts"), not corruption —
+    anything else (a copy, a file naming some other path) is ``broken``.
+    """
+    if link.is_symlink():
+        return "symlink" if link.resolve() == target.resolve() else "broken"
+    if link.is_file():
+        expected = os.path.relpath(target, link.parent).replace(os.sep, "/")
+        return "degraded" if link.read_text(encoding="utf-8").strip() == expected else "broken"
+    return "broken"
+
+
+def test_skill_link_state_recognises_each_checkout_shape(tmp_path: Path) -> None:
+    target = tmp_path / ".claude" / "skills" / "s"
+    target.mkdir(parents=True)
+    (tmp_path / "skills").mkdir()
+    good = tmp_path / "skills" / "s"
+    good.symlink_to(Path("..") / ".claude" / "skills" / "s")
+    assert skill_link_state(good, target) == "symlink"
+    good.unlink()
+    good.write_text("../.claude/skills/s\n", encoding="utf-8")  # what git writes without symlinks
+    assert skill_link_state(good, target) == "degraded"
+    good.write_text("../elsewhere/s\n", encoding="utf-8")
+    assert skill_link_state(good, target) == "broken"
+    good.unlink()
+    good.mkdir()  # a copy is not one source of truth
+    assert skill_link_state(good, target) == "broken"
+
+
 def test_project_skills_are_exposed_by_symlink_not_copy() -> None:
     """One source of truth: skills/<name> -> ../.claude/skills/<name> for every project skill."""
     project = sorted(p.name for p in PROJECT_SKILLS.iterdir() if p.is_dir())
     assert project, "no project skills to expose"
     for name in project:
         link = PLUGIN_SKILLS / name
-        assert link.is_symlink(), f"{link} must be a symlink into .claude/skills/"
-        assert link.resolve() == (PROJECT_SKILLS / name).resolve()
+        state = skill_link_state(link, PROJECT_SKILLS / name)
+        if state == "degraded":
+            warnings.warn(
+                f"DEGRADED CHECKOUT: {link} is a symlink checked out as text (clone without "
+                "core.symlinks / Developer Mode); the plugin will not load this skill. "
+                "See docs/PLUGIN.md 'Windows checkouts'.",
+                stacklevel=1,
+            )
+            continue
+        assert state == "symlink", f"{link}: expected a symlink into .claude/skills/, got {state}"
         assert (link / "SKILL.md").is_file()
     stray = sorted(
         p.name for p in PLUGIN_SKILLS.iterdir() if p.is_symlink() and p.name not in project
@@ -215,3 +257,19 @@ def test_install_global_substitutes_the_plugin_root_token(tmp_path: Path) -> Non
     installed = (config_dir / "skills" / "borromeanrings" / "SKILL.md").read_text(encoding="utf-8")
     assert PLUGIN_ROOT_TOKEN not in installed
     assert f"{HOME}/init.sh" in installed
+
+
+def test_install_global_warns_on_a_symlink_checked_out_as_text(tmp_path: Path) -> None:
+    """A degraded checkout must be named, not skipped silently (PR #166 review)."""
+    home = tmp_path / "home"
+    (home / "skills").mkdir(parents=True)
+    (home / "skills" / "borromeanrings-status").write_text(
+        "../.claude/skills/borromeanrings-status\n"
+    )
+    (home / "install-global.sh").write_bytes((HOME / "install-global.sh").read_bytes())
+    env = dict(os.environ, CLAUDE_CONFIG_DIR=str(tmp_path / "cfg"))
+    proc = subprocess.run(
+        ["bash", str(home / "install-global.sh")], capture_output=True, text=True, env=env
+    )
+    assert proc.returncode == 0
+    assert "core.symlinks" in proc.stderr and "borromeanrings-status" in proc.stderr

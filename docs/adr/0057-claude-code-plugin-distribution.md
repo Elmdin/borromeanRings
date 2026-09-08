@@ -92,5 +92,11 @@ Every field and behaviour below was read from the official docs on 2026-09-08
   governed by the plugin alone reports enforcement MANUAL although the hooks run.
   Recorded as a known gap; fixing it needs a way to read the active plugin set, which
   the docs do not expose to hooks today.
+- (−) **Symlinks need symlink support.** A Windows clone without `core.symlinks` /
+  Developer Mode checks `skills/<name>` out as text files holding the target path, and
+  the plugin silently loads neither project skill. Documented with the remedy in
+  `docs/PLUGIN.md` ("Windows checkouts"); `install-global.sh` warns when it sees one;
+  the symlink test recognises the degraded state (file content == target path) and
+  reports it as such instead of as corruption. Found in PR #166 review.
 - (−) `borromeanrings-contribute` assumes a git checkout (`git pull`); under a cache
   copy there is none. The skill is for contributors, who have one.

@@ -32,6 +32,19 @@ with its `.claude-plugin/plugin.json` is instead loaded in place as `borromeanri
 
 Check what loaded: `claude plugin list`; validate the layout: `claude plugin validate .`.
 
+### Windows checkouts
+
+`skills/borromeanrings-status` and `skills/borromeanrings-research` are git **symlinks** to
+`.claude/skills/<name>`. On a Windows clone without symlink support (no Developer Mode /
+`core.symlinks` off) git checks them out as plain text files holding the target path, and
+the plugin then loads neither skill — silently. Remedy: enable Developer Mode (or run git
+elevated) and clone with `git -c core.symlinks=true clone …` (or set
+`git config --global core.symlinks true` first), or clone under WSL. Detect it with
+`ls -l skills/` (entries should show `-> ../.claude/skills/…`) or by running
+`install-global.sh`, which warns about it; the repo's own test
+(`test_project_skills_are_exposed_by_symlink_not_copy`) also reports such a checkout as
+"degraded" rather than as a bug.
+
 ## What it installs — and what it does not
 
 Installs: the six hooks (`UserPromptSubmit`, `Stop`, `PostToolUse` on Edit|Write|MultiEdit,

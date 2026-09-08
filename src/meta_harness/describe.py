@@ -16,7 +16,7 @@ Pure: takes paths and text, returns data and text. ``describe.sh`` does the I/O.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -278,6 +278,27 @@ def replace_block(readme_text: str, block: str) -> str:
     return readme_text[:start] + block + readme_text[end:]
 
 
+def _write_readme_block(project: Path, data: Mapping[str, object]) -> Path:
+    """Regenerate the describe block in the project's README (append if absent).
+
+    The prose around the markers is untouched; ``04_self_description`` then holds the
+    README to the numbers written here.
+    """
+    checks = data["checks"]
+    if not isinstance(checks, list):  # pragma: no cover - gather() always returns a list
+        raise TypeError("gather() returned a non-list 'checks' entry")
+    readme = project / "README.md"
+    current = readme.read_text(encoding="utf-8") if readme.is_file() else ""
+    block = summary_block(
+        checks,
+        required=data["required"],  # type: ignore[arg-type]
+        heavy=data["heavy"],  # type: ignore[arg-type]
+        matrix_rows=data["matrix_rows"],  # type: ignore[arg-type]
+    )
+    readme.write_text(replace_block(current, block), encoding="utf-8")
+    return readme
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI: print the capability report (Markdown, or ``--json``), or ``--readme`` to
     regenerate the README's describe block in place. Always exits 0."""
@@ -294,21 +315,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     data = gather(home, project)
     if "--readme" in args:
-        # Rewrite (or append) the generated block in the PROJECT's README; the prose
-        # around it is untouched. 04_self_description then holds the README to it.
-        checks = data["checks"]
-        if not isinstance(checks, list):  # pragma: no cover - gather() always returns a list
-            raise TypeError("gather() returned a non-list 'checks' entry")
-        readme = Path(project) / "README.md"
-        current = readme.read_text(encoding="utf-8") if readme.is_file() else ""
-        block = summary_block(
-            checks,
-            required=data["required"],  # type: ignore[arg-type]
-            heavy=data["heavy"],  # type: ignore[arg-type]
-            matrix_rows=data["matrix_rows"],  # type: ignore[arg-type]
-        )
-        readme.write_text(replace_block(current, block), encoding="utf-8")
-        print(f"wrote the describe block in {readme}")
+        print(f"wrote the describe block in {_write_readme_block(Path(project), data)}")
         return 0
     if "--json" in args:
         checks = data["checks"]

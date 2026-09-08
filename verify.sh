@@ -76,10 +76,17 @@ import os
 import sys
 from pathlib import Path
 
-from meta_harness.change_detect import record_green
+from meta_harness.change_detect import compute_state_hash, record_green
+from meta_harness.evidence import LANE_FAST, LANE_HEAVY, evidence_from_receipt, read_intent
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
-from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
+from meta_harness.verdict import (
+    Verdict,
+    append_history,
+    is_failing,
+    risk_band,
+    write_last_verdict,
+)
 
 config_path, receipt_dir, project_root, heavy, harness_version = sys.argv[1:6]
 config = load_config(config_path)
@@ -90,6 +97,9 @@ expected = config.required_checks + (config.heavy_checks if heavy == "1" else ()
 rows = []
 ok = True
 intact_hashes = []
+# What each check SHOWED (command, exit, log, hash) — carried on the verdict so a
+# reviewer can trust a green that comes with proof, not just a status. See ADR-0056.
+evidence = []
 for cid in expected:
     rpath = os.path.join(receipt_dir, f"{cid}.json")
     if not os.path.exists(rpath):
@@ -112,6 +122,8 @@ for cid in expected:
         rows.append((cid, f"{status.upper()} !TAMPERED"))
         continue
     intact_hashes.append(receipt.get("content_sha256", ""))
+    lane = LANE_HEAVY if cid in config.heavy_checks else LANE_FAST
+    evidence.append(evidence_from_receipt(receipt, lane=lane))
     # Fail-closed by ALLOWLIST, never by negation: only statuses meta_harness.verdict
     # declares non-failing (pass, noop) survive, so an unknown/typo'd/forged status
     # still fails. See ADR-0049.
@@ -136,6 +148,11 @@ if hollow:
 digest = run_digest(intact_hashes) if intact_hashes else ""
 if digest:
     print(f"  run-digest: {digest}")
+# Categorical risk band from the recorded statuses alone (red > hollow > green): it
+# allocates human review attention and never relaxes the gate itself (ADR-0056).
+checks = tuple((cid, status.lower()) for cid, status in rows)
+risk = risk_band(checks)
+print(f"  risk-band: {risk.upper()} · evidence: {len(evidence)} receipt(s)")
 if not ok:
     print("  One or more checks failed or produced no receipt; see logs in the run dir.")
 print()
@@ -144,12 +161,21 @@ print()
 # the effectiveness-ledger history (best-effort: a write failure must never turn a real
 # PASS into a FAIL). See ADR-0046 (status) and ADR-0047 (ledger).
 try:
+    # Intent: which branch/commit was gated, over which gated-input digest (the same
+    # fingerprint the no-op Stop skip trusts). Read from git with a fixed argv.
+    try:
+        input_digest = compute_state_hash(Path(project_root), config)
+    except OSError:
+        input_digest = ""
     _verdict = Verdict(
         ok=ok,
-        checks=tuple((cid, status.lower()) for cid, status in rows),
+        checks=checks,
         run_id=os.path.basename(receipt_dir),
         digest=digest,
         harness_version=harness_version,
+        risk=risk,
+        intent=read_intent(Path(project_root), input_digest),
+        evidence=tuple(evidence),
     )
     write_last_verdict(Path(project_root), _verdict)
     append_history(Path(project_root), _verdict)

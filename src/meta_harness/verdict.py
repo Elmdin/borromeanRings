@@ -18,8 +18,11 @@ docs/specs/SPEC-status.md and ADR-0046.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+
+from meta_harness.evidence import Evidence, Intent, parse_evidence, parse_intent
 
 #: Where the compact verdict lives, relative to the governed project root.
 LAST_VERDICT_FILE = ".meta-harness/last_verdict.json"
@@ -46,6 +49,29 @@ def is_failing(status: str) -> bool:
     return status not in NON_FAILING_STATUSES
 
 
+#: Risk bands, categorical and derived from recorded facts only (ADR-0056). They allocate
+#: HUMAN review attention; no band ever relaxes a machine gate (which stays fail-closed).
+RISK_GREEN = "green"  # every check passed for real
+RISK_HOLLOW = "hollow"  # non-failing, but at least one check inspected nothing
+RISK_RED = "red"  # at least one check failed (or was missing/tampered/unknown)
+RISK_BANDS: tuple[str, ...] = (RISK_GREEN, RISK_HOLLOW, RISK_RED)
+
+
+def risk_band(checks: Iterable[tuple[str, str]]) -> str:
+    """The band a run's recorded check statuses put it in. Red > hollow > green.
+
+    Deterministic and threshold-free: a failure of any kind is red (never softened by a
+    hollow sibling); a run that inspected nothing anywhere — including one with no
+    checks at all — is hollow, because "nothing looked" cannot be green.
+    """
+    statuses = [status for _, status in checks]
+    if any(is_failing(status) for status in statuses):
+        return RISK_RED
+    if not statuses or any(status == "noop" for status in statuses):
+        return RISK_HOLLOW
+    return RISK_GREEN
+
+
 @dataclass(frozen=True)
 class Verdict:
     """One gate run's outcome: the overall pass bool and each check's status.
@@ -54,6 +80,12 @@ class Verdict:
     ``git describe`` of ``BORROMEANRINGS_HOME``, or the ``VERSION`` file) — so a governed
     project's evidence answers "what version verified me?", not just "did it pass?".
     Absent in records written before versioning ⇒ defaults to ``""`` (back-compatible).
+
+    ``risk``, ``intent`` and ``evidence`` (ADR-0056) record what was SHOWN to happen:
+    the categorical band from :func:`risk_band`, the branch/commit/input digest that was
+    gated, and each check's :class:`~meta_harness.evidence.Evidence`. Records written
+    before this carry none of it and read back as ``""`` / empty — a missing band is
+    reported as *not recorded*, never re-derived into a claim the record did not make.
     """
 
     ok: bool
@@ -61,15 +93,21 @@ class Verdict:
     run_id: str = ""
     digest: str = ""
     harness_version: str = ""
+    risk: str = ""
+    intent: Intent = Intent()
+    evidence: tuple[Evidence, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
-        """A JSON-serialisable view (tuples become lists)."""
+        """A JSON-serialisable view (tuples become lists; nested records become objects)."""
         return {
             "ok": self.ok,
             "run_id": self.run_id,
             "digest": self.digest,
             "harness_version": self.harness_version,
+            "risk": self.risk,
+            "intent": self.intent.to_dict(),
             "checks": [list(pair) for pair in self.checks],
+            "evidence": [item.to_dict() for item in self.evidence],
         }
 
 
@@ -94,6 +132,9 @@ def _parse(data: object) -> Verdict | None:
         run_id=str(data.get("run_id", "")),
         digest=str(data.get("digest", "")),
         harness_version=str(data.get("harness_version", "")),
+        risk=str(data.get("risk", "")),
+        intent=parse_intent(data.get("intent")),
+        evidence=parse_evidence(data.get("evidence")),
     )
 
 

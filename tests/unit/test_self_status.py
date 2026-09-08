@@ -6,6 +6,7 @@ enforcement actually on, was the last verdict real or hollow?*
 
 from __future__ import annotations
 
+from meta_harness.evidence import Evidence, Intent
 from meta_harness.status_assess import (
     HOOK_EVENTS,
     HOOK_SCRIPTS,
@@ -218,3 +219,56 @@ def test_render_never_gated_project_does_not_claim_a_verdict() -> None:
     )
     assert "never" in text.lower()
     assert "PASS" not in text
+
+
+# --- risk band + evidence (ADR-0056) --------------------------------------------------
+
+
+def _render(verdict: Verdict) -> str:
+    return render_self_status(
+        project="/p",
+        governed=True,
+        required=("a",),
+        last_verdict=verdict,
+        enforcement=classify_enforcement(None, HOME),
+        harness_home=HOME,
+    )
+
+
+def test_render_shows_the_recorded_risk_band_and_evidence_count() -> None:
+    v = Verdict(
+        ok=True,
+        checks=(("a", "pass"), ("b", "pass")),
+        risk="green",
+        intent=Intent(branch="feat/x", head_sha="0123456789abcdef0123456789abcdef01234567"),
+        evidence=(Evidence("a", lane="fast"), Evidence("b", lane="heavy")),
+    )
+    text = _render(v)
+    assert "  Risk band:    GREEN · evidence: 2 receipt(s) recorded (1 heavy-lane)" in text
+    assert "  Intent:       feat/x @ 0123456789ab" in text
+
+
+def test_render_hollow_and_red_bands_are_spelled_out() -> None:
+    hollow = Verdict(ok=True, checks=(("a", "noop"),), risk="hollow", evidence=(Evidence("a"),))
+    assert "  Risk band:    HOLLOW · evidence: 1 receipt(s) recorded" in _render(hollow)
+    red = Verdict(ok=False, checks=(("a", "fail"),), risk="red", evidence=(Evidence("a"),))
+    assert "  Risk band:    RED · evidence: 1 receipt(s) recorded" in _render(red)
+
+
+def test_render_pre_evidence_verdict_says_not_recorded_never_a_band() -> None:
+    """An old record made no risk claim; the report must not invent one."""
+    text = _render(Verdict(ok=True, checks=(("a", "pass"),)))
+    assert "  Risk band:    not recorded (verdict predates evidence capture)" in text
+    assert "GREEN" not in text
+    assert "Intent:" not in text  # nothing recorded ⇒ no intent line at all
+
+
+def test_render_intent_without_sha_shows_branch_only() -> None:
+    text = _render(Verdict(ok=True, risk="hollow", intent=Intent(branch="dev")))
+    assert "  Intent:       dev" in text
+    assert "@" not in text.split("Intent:")[1].splitlines()[0]
+
+
+def test_render_intent_with_sha_only_shows_the_short_sha() -> None:
+    v = Verdict(ok=True, risk="green", intent=Intent(head_sha="abcdef0123456789abcdef"))
+    assert "  Intent:       abcdef012345\n" in _render(v) + "\n"

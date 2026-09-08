@@ -13,6 +13,23 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Verdict evidence, intent and risk band (ADR-0056, #134) — the verdict now records what
+  was **shown** to happen, not just pass/fail. New `meta_harness.evidence` module: per-check
+  `Evidence` (the receipt's `command`, `exit_code`, `log` path + `log_bytes`,
+  `content_sha256`, and `lane` fast/heavy) lifted from every intact required receipt, and
+  `Intent` (branch, head SHA — read from git with a fixed argv — and the gated-input
+  digest from `change_detect`). `verdict.risk_band` derives a **categorical** band from the
+  recorded statuses alone — `red` if anything failed (unknown statuses included, by the
+  ADR-0049 allowlist), else `hollow` if any check inspected nothing or there were no
+  checks, else `green`; red beats hollow, and no band ever relaxes the gate. Persisted as
+  three new keys (`risk`, `intent`, `evidence`) on `last_verdict.json` and each history
+  line; old records parse with empty defaults and self-status reports their band as *not
+  recorded* rather than inventing one. Surfaced on the gate output (`risk-band: … ·
+  evidence: N receipt(s)`), in self-status (`Risk band:` / `Intent:` lines) and in the
+  ledger (new `EVIDENCE` column + tally). Unit-tested with exact values and every
+  malformed-input shape; the textkit integration test asserts evidence matches each
+  receipt hash-for-hash. Touched-area bands from `CODEOWNERS` and a `merge.sh` evidence
+  requirement are deferred (see the ADR).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

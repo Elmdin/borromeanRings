@@ -209,6 +209,34 @@ def hollow_checks(verdict: Verdict | None) -> tuple[str, ...]:
     return tuple(cid for cid, status in verdict.checks if status == NOOP)
 
 
+def _intent_label(branch: str, head_sha: str) -> str:
+    """``branch @ sha12``, or whichever half was recorded; ``""`` when neither was."""
+    short = head_sha[:12]
+    if branch and short:
+        return f"{branch} @ {short}"
+    return branch or short
+
+
+def evidence_lines(verdict: Verdict) -> list[str]:
+    """The risk-band / evidence / intent lines for one recorded verdict (ADR-0056).
+
+    A record written before evidence capture made no risk claim, so it is reported as
+    *not recorded* — never re-derived into a band the record itself did not carry.
+    """
+    if not verdict.risk:
+        return ["  Risk band:    not recorded (verdict predates evidence capture)"]
+    heavy = sum(1 for item in verdict.evidence if item.is_heavy)
+    line = (
+        f"  Risk band:    {verdict.risk.upper()} · evidence:"
+        f" {len(verdict.evidence)} receipt(s) recorded"
+    )
+    lines = [f"{line} ({heavy} heavy-lane)" if heavy else line]
+    where = _intent_label(verdict.intent.branch, verdict.intent.head_sha)
+    if where:
+        lines.append(f"  Intent:       {where}")
+    return lines
+
+
 def render_self_status(
     *,
     project: str,
@@ -263,6 +291,7 @@ def render_self_status(
                 f"  Reality:      0 of {len(last_verdict.checks)} checks recorded as"
                 " inspecting nothing"
             )
+        lines += evidence_lines(last_verdict)
 
     marker = {"auto": "", "partial": "⚠ ", "manual": "⚠ "}[enforcement.mode]
     lines.append(f"  {marker}Enforcement: {enforcement.mode.upper()} — {enforcement.detail}")

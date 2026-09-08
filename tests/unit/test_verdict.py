@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from meta_harness.evidence import Evidence, Intent
 from meta_harness.verdict import (
     LAST_VERDICT_FILE,
     NON_FAILING_STATUSES,
+    RISK_BANDS,
     VERDICT_HISTORY_FILE,
     Verdict,
     append_history,
     is_failing,
     read_history,
     read_last_verdict,
+    risk_band,
     write_last_verdict,
 )
 
@@ -128,7 +131,10 @@ def test_to_dict_is_json_shaped() -> None:
         "run_id": "r",
         "digest": "d",
         "harness_version": "v1.2.3",
+        "risk": "",
+        "intent": {"branch": "", "head_sha": "", "input_digest": ""},
         "checks": [["00_build", "pass"]],
+        "evidence": [],
     }
 
 
@@ -181,3 +187,114 @@ def test_status_matching_is_exact_not_fuzzy() -> None:
 def test_non_failing_allowlist_is_immutable_and_minimal() -> None:
     assert isinstance(NON_FAILING_STATUSES, frozenset)
     assert sorted(NON_FAILING_STATUSES) == ["noop", "pass"]
+
+
+# --- evidence, intent and the risk band (ADR-0056) ------------------------------------
+# The verdict records what was SHOWN to happen, not only pass/fail: per-check evidence,
+# the gated intent, and a band derived deterministically from the recorded facts.
+
+
+def _rich_verdict() -> Verdict:
+    return Verdict(
+        ok=True,
+        checks=(("00_build", "pass"), ("60_mutation", "noop")),
+        run_id="r",
+        digest="d",
+        harness_version="v1",
+        risk="hollow",
+        intent=Intent(branch="feat/x", head_sha="abc", input_digest="in"),
+        evidence=(
+            Evidence("00_build", "python -m build", 0, "/l/00.log", 12, "h0", "fast"),
+            Evidence("60_mutation", "mutmut run", 0, "/l/60.log", 0, "h6", "heavy"),
+        ),
+    )
+
+
+def test_rich_verdict_to_dict_is_exact_and_human_readable() -> None:
+    assert _rich_verdict().to_dict() == {
+        "ok": True,
+        "run_id": "r",
+        "digest": "d",
+        "harness_version": "v1",
+        "risk": "hollow",
+        "intent": {"branch": "feat/x", "head_sha": "abc", "input_digest": "in"},
+        "checks": [["00_build", "pass"], ["60_mutation", "noop"]],
+        "evidence": [
+            {
+                "check": "00_build",
+                "command": "python -m build",
+                "exit_code": 0,
+                "log": "/l/00.log",
+                "log_bytes": 12,
+                "content_sha256": "h0",
+                "lane": "fast",
+            },
+            {
+                "check": "60_mutation",
+                "command": "mutmut run",
+                "exit_code": 0,
+                "log": "/l/60.log",
+                "log_bytes": 0,
+                "content_sha256": "h6",
+                "lane": "heavy",
+            },
+        ],
+    }
+
+
+def test_rich_verdict_round_trips_through_file_and_history(tmp_path: Path) -> None:
+    v = _rich_verdict()
+    write_last_verdict(tmp_path, v)
+    assert read_last_verdict(tmp_path) == v
+    append_history(tmp_path, v)
+    assert read_history(tmp_path) == [v]
+
+
+def test_old_verdict_without_evidence_fields_parses_with_empty_defaults(tmp_path: Path) -> None:
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text('{"ok": true, "checks": [["a", "pass"]]}', encoding="utf-8")
+    v = read_last_verdict(tmp_path)
+    assert v == Verdict(ok=True, checks=(("a", "pass"),))
+    assert v is not None
+    # "" — NOT a re-derived band: an old record never claimed one, and saying "green"
+    # for it would be an over-claim.
+    assert v.risk == ""
+    assert v.intent == Intent()
+    assert v.evidence == ()
+
+
+def test_malformed_evidence_and_intent_degrade_not_crash(tmp_path: Path) -> None:
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '{"ok": false, "risk": 3, "intent": "nope", "evidence": {"check": "x"}}',
+        encoding="utf-8",
+    )
+    v = read_last_verdict(tmp_path)
+    assert v is not None
+    assert v.risk == "3"  # coerced to str, never raises
+    assert v.intent == Intent()
+    assert v.evidence == ()
+
+
+def test_risk_band_is_derived_only_from_recorded_facts() -> None:
+    # green: every check passed for real.
+    assert risk_band((("a", "pass"), ("b", "pass"))) == "green"
+    # hollow: at least one check inspected nothing (a green resting on less).
+    assert risk_band((("a", "pass"), ("b", "noop"))) == "hollow"
+    # red: anything failing — and red beats hollow (a failure is never softened).
+    assert risk_band((("a", "noop"), ("b", "fail"))) == "red"
+    assert risk_band((("a", "pass"), ("b", "missing"))) == "red"
+    assert risk_band((("a", "pass"), ("b", "fail !tampered"))) == "red"
+    # unknown statuses are failing (allowlist), so they band red too.
+    assert risk_band((("a", "skipped"),)) == "red"
+
+
+def test_risk_band_of_no_checks_is_hollow_not_green() -> None:
+    # A run that inspected nothing at all cannot be "green".
+    assert risk_band(()) == "hollow"
+
+
+def test_risk_band_constants_are_the_only_bands() -> None:
+    assert RISK_BANDS == ("green", "hollow", "red")

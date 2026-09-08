@@ -21,9 +21,17 @@ receipts; git-ignored). Best-effort: a write failure never turns a real PASS int
 FAIL. Schema:
 
 ```json
-{ "ok": true, "run_id": "…", "digest": "…",
-  "checks": [["00_build","pass"], ["40_test","pass"]] }
+{ "ok": true, "run_id": "…", "digest": "…", "harness_version": "…",
+  "risk": "green",
+  "intent": { "branch": "…", "head_sha": "…", "input_digest": "…" },
+  "checks": [["00_build","pass"], ["40_test","pass"]],
+  "evidence": [ { "check": "00_build", "command": "…", "exit_code": 0, "log": "…",
+                  "log_bytes": 812, "content_sha256": "…", "lane": "fast" }, … ] }
 ```
+
+`harness_version` is ADR-0048; `risk`, `intent` and `evidence` are ADR-0056 (see
+`SPEC-verdict-evidence.md`). All are optional on read — older records parse with empty
+defaults.
 
 `read_last_verdict(project_root)` returns the parsed record or `None` (absent /
 unreadable / malformed → `None`, never raises). This is a **last-known** signal, not a

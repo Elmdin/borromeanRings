@@ -60,27 +60,35 @@ esac
 is_force_push "$cmd" &&
   deny "Refusing bare force-push. Use --force-with-lease (allowed) so you never clobber unseen upstream commits."
 
-# Protected-branch guard (Tier A collaboration): block 'git commit'/'git push'
-# while ON a declared [collaboration].protected_branches branch — work belongs on
-# feature branches (Gitflow-lite, ADR-0021). Local aid; the platform branch
-# protection is the backstop. Fail-open on any error.
+# Protected-branch guard (trunk-based policy, ADR-0058, issue #75): deny any
+# command that would land work directly on a declared
+# [collaboration].protected_branches branch — commit/merge/rebase/cherry-pick/
+# reset while ON one, a push to one in ANY spelling (origin main, HEAD:main,
+# +main, refs/heads/main, --delete, --all), or deleting/force-moving one locally.
+# The decision is meta_harness.trunk_policy (pure, unit-tested per matrix row);
+# HEAD is read with a fixed argv. It is never narrower than the substring match it
+# replaced (the floor). Local aid; server-side protection (#60) is the backstop.
+# Fail-open on any error. See docs/specs/SPEC-branch-policy.md.
 case "$cmd" in
-  *"git commit"* | *"git push"*)
+  *git*)
     branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
-    reason="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+    reason="$(BORROMEANRINGS_GUARD_CMD="$cmd" PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
       "$PROJECT_DIR/borromeanrings.toml" "$branch" 2>/dev/null <<'PY'
+import os
 import sys
 
 try:
     from meta_harness.spine import load_config
+    from meta_harness.trunk_policy import branch_policy_violation
 
     cfg = load_config(sys.argv[1])
-    branch = sys.argv[2]
-    if branch in cfg.collaboration_protected_branches:
-        print(
-            f"'{branch}' is a protected branch (Gitflow-lite, ADR-0021): commit on a "
-            f"work branch instead (e.g. feat/<name>, fix/<name>) and merge via PR."
-        )
+    reason = branch_policy_violation(
+        os.environ.get("BORROMEANRINGS_GUARD_CMD", ""),
+        sys.argv[2],
+        cfg.collaboration_protected_branches,
+    )
+    if reason:
+        print(reason)
 except Exception:
     pass  # fail open — the platform protection is the backstop
 PY

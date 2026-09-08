@@ -72,7 +72,10 @@ allow_packages = []
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
-# 09_commits + the protected-branch guard in pre_bash_guard.sh.
+# 09_commits + the protected-branch guard in pre_bash_guard.sh. protected_branches
+# also drives the branch policy (ADR-0058, SPEC-branch-policy.md): nothing lands on
+# one except via PR + gate — the guard denies direct commits/pushes/rewrites, 08_branch
+# fails a protected branch that is ahead of its remote.
 protected_branches = ["main", "dev"]
 branch_patterns = [
   "feat/*", "feature/*", "fix/*", "docs/*",

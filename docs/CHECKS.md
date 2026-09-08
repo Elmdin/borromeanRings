@@ -70,7 +70,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `05_hygiene` | The engineering surround exists (README, LICENSE, CI dir, …) | `[hygiene].requires` | 0012 |
 | `06_git_identity` | Commits unique to the branch are authored by the declared identity | `[git].name`, `[git].email` | 0019 |
 | `07_layout` | Repo layout: specs live under `specs_dir`; only allow-listed `.md` at root; test grouping past a threshold | `[layout].specs_dir`, `root_doc_allowlist`, `test_grouping_threshold`, `test_groups` | 0018 |
-| `08_branch` | Work branch matches an allowed pattern; no direct work on protected branches | `[collaboration].branch_patterns`, `protected_branches` | 0021 |
+| `08_branch` | Work branch matches an allowed pattern; a protected branch carries no commits its remote ref lacks (direct commits fail; the PreToolUse guard is the preventive layer) | `[collaboration].branch_patterns`, `protected_branches` | 0021, 0058 |
 | `09_commits` | Commit messages are typed + within the subject length | `[collaboration].commit_types`, `subject_max_length` | 0021 |
 | `11_changelog` | `CHANGELOG.md` exists with an `Unreleased` section; optionally an entry on every source change | `[changelog].enabled`, `path`, `require_entry_on_src_change` | 0028 |
 | `12_secrets` | No high-confidence provider tokens / private keys in tracked files; **fails closed on a non-git dir** | (scan; escape hatch inline) | 0032 / 0042 |

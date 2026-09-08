@@ -13,6 +13,18 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Branch policy enforcement (ADR-0058, #75) — nothing lands on a declared
+  `[collaboration].protected_branches` branch except via PR + gate, at two layers. The
+  PreToolUse guard now hands every git command to `meta_harness.trunk_policy` (pure,
+  one exact-value test per matrix row) and denies, with a fix hint, a commit/merge/
+  rebase/cherry-pick/reset while ON a protected branch, a push to a protected ref in
+  any spelling (`origin main`, `HEAD:main`, `+main`, `refs/heads/main`, `--delete`,
+  `--all`, `--force-with-lease`), and a local delete/force-move of one (`branch -D`,
+  `checkout -B`, `update-ref`). It is never narrower than the substring guard it
+  replaces (the floor is kept). `08_branch` gains the backstop: it fails when a protected
+  branch carries commits its remote ref lacks. `docs/specs/SPEC-branch-policy.md` holds
+  the full command matrix and the `gh api` command for server-side protection (#60,
+  documented, not run).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

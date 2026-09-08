@@ -97,7 +97,7 @@ harder to game.
 | README / ARCHITECTURE freshness | T2 | ❌ | |
 
 ### H. Process & collaboration — CS130 §7, §12
-| Branch policy | T0 | ✅ | `08_branch` (ADR-0021) |
+| Branch policy | T0 | ✅ | `08_branch` naming + direct-commit backstop; PreToolUse guard denies commits/pushes/rewrites to protected branches (ADR-0021, ADR-0058) |
 | Commit conventions | T0 | ✅ | `09_commits` |
 | Gated, explicit merge | T0 | ✅ | `merge.sh` (ADR-0007) |
 | CI runs the gate | T0 | ✅ | `.github/workflows/verify.yml` (ADR-0008) |

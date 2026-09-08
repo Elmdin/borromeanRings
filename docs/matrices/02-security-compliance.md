@@ -21,7 +21,7 @@ rows are in matrix #4. Conventions: [`README.md`](README.md).
 | S12 | Container image runs as non-root and pins its base image | ✅ `14_container` rules `non_root`, `pinned_base` — see matrix #4 rows O1–O2 | now | CIS Docker Benchmark v1.6.0 §4.1, §4.2 |
 | S13 | Shell scripts (hooks, checks, entry points — executable supply chain) pass a static shell linter | gap → #52 (in flight on `feat/shellcheck-gate`, ADR-0050) | now | SSDF PW.7; #58 scope "review skills/hooks for unsafe patterns" |
 | S14 | AI-generated code receives a security review distinct from the generator (a separate judge, fail-closed) | ⚠️ `56_critics` rubric `security` — seam shipped, dormant until `[critic].judge_command` is set (ADR-0030/0036); gap → #68 | now (agent-only: the user's own `claude -p`) | OWASP "LLM AI Cybersecurity & Governance Checklist" v1.1 (2024), AI-generated-code review item; `docs/ENFORCEMENT-COVERAGE.md` row J |
-| S15 | Fuzzing or DAST runs on the heavy lane for projects that expose a parser or a network surface | gap → #138 (no sub-issue yet; archetype-gated by #79) | archetype | Scorecard `Fuzzing`; OWASP Web Security Testing Guide v4.2 |
+| S15 | Fuzzing or DAST runs on the heavy lane for projects that expose a parser or a network surface | gap → #155 | archetype | Scorecard `Fuzzing`; OWASP Web Security Testing Guide v4.2 |
 | S16 | Every security finding the gate raises is tamper-evidently recorded (receipt + verdict history), so a "fixed" finding is provable | ✅ receipts + `last_verdict.json` + `verdict_history.jsonl` (`meta_harness.receipts`/`verdict`, ADR-0026/0046/0047) | now | SSDF RV.2 (assess, prioritise and remediate vulnerabilities — with records); ISO/IEC 27001:2022 A.8.8 (technical vulnerability management) |
 
 ## Notes

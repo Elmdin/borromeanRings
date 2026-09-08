@@ -40,3 +40,12 @@ Exactly as `docs/ENFORCEMENT-COVERAGE.md` §4: spec → branch → passes the ga
 merge, landing at the lowest tier that expresses it (T0 gate > T1 ratchet > T2 critic > T3
 advisory). When a row lands, update **both** the matrix document and the §6 status word in the
 same PR — drift between the two is the defect #132 exists to catch.
+
+## Sub-issues (one per matrix)
+
+- #155 security (S15)
+- #156 delivery/DORA (D9–D13)
+- #157 SRE (O9, O10, O12, O14, O15)
+- #158 data/ML (M3, M13–M15)
+- #159 product/UX (U4–U9, U18)
+- #154 `15_a11y` reports `pass` instead of `noop` on no HTML

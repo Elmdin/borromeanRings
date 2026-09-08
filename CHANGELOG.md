@@ -17,8 +17,11 @@ queue is merged.
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
   the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus
   `[a11y].exclude`) and where, and the gate output counts it under `inspected NOTHING`.
-  Clean HTML ⇒ `pass`, violations ⇒ `fail`, unchanged. Locked down by an integration
-  suite (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on all three fixtures.
+  Clean HTML ⇒ `pass`, violations ⇒ `fail`, unchanged. The HTML walk now mirrors
+  `01_source_coherence`: a `git ls-files` failure inside a repo **fails closed** (never a
+  `noop`), and a non-git project falls back to a filesystem walk (honouring `exclude`) and
+  evaluates what it finds. Locked down by an integration suite
+  (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
 
 ### Added
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a

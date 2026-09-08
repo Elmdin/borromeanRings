@@ -105,3 +105,34 @@ a security guard that a "hardening" change made *weaker* than what it replaced. 
 lesson is not that the work was bad; it is that **the review rule and the gate are
 load-bearing.** Do not skip them because the change looks small. The small ones were
 where the defects were.
+
+## 8. State as of 2026-09-08 (second autonomous session)
+
+**Open, reviewed, waiting on the maintainer's approval** (never `--admin`; merge order is
+base-first): #129, #123, #122, #124, #125, #126, #127, #147, #148 (#131 prior-art gate),
+#149 (#133 catalog audit), #150 (#128 adopt.sh tests), #151 (#132 self-description),
+#152 (#137 compaction brief). Every one has sub-agent review comments and a follow-up
+verification comment on the PR.
+
+**In flight in parallel worktrees** (each commits only; the orchestrator pushes, opens the
+PR, dispatches review): #130 API-usage contracts (heavy lane rerunning), #134 verdict
+evidence/risk band, #135 context-budget ratchet, #138 governance matrices, #61 templates
+and label scheme.
+
+**Rules learned this session, each from a real failure:**
+- A gate check in a shell chain must be `grep -q "RESULT: PASS"` on the saved log before
+  any commit or push. A loose `grep -E "RESULT|FAIL"` matches the FAIL line too and once
+  pushed a red commit.
+- Anything a test or check loads by path must live under `src/` or `tests/`: mutmut's
+  sandbox copies only those, so a repo-root data dir made the whole heavy lane fail
+  closed. Rule packs therefore ship inside the package.
+- Hook matchers: one settings entry per trigger value; a `a|b` string is only documented
+  for tool-name matchers.
+- The complexity (10) and coupling (fan-out 2) ratchets bite on every new module: split
+  rendering into helpers and reach sibling modules through one seam rather than three.
+- The commit-subject limit (72) and the review rule held only when asserted in the
+  command, never by intention.
+
+**Progress metric the maintainer asked for:** built = closed issues + issues with a
+reviewed PR open, over the 59 deliverable issues in epic #69 (the epic itself excluded).
+At this writing: ~41% built, ~20% merged. Report it whenever it moves ~5 points.

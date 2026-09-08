@@ -88,6 +88,19 @@ def test_self_governing_repo_counts_as_enforced() -> None:
     assert result.mode == "auto"
 
 
+def test_plugin_path_spelling_counts_as_enforced() -> None:
+    """Hooks wired through the Claude Code plugin (ADR-0057) use the plugin's own variable.
+
+    ``hooks/hooks.json`` spells every command as ``"${CLAUDE_PLUGIN_ROOT}"/.claude/hooks/x``
+    (quoted, per the plugins reference). Classification matches on the script NAME, so
+    the spelling — and the surrounding quotes — must not matter; a project governed
+    through the plugin must read AUTO, not manual.
+    """
+    result = classify_enforcement(_hooks(list(HOOK_EVENTS), '"${CLAUDE_PLUGIN_ROOT}"'), HOME)
+    assert result.mode == "auto"
+    assert result.detail.startswith(f"{len(HOOK_EVENTS)}/{len(HOOK_EVENTS)} hooks wired")
+
+
 def test_empty_hooks_object_is_manual() -> None:
     assert classify_enforcement({"hooks": {}}, HOME).mode == "manual"
 

@@ -90,3 +90,5 @@ Milestones are questions, not dates. Leave one empty rather than guess
 Edit the tables here **and** the array in `scripts/labels.sh` in the same PR, then a
 maintainer runs the script. The script only creates and updates; it never deletes a
 label, so retiring one is a manual, deliberate act.
+
+> Before the issue forms go live, run `scripts/labels.sh --dry-run` then `scripts/labels.sh`: `needs-triage`, `needs-spec`, `needs-adr` and `blocked` do not exist on GitHub yet, and GitHub drops unknown labels silently. All four are created by the script.

@@ -16,7 +16,7 @@ body:
     id: component
     attributes:
       label: Component
-      description: Which part misbehaved? Picks the triage type — see docs/TRIAGE.md §2.
+      description: Which part misbehaved? (The triage TYPE is decided separately — docs/TRIAGE.md §2.)
       options:
         - The gate (verify.sh / merge.sh)
         - A check under checks/ (name it below)

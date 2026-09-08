@@ -80,12 +80,19 @@ import sys
 try:
     from meta_harness.spine import load_config
     from meta_harness.trunk_policy import branch_policy_violation
+    from meta_harness.trunk_policy_git import facts_resolver, repo_aliases
 
     cfg = load_config(sys.argv[1])
+    protected = cfg.collaboration_protected_branches
+    project = os.path.dirname(os.path.abspath(sys.argv[1]))
+    # Aliases are resolved (git p == git push) and each invocation is judged in its
+    # own effective directory (cd …, -C, --git-dir); see PR #169 review.
     reason = branch_policy_violation(
         os.environ.get("BORROMEANRINGS_GUARD_CMD", ""),
         sys.argv[2],
-        cfg.collaboration_protected_branches,
+        protected,
+        aliases=repo_aliases(project),
+        facts_at=facts_resolver(project, protected),
     )
     if reason:
         print(reason)

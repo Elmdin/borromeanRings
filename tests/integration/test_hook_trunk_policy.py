@@ -54,6 +54,7 @@ def _decision(repo: Path, command: str) -> str | None:
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(repo)
     env["BORROMEANRINGS_HOOK_STDIN_TIMEOUT"] = "5"
+    env["HOME"] = str(repo.parent)  # isolate from the developer's global git aliases
     out = subprocess.run(
         ["bash", str(HOOK)], input=payload, capture_output=True, text=True, env=env, timeout=30
     ).stdout
@@ -261,3 +262,67 @@ def test_undeclared_protection_turns_the_guard_off(repo: Path) -> None:
     _checkout(repo, "main")
     assert _decision(repo, "git commit -m x") is None
     assert _decision(repo, "git push origin main") is None
+
+
+# --- PR #169 review: aliases and the effective directory ---------------------------
+
+
+@pytest.fixture
+def worktrees(repo: Path, tmp_path: Path) -> dict[str, Path]:
+    """``repo`` on feat/x plus worktrees on main and feat/y, and aliases p/l set."""
+    _git(repo, "checkout", "-q", "feat/x")
+    _git(repo, "worktree", "add", "-q", str(tmp_path / "wt_main"), "main")
+    _git(repo, "worktree", "add", "-q", "-b", "feat/y", str(tmp_path / "wt_feat"))
+    _git(repo, "config", "alias.p", "push")
+    _git(repo, "config", "alias.l", "log --oneline")
+    return {"repo": repo, "wt_main": tmp_path / "wt_main", "wt_feat": tmp_path / "wt_feat"}
+
+
+def test_alias_to_push_is_denied(worktrees: dict[str, Path]) -> None:
+    reason = _decision(worktrees["repo"], "git p origin main")
+    assert reason is not None and "[via alias 'p' = 'push']" in reason
+
+
+def test_alias_to_a_read_is_allowed(worktrees: dict[str, Path]) -> None:
+    assert _decision(worktrees["repo"], "git l") is None
+    assert _decision(worktrees["repo"], "git p origin feat/x") is None
+
+
+def test_inline_alias_is_denied(worktrees: dict[str, Path]) -> None:
+    reason = _decision(worktrees["repo"], "git -c alias.q=push q origin feat/x")
+    assert reason is not None and "plants alias 'q'" in reason
+
+
+def test_config_write_of_an_alias_is_denied(worktrees: dict[str, Path]) -> None:
+    reason = _decision(worktrees["repo"], "git config alias.z push")
+    assert reason is not None and "would set alias 'z'" in reason
+    reason = _decision(worktrees["repo"], "git config --global alias.z 'commit -m x'")
+    assert reason is not None and "would set alias 'z'" in reason
+    assert _decision(worktrees["repo"], "git config alias.lg 'log --oneline'") is None
+
+
+def test_alias_planted_by_redirection_hits_the_floor(worktrees: dict[str, Path]) -> None:
+    reason = _decision(worktrees["repo"], "echo '[alias] z = push' >> .git/config")
+    assert reason is not None and "(floor)" in reason
+
+
+def test_cd_into_a_worktree_on_main_is_denied(worktrees: dict[str, Path]) -> None:
+    for command in (
+        f"cd {worktrees['wt_main']} && git commit -m x",
+        "cd wt_main && git commit -m x",
+        f"git -C {worktrees['wt_main']} commit -m x",
+    ):
+        reason = _decision(worktrees["repo"], command)
+        assert reason is not None and "'main' is a protected branch" in reason, command
+
+
+def test_cd_into_a_worktree_on_a_feature_branch_is_allowed(worktrees: dict[str, Path]) -> None:
+    assert _decision(worktrees["repo"], f"cd {worktrees['wt_feat']} && git commit -m x") is None
+    assert _decision(worktrees["repo"], "cd wt_feat && git commit -m x") is None
+
+
+def test_cd_into_an_unknown_directory_is_conservative(worktrees: dict[str, Path]) -> None:
+    # main is checked out in a worktree ⇒ a write somewhere unknown is refused.
+    reason = _decision(worktrees["repo"], "cd nowhere && git commit -m x")
+    assert reason is not None and "'main' is a protected branch" in reason
+    assert _decision(worktrees["repo"], "cd nowhere && git log") is None

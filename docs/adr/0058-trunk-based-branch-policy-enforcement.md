@@ -33,6 +33,15 @@ The branch policy becomes a declared, enforced borromeanRings capability, at two
    its remote ref lacks (`<upstream|origin/branch>..HEAD`), naming the count and the fix.
    It cannot judge without a remote ref (passes, says so) and skips detached HEAD.
 
+**Amended after adversarial review (PR #169):** the guard resolves git *aliases*
+through the repo's config (and refuses planting one that expands to a branch-writing
+verb, in any scope, inline, or via `GIT_CONFIG_*`, with a floor on `alias.`/config
+mentions plus a verb), and judges each invocation in its *effective directory* —
+`cd`/`pushd` chains and `-C`/`--git-dir`/`--work-tree` are followed and HEAD/aliases
+read there; an unresolvable directory is judged as the protected branch checked out in
+any worktree of the repo. Pure logic in `meta_harness.trunk_aliases`; the fixed-argv git
+reads in `meta_harness.trunk_policy_git`. Non-shell invocations remain out of scope.
+
 **Configuration** is the existing `[collaboration].protected_branches` — the issue's
 proposed `[branching].protected` is folded into it rather than added beside it (one
 declaration feeds the naming gate, the guard and the backstop). Empty ⇒ off, opt-in like
@@ -65,5 +74,5 @@ to run; this change runs nothing against GitHub.
   feature branch, fetch/log/diff, dry-run, tags, heredocs mentioning git).
 - (−) The floor keeps the old conservatism: on a protected branch even a `grep` for
   `git push` is refused. Acceptable — you should not be working there.
-- (−) `git -C <other repo> …` is judged against the governed repo's HEAD (as before).
+- (−) The alias floor is deliberately blunt: a `grep push .git/config` is refused too.
 - (−) Two shell tokenizers exist until #126 merges (see Alternatives).

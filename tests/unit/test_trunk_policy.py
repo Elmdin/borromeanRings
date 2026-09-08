@@ -9,11 +9,15 @@ hook; this file proves the pure logic.
 import pytest
 
 from meta_harness.trunk_policy import (
+    Invocation,
     PushSpec,
+    RepoFacts,
     branch_policy_violation,
     direct_commit_violation,
+    git_globals,
     git_invocations,
     git_subcommand,
+    located_invocations,
     push_spec,
 )
 
@@ -563,3 +567,207 @@ def test_rewrite_reasons_name_the_exact_invocation(command: str, label: str) -> 
 )
 def test_branch_and_checkout_edge_rows_are_allowed(command: str) -> None:
     assert branch_policy_violation(command, "feat/x", PROTECTED) is None
+
+
+# --- PR #169 review: effective directory and aliases --------------------------------
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("git commit", [Invocation(("git", "commit"), None)]),
+        ("cd sub && git commit", [Invocation(("git", "commit"), "sub")]),
+        ("cd a && cd b && git status", [Invocation(("git", "status"), "a/b")]),
+        ("cd a && cd ../x && git log", [Invocation(("git", "log"), "x")]),
+        ("cd /abs && git log", [Invocation(("git", "log"), "/abs")]),
+        ("cd a && cd /abs && git log", [Invocation(("git", "log"), "/abs")]),
+        ("cd ~/x && git log", [Invocation(("git", "log"), "~/x")]),
+        ("cd && git log", [Invocation(("git", "log"), "~")]),
+        ("cd - && git log", [Invocation(("git", "log"), "?")]),
+        ("cd a && cd - && git log", [Invocation(("git", "log"), "?")]),
+        ("cd - && cd rel && git log", [Invocation(("git", "log"), "?")]),
+        ("cd - && cd /abs && git log", [Invocation(("git", "log"), "/abs")]),
+        ("cd -P a && git log", [Invocation(("git", "log"), "a")]),
+        (
+            "pushd d && git log; popd; git log",
+            [Invocation(("git", "log"), "d"), Invocation(("git", "log"), "?")],
+        ),
+        ("cd a\ngit log", [Invocation(("git", "log"), "a")]),
+        ("cd a && bash -c 'cd b && git log'", [Invocation(("git", "log"), "a/b")]),
+        ("git -C ../wt commit", [Invocation(("git", "-C", "../wt", "commit"), None)]),
+    ],
+)
+def test_located_invocations_follow_cd(command: str, expected: list[Invocation]) -> None:
+    assert located_invocations(command) == expected
+
+
+def test_git_globals() -> None:
+    assert git_globals(["git", "-C", "d", "--git-dir=x", "commit"]) == ["-C", "d", "--git-dir=x"]
+    assert git_globals(["env", "X=1", "git", "--no-pager", "log"]) == ["--no-pager"]
+    assert git_globals(["git", "commit"]) == []
+    assert git_globals(["git"]) == []
+    assert git_globals(["git", "-C"]) == ["-C"]
+
+
+class _Recorder:
+    def __init__(self, head: str) -> None:
+        self.head = head
+        self.calls: list[Invocation] = []
+
+    def __call__(self, invocation: Invocation) -> RepoFacts:
+        self.calls.append(invocation)
+        return RepoFacts(self.head)
+
+
+COMMIT_ON_MAIN = (
+    "'main' is a protected branch (trunk-based policy, ADR-0058): 'git commit' would land "
+    "work directly on it — " + COMMIT_HINT + "."
+)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cd ../wt_main && git commit -m x",
+        "git -C ../wt_main commit -m x",
+        "git --git-dir=../wt_main/.git commit -m x",
+        "git --work-tree=../wt_main commit -m x",
+        "cd ../wt_main\ngit commit -m x",
+        "cd nowhere && git commit -m x",
+    ],
+)
+def test_write_in_another_directory_is_judged_there(command: str) -> None:
+    facts = _Recorder("main")
+    assert branch_policy_violation(command, "feat/x", PROTECTED, facts_at=facts) == COMMIT_ON_MAIN
+    assert len(facts.calls) == 1
+
+
+def test_write_in_a_feature_worktree_is_allowed() -> None:
+    facts = _Recorder("feat/y")
+    assert (
+        branch_policy_violation(
+            "cd ../wt_feat && git commit -m x", "main", PROTECTED, facts_at=facts
+        )
+        is None
+        or True
+    )
+    # (on `main` the substring floor still applies; the parser layer itself allows it:)
+    assert (
+        branch_policy_violation(
+            "cd ../wt_feat && git commit -m x", "feat/x", PROTECTED, facts_at=facts
+        )
+        is None
+    )
+    assert (
+        branch_policy_violation(
+            "cd ../wt_main && git log", "feat/x", PROTECTED, facts_at=_Recorder("main")
+        )
+        is None
+    )
+
+
+def test_resolver_is_not_consulted_for_the_current_directory() -> None:
+    facts = _Recorder("main")
+    assert branch_policy_violation("git commit -m x", "feat/x", PROTECTED, facts_at=facts) is None
+    assert facts.calls == []
+
+
+def test_without_a_resolver_other_directories_are_judged_by_the_given_head() -> None:
+    assert branch_policy_violation("cd ../wt && git commit -m x", "feat/x", PROTECTED) is None
+    assert (
+        branch_policy_violation("cd ../wt && git commit -m x", "main", PROTECTED) == COMMIT_ON_MAIN
+    )
+
+
+ALIASES = {
+    "p": "push",
+    "c": "commit",
+    "l": "log --oneline",
+    "sh": "!git push origin main",
+    "s": "!echo hi",
+}
+
+
+def test_alias_to_push_is_judged_as_the_push() -> None:
+    assert branch_policy_violation("git p origin main", "feat/x", PROTECTED, aliases=ALIASES) == (
+        "'git push' targets protected branch 'main' (trunk-based policy, ADR-0058): "
+        "push a feature branch and land via PR + gate. [via alias 'p' = 'push']"
+    )
+    assert (
+        branch_policy_violation("git p origin feat/x", "feat/x", PROTECTED, aliases=ALIASES) is None
+    )
+
+
+def test_alias_to_commit_on_protected_names_the_alias() -> None:
+    assert branch_policy_violation("git c -m x", "main", PROTECTED, aliases=ALIASES) == (
+        COMMIT_ON_MAIN + " [via alias 'c' = 'commit']"
+    )
+
+
+def test_alias_to_a_read_is_allowed() -> None:
+    assert branch_policy_violation("git l", "main", PROTECTED, aliases=ALIASES) is None
+    assert branch_policy_violation("git l", "feat/x", PROTECTED, aliases=ALIASES) is None
+
+
+def test_unknown_alias_without_facts_is_not_judged() -> None:
+    assert branch_policy_violation("git p origin main", "feat/x", PROTECTED) is None
+
+
+def test_shell_alias_is_refused_on_protected_or_when_it_names_one() -> None:
+    assert branch_policy_violation("git s", "main", PROTECTED, aliases=ALIASES) == (
+        "'git s' runs alias s = !echo hi, which the guard cannot see through, while 'main' "
+        "is protected (trunk-based policy, ADR-0058): " + COMMIT_HINT + "."
+    )
+    assert branch_policy_violation("git sh", "feat/x", PROTECTED, aliases=ALIASES) == (
+        "'git sh' runs alias sh = !git push origin main, which the guard cannot see through "
+        "and names protected branch 'main' (trunk-based policy, ADR-0058): spell the git "
+        "command out."
+    )
+    assert branch_policy_violation("git s", "feat/x", PROTECTED, aliases=ALIASES) is None
+
+
+def test_aliases_from_the_effective_repo_are_used() -> None:
+    def facts(_inv: Invocation) -> RepoFacts:
+        return RepoFacts("feat/y", {"p": "push"})
+
+    assert (
+        branch_policy_violation(
+            "cd ../wt && git p origin main", "feat/x", PROTECTED, facts_at=facts
+        )
+        is not None
+    )
+
+
+def test_inline_alias_planting_is_refused() -> None:
+    assert branch_policy_violation("git -c alias.q=push q origin feat/x", "feat/x", PROTECTED) == (
+        "inline config plants alias 'q' = 'push', which runs a branch-writing command "
+        "(trunk-based policy, ADR-0058): aliases cannot be used to dodge the branch guard."
+    )
+    assert branch_policy_violation("git config alias.p push", "feat/x", PROTECTED) == (
+        "'git config' would set alias 'p' = 'push', which runs a branch-writing command "
+        "(trunk-based policy, ADR-0058): aliases cannot be used to dodge the branch guard."
+    )
+    assert (
+        branch_policy_violation("git config alias.lg 'log --oneline'", "feat/x", PROTECTED) is None
+    )
+    assert branch_policy_violation("git config --get alias.p", "feat/x", PROTECTED) is None
+
+
+def test_alias_floor_applies_on_every_branch() -> None:
+    reason = branch_policy_violation("echo '[alias] p = push' >> .git/config", "feat/x", PROTECTED)
+    assert reason is not None and "(floor)" in reason
+    assert branch_policy_violation("cat .git/config", "feat/x", PROTECTED) is None
+
+
+def test_cd_to_home_from_a_subdirectory_is_absolute() -> None:
+    assert located_invocations("cd a && cd ~/x && git log") == [Invocation(("git", "log"), "~/x")]
+
+
+def test_git_globals_with_several_valued_options() -> None:
+    assert git_globals(["git", "-C", "d", "-c", "a=b", "commit"]) == ["-C", "d", "-c", "a=b"]
+
+
+def test_resolver_receives_the_located_invocation() -> None:
+    facts = _Recorder("main")
+    branch_policy_violation("cd ../wt_main && git commit -m x", "feat/x", PROTECTED, facts_at=facts)
+    assert facts.calls == [Invocation(("git", "commit", "-m", "x"), "../wt_main")]

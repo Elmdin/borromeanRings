@@ -50,6 +50,35 @@ substring `git commit` or `git push` is still refused — exactly what the previ
 did. A narrower parser must never let through what the old match caught (PR #126 was a
 real regression of that shape); precision is added on top, never traded for coverage.
 
+**Aliases (PR #169 review).** `git config alias.p push` then `git p origin main`
+contains neither `push` nor a known subcommand. The guard therefore (a) resolves a
+non-builtin subcommand through the repo's aliases (`git config --get-regexp ^alias\.`,
+fixed argv, read from the command's effective repo) merged with any `-c alias.x=…` /
+`GIT_CONFIG_*` stated on the command line, and judges the *expansion* (chains followed,
+depth-bounded); a shell alias (`!…`), an unparseable/cyclic one, or a `--config-env`
+value it cannot read is **opaque** — refused while HEAD is protected or when its text
+names a protected branch; and (b) refuses *planting* one: `git config` in any scope
+(`--global`, `--system`, `--worktree`, `-f`, `--add`, `--replace-all`), inline `-c`,
+and `GIT_CONFIG_KEY/VALUE/PARAMETERS` that set an alias whose expansion contains
+`push|commit|merge|rebase|reset|branch|update-ref|symbolic-ref` or starts with `!`.
+Floor: any command mentioning `alias.`, `[alias]`, `.git/config` or `.gitconfig`
+together with one of those verbs is refused — an alias written by redirection cannot
+be parsed, only refused. Logic: `meta_harness.trunk_aliases` (pure).
+
+**Effective directory (PR #169 review).** `cd ../other && git commit` acts in
+`../other`, not where the hook read HEAD. `located_invocations` follows `cd`/`pushd`
+across the whole command (relative chains joined; `cd -`/`popd` mark the directory
+unknowable), and `-C`/`--git-dir`/`--work-tree` are honoured; for such invocations
+the guard reads HEAD and aliases *there* (`meta_harness.trunk_policy_git`, fixed
+argv). When the directory cannot be resolved, the reading is conservative: HEAD is
+taken to be the first declared protected branch checked out in **any** worktree of
+the governed repo (`git worktree list --porcelain`), so a write in an unknown place
+is refused rather than waved through.
+
+**Out of scope:** non-shell invocations (a Python `subprocess.run(["git", "push", …])`,
+an editor plugin, a Makefile target) are not seen by a Bash PreToolUse hook at all —
+that is what the gate backstop and server-side protection (#60) are for.
+
 ### 3.2 Gate backstop (`checks/shared/08_branch.sh`)
 When HEAD is a protected branch and it carries commits its remote ref lacks
 (`git rev-list --count <upstream|origin/branch>..HEAD` > 0), the check **fails**:
@@ -106,12 +135,23 @@ Every row is a test in `tests/unit/test_trunk_policy.py` (exact reason) and
 | `git fetch`, `git fetch origin main`, `git log main`, `git diff main...HEAD`, `git show main:f`, `git status`, `git rev-parse …`, `git stash`, `git tag v1` | any | allow | read-only / not a branch write |
 | `grep -r 'git push --force' docs/`, `cat > f <<'EOF' … git push origin main … EOF` | F | allow | a mention is not an invocation (heredoc bodies skipped) |
 | same two | P | **deny (floor)** | see the floor rule |
+| `git p origin main` with `alias.p = push` | any | **deny** | resolved through the alias; reason says `[via alias 'p' = 'push']` |
+| `git c -m x` with `alias.c = commit` | P | **deny** | alias to a commit |
+| `git l` with `alias.l = log --oneline` | any | allow | alias to a read |
+| `git s` with `alias.s = !…` (shell alias) | P | **deny** | opaque alias on a protected branch |
+| `git sh` with `alias.sh = !git push origin main` | F | **deny** | opaque alias whose text names a protected branch |
+| `git config [--global\|-f …\|--add] alias.p push` (any verb / `!`) | any | **deny** | plants a branch-writing alias |
+| `git -c alias.q=push q origin feat/x`, `GIT_CONFIG_KEY_0=alias.q … git q` | any | **deny** | inline alias planting |
+| `git config alias.lg 'log --oneline'`, `git config --get alias.p`, `--unset alias.p` | any | allow | read / harmless alias |
+| `echo '[alias] p = push' >> .git/config` | any | **deny (floor)** | alias/config mention + verb |
+| `cd ../wt-on-main && git commit`, `git -C ../wt-on-main commit` | F | **deny** | judged in the effective directory (HEAD there is protected) |
+| `cd ../wt-on-feature && git commit` | F | allow | HEAD there is a feature branch |
+| `cd nowhere && git commit` | F | **deny** if a protected branch is checked out in any worktree | directory unknowable ⇒ conservative |
 | anything | detached HEAD | allow (push rows still apply) | no branch to protect |
 | anything | `protected_branches = []` | allow | policy off (opt-in) |
 
-Known conservative edge: `git -C /elsewhere commit` is judged against the *governed*
-project's HEAD (the fixed-argv read), so it can be refused while the governed repo sits
-on `main` even though the other repo does not — the same trade the previous guard made.
+Known conservative edges: the alias floor also refuses e.g. `grep push .git/config`;
+`git config alias.b 'branch -a'` (a read) is refused because `branch` is a listed verb.
 
 ## 5. Server-side enforcement (#60) — the maintainer's call
 The local layers are aids; the platform is the backstop. This spec **documents** the

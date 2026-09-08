@@ -23,9 +23,18 @@ docs/specs/SPEC-branch-policy.md.
 from __future__ import annotations
 
 import fnmatch
+import os
 import shlex
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+
+from meta_harness.trunk_aliases import (
+    POLICY,
+    alias_floor,
+    alias_write_violation,
+    inline_aliases,
+    resolve_alias,
+)
 
 #: git global options that consume the following argument.
 _GIT_GLOBAL_WITH_VALUE: frozenset[str] = frozenset(
@@ -56,8 +65,11 @@ _BRANCH_REWRITE_FLAGS: frozenset[str] = frozenset(
 _PUSH_WITH_VALUE: frozenset[str] = frozenset(
     {"--repo", "--receive-pack", "--exec", "-o", "--push-option"}
 )
+#: git global options that move the invocation to another repo/directory.
+_DIR_GLOBALS: tuple[str, ...] = ("-C", "--git-dir", "--work-tree")
+#: Shell words that change the directory for the rest of the command.
+_CD_WORDS: frozenset[str] = frozenset({"cd", "pushd"})
 
-POLICY = "trunk-based policy, ADR-0058"
 COMMIT_HINT = "create a feature branch (git switch -c feat/<name>); land via PR + gate"
 
 
@@ -71,6 +83,28 @@ class PushSpec:
     implicit: bool  # no refspec ⇒ the current branch is pushed
     everything: bool  # --all / --mirror ⇒ every branch, protected ones included
     deletes: bool  # --delete / -d / ":branch" ⇒ the destinations are removed
+
+
+@dataclass(frozen=True)
+class Invocation:
+    """One git invocation and the directory the shell would run it in.
+
+    ``cwd`` is None when no ``cd`` preceded it (the command's own directory), a
+    path (relative to that directory, or absolute/``~``) after ``cd``/``pushd``
+    words, or ``"?"`` when the shell's directory can no longer be followed
+    (``cd -``, ``popd``).
+    """
+
+    argv: tuple[str, ...]
+    cwd: str | None = None
+
+
+@dataclass(frozen=True)
+class RepoFacts:
+    """What the guard knows about the repo an invocation acts on."""
+
+    head: str
+    aliases: Mapping[str, str] = field(default_factory=dict)
 
 
 # --- tokenizing a shell command line ---------------------------------------------
@@ -120,30 +154,49 @@ def _heredoc_tags(tokens: Sequence[str]) -> list[str]:
     ]
 
 
-def _invocations_in_line(tokens: Sequence[str]) -> list[list[str]]:
-    found: list[list[str]] = []
+def _after_cd(cwd: str | None, segment: Sequence[str]) -> str | None:
+    """The directory after a ``cd``/``pushd`` segment (``"?"`` when unknowable)."""
+    args = [a for a in segment[1:] if not a.startswith("-")]
+    if not args and "-" in segment[1:]:
+        return "?"  # `cd -`: the previous directory, which the guard never saw
+    target = args[0] if args else "~"
+    if os.path.isabs(target) or target.startswith("~") or cwd is None:
+        return target
+    return "?" if cwd == "?" else os.path.normpath(os.path.join(cwd, target))
+
+
+def _invocations_in_line(
+    tokens: Sequence[str], cwd: str | None
+) -> tuple[list[Invocation], str | None]:
+    found: list[Invocation] = []
     for segment in _segments(tokens):
         start = _head_index(segment)
         if start >= len(segment):
             continue
         head = _basename(segment[start])
         if head == "git":
-            found.append(list(segment))
+            found.append(Invocation(tuple(segment), cwd))
+        elif head in _CD_WORDS:
+            cwd = _after_cd(cwd, segment[start:])
+        elif head == "popd":
+            cwd = "?"
         elif head in _SHELLS and "-c" in segment:
             index = segment.index("-c")
             if index + 1 < len(segment):
-                found.extend(git_invocations(segment[index + 1]))
-    return found
+                found.extend(located_invocations(segment[index + 1], cwd))
+    return found, cwd
 
 
-def git_invocations(command: str) -> list[list[str]]:
-    """Every git invocation in a (possibly compound, multi-line) command, as argv lists.
+def located_invocations(command: str, cwd: str | None = None) -> list[Invocation]:
+    """Every git invocation in a (possibly compound, multi-line) command, with its cwd.
 
     Heredoc bodies are skipped: a file being WRITTEN that mentions ``git push`` is
     not a push. Backslash continuations are joined first. A line that fails to lex
-    (unbalanced quote) is skipped — the substring floor still covers it.
+    (unbalanced quote) is skipped — the substring floor still covers it. ``cd``
+    words are followed across the whole command, so ``cd ../other && git commit``
+    is known to act in ``../other``.
     """
-    found: list[list[str]] = []
+    found: list[Invocation] = []
     pending: list[str] = []  # heredoc terminators still to be consumed
     for line in command.replace("\\\n", " ").splitlines():
         if pending:
@@ -154,9 +207,29 @@ def git_invocations(command: str) -> list[list[str]]:
             tokens = _tokenize(line)
         except ValueError:
             continue
-        found.extend(_invocations_in_line(tokens))
+        invocations, cwd = _invocations_in_line(tokens, cwd)
+        found.extend(invocations)
         pending.extend(_heredoc_tags(tokens))
     return found
+
+
+def git_invocations(command: str) -> list[list[str]]:
+    """Every git invocation in ``command`` as a plain argv list (see located_invocations)."""
+    return [list(inv.argv) for inv in located_invocations(command)]
+
+
+def git_globals(argv: Sequence[str]) -> list[str]:
+    """git's global option tokens (``-C d``, ``--git-dir=x``, …) before the subcommand."""
+    start = _head_index(argv) + 1
+    index = start
+    while index < len(argv) and argv[index].startswith("-"):
+        index += 2 if argv[index] in _GIT_GLOBAL_WITH_VALUE else 1
+    return list(argv[start : min(index, len(argv))])
+
+
+def _moves_repo(argv: Sequence[str]) -> bool:
+    """True when the invocation's global options point at another repo/directory."""
+    return any(g.startswith(_DIR_GLOBALS) for g in git_globals(argv))
 
 
 def git_subcommand(argv: Sequence[str]) -> tuple[str, list[str]]:
@@ -410,28 +483,80 @@ def _ref_violation(
     return None
 
 
-def branch_policy_violation(command: str, head: str, protected: Sequence[str]) -> str | None:
+def _opaque_alias_violation(
+    name: str, opaque: str, head: str, protected: Sequence[str]
+) -> str | None:
+    """A shell/unreadable alias is refused on a protected branch or if it names one."""
+    if head in protected:
+        return (
+            f"'git {name}' runs alias {opaque}, which the guard cannot see through, while "
+            f"'{head}' is protected ({POLICY}): {COMMIT_HINT}."
+        )
+    named = next((p for p in protected if p in opaque.split()), None)
+    if named is not None:
+        return (
+            f"'git {name}' runs alias {opaque}, which the guard cannot see through and "
+            f"names protected branch '{named}' ({POLICY}): spell the git command out."
+        )
+    return None
+
+
+def _invocation_violation(
+    invocation: Invocation, facts: RepoFacts, protected: Sequence[str]
+) -> str | None:
+    """Reason one located invocation violates the policy in its own repo, else None."""
+    head = facts.head
+    sub, args = git_subcommand(invocation.argv)
+    planted = alias_write_violation(invocation.argv, sub, args)
+    if planted:
+        return planted
+    aliases = {**facts.aliases, **inline_aliases(invocation.argv)}
+    real_sub, real_args, opaque = resolve_alias(sub, args, aliases)
+    if opaque is not None:
+        return _opaque_alias_violation(sub, opaque, head, protected)
+    via = f" [via alias '{sub}' = '{aliases[sub]}']" if real_sub != sub else ""
+    if head in protected and _lands_on_head(real_sub, real_args, head):
+        return (
+            f"'{head}' is a protected branch ({POLICY}): 'git {real_sub}' would land work "
+            f"directly on it — {COMMIT_HINT}.{via}"
+        )
+    reason = _ref_violation(real_sub, real_args, head, protected)
+    return f"{reason}{via}" if reason else None
+
+
+def branch_policy_violation(
+    command: str,
+    head: str,
+    protected: Sequence[str],
+    *,
+    aliases: Mapping[str, str] | None = None,
+    facts_at: Callable[[Invocation], RepoFacts] | None = None,
+) -> str | None:
     """Reason ``command`` would violate the protected-branch policy, else None.
 
     Args:
         command: the shell command about to run.
-        head: current branch (``""``/``"HEAD"`` = detached).
+        head: current branch of the command's own directory (``""``/``"HEAD"`` = detached).
         protected: declared ``[collaboration].protected_branches``; empty ⇒ off.
+        aliases: the repo's git aliases (``{name: expansion}``); None ⇒ none known.
+        facts_at: resolver for invocations that act in ANOTHER directory/repo
+            (after ``cd``, or with ``-C``/``--git-dir``/``--work-tree``); None ⇒
+            such invocations are judged against ``head``/``aliases``.
     """
     if not protected:
         return None
-    on_protected = head in protected
-    for argv in git_invocations(command):
-        sub, args = git_subcommand(argv)
-        if on_protected and _lands_on_head(sub, args, head):
-            return (
-                f"'{head}' is a protected branch ({POLICY}): 'git {sub}' would land work "
-                f"directly on it — {COMMIT_HINT}."
-            )
-        reason = _ref_violation(sub, args, head, protected)
+    default = RepoFacts(head=head, aliases=aliases or {})
+    for invocation in located_invocations(command):
+        facts = default
+        if facts_at is not None and (invocation.cwd is not None or _moves_repo(invocation.argv)):
+            facts = facts_at(invocation)
+        reason = _invocation_violation(invocation, facts, protected)
         if reason:
             return reason
-    return _floor_violation(command, head) if on_protected else None
+    floor = alias_floor(command)
+    if floor:
+        return floor
+    return _floor_violation(command, head) if head in protected else None
 
 
 # --- the gate's decision (08_branch backstop) ------------------------------------------

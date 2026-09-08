@@ -13,10 +13,10 @@ skills alone are ~30 KB.
 ## Decision
 Add `19_context_budget` + `meta_harness.context_budget`: measure the prompt-rewrite
 directive, root `CLAUDE.md`/`AGENTS.md`, every `SKILL.md`, and the hook message
-templates as bytes (+ tokens ≈ bytes/4), and **ratchet the byte total** against
-`.borromeanrings-context-baseline` — non-regression, no absolute cap. Nothing measurable
+templates (the literal on each `echo`/`printf`/`deny` line) as bytes (+ tokens ≈
+bytes/4), and **ratchet the byte total** against `.borromeanrings-context-baseline` — non-regression, no absolute cap. Nothing measurable
 ⇒ `noop`; an unreadable baseline fails closed. Register it in the recommended adoption
-set, seeded even for package-less projects. borromeanRings's own baseline: `31893`.
+set, seeded even for package-less projects. borromeanRings's own baseline: `32174`.
 
 ## Alternatives considered
 - **An absolute token cap** — rejected: an arbitrary number to game, and the right cap

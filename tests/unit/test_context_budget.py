@@ -48,6 +48,25 @@ def test_hook_message_bytes_counts_only_echo_and_printf_literals() -> None:
     assert hook_message_bytes(script) == 5 + 7 + 4
 
 
+def test_hook_message_bytes_counts_deny_helper_reasons_exactly() -> None:
+    """The PreToolUse guard emits through a deny() helper (json.dumps), not echo."""
+    script = (
+        "deny() {\n"
+        "  python3 -c \"import json,sys; print(json.dumps({'permissionDecisionReason':"
+        ' sys.argv[1]}))" "$1"\n'  # the helper body: not a message line
+        "}\n"
+        'case "$cmd" in\n'
+        '    *"sudo"*) deny "Refusing sudo." ;;\n'  # not at line start: not counted
+        '  *"fork"*)\n'
+        '    deny "Refusing fork bomb." ;;\n'  # 19
+        "esac\n"
+        'reason="Commits to main are blocked."\n'  # assignment: not counted
+        '[ -n "$reason" ] && deny "$reason"\n'  # composed at run time: not counted
+        "deny 'Refusing bare force-push.'\n"  # 25
+    )
+    assert hook_message_bytes(script) == 19 + 25
+
+
 def test_hook_message_bytes_empty_script_is_zero() -> None:
     assert hook_message_bytes("") == 0
     assert hook_message_bytes("set -uo pipefail\nexit 0\n") == 0

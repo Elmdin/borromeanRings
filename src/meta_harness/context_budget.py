@@ -13,9 +13,11 @@ number gates). Sources, per governed project root:
 * ``skill`` — every ``skills/*/SKILL.md`` and ``.claude/skills/*/SKILL.md`` (the
   frontmatter is always loaded; the body on invocation — the whole file is counted
   as the upper bound).
-* ``hook`` — the static message text a hook script can emit to the agent: the
-  quoted literals on ``echo``/``printf`` lines of ``.claude/hooks/*.sh`` (a
-  template weight; dynamic gate output is out of scope — see SPEC-context-budget).
+* ``hook`` — the static message templates a hook script can emit to the agent:
+  the quoted literal on every line of ``.claude/hooks/*.sh`` whose first word is
+  ``echo``, ``printf`` or ``deny`` (the PreToolUse guard's helper, which wraps its
+  argument as ``permissionDecisionReason``). Messages composed at run time
+  (``deny "$reason"``, the gate's verdict text) are out of scope — see the SPEC.
 
 Tokens are **approximated as bytes / 4, rounded up** (``BYTES_PER_TOKEN``): the
 common English-prose rule of thumb, deliberately chosen over a tokenizer dependency
@@ -35,9 +37,10 @@ DIRECTIVE_PATH = "<prompt_rewrite directive>"
 _INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md")
 _SKILL_ROOTS = ("skills", ".claude/skills")
 _HOOKS_DIR = ".claude/hooks"
-# A line whose first word is echo/printf, followed by one quoted literal: the
-# message template the hook would print. Group 2 or 3 holds the literal's text.
-_MESSAGE_LINE = re.compile(r"""^\s*(echo|printf)\s+(?:"([^"]*)"|'([^']*)')""")
+# A line whose first word is echo/printf/deny, followed by one quoted literal: the
+# message template the hook would emit. Group 2 or 3 holds the literal's text.
+_MESSAGE_VERBS = ("echo", "printf", "deny")
+_MESSAGE_LINE = re.compile(r"^\s*(" + "|".join(_MESSAGE_VERBS) + r""")\s+(?:"([^"]*)"|'([^']*)')""")
 
 
 @dataclass(frozen=True)
@@ -72,7 +75,7 @@ def estimate_tokens(n_bytes: int) -> int:
 
 
 def hook_message_bytes(script: str) -> int:
-    """UTF-8 bytes of the quoted literals on ``echo``/``printf`` lines of a hook script."""
+    """UTF-8 bytes of the quoted literal on each ``echo``/``printf``/``deny`` line of a hook."""
     total = 0
     for line in script.splitlines():
         found = _MESSAGE_LINE.match(line)

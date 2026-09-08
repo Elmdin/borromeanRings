@@ -23,7 +23,7 @@ queue is merged.
   unreadable baseline fails closed. Non-regression only, no absolute cap. Registered in
   `[checks].required`, in `adopt.py` `RECOMMENDED`/`RATCHET_BASELINES` (seeded even when
   the project declares no package), catalogued in `docs/CHECKS.md`; borromeanRings's own
-  baseline seeded at 31893 B (~8K tokens). Unit- (100% line+branch) and integration-tested
+  baseline seeded at 32174 B (~8K tokens). Unit- (100% line+branch) and integration-tested
   (pass / regression / noop / unseeded / unreadable).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those

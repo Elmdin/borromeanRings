@@ -25,7 +25,7 @@ gates).
   | `directive` | `prompt_rewrite.build_directive([context])`, only if `[prompt_rewriting].enabled` | every prompt |
   | `instructions` | `CLAUDE.md`, `AGENTS.md` at the root | every session |
   | `skill` | `skills/*/SKILL.md`, `.claude/skills/*/SKILL.md` | frontmatter every session; body on invocation (whole file counted — the upper bound) |
-  | `hook` | quoted literals on `echo`/`printf` lines of `.claude/hooks/*.sh` | when the hook speaks to the agent (template weight; zero-literal scripts have no row) |
+  | `hook` | the quoted literal on each line of `.claude/hooks/*.sh` whose first word is `echo`, `printf` or `deny` (the PreToolUse guard's helper, whose argument becomes `permissionDecisionReason`) | when the hook speaks to the agent (template weight; zero-literal scripts have no row) |
 - **Units:** bytes (exact, UTF-8) and tokens **≈ ceil(bytes / 4)** — the prose rule
   of thumb, chosen over a tokenizer dependency; a ratchet needs a *consistent* measure,
   not an exact one. The ratchet keys on **bytes**.
@@ -42,15 +42,16 @@ gates).
 
 ### borromeanRings's baseline
 
-`31893` B (~7978 tokens): the directive (862), `AGENTS.md` (1230), nine `SKILL.md`
-files (29594), and `stop_gate.sh`'s templates (207). A new or longer skill that pushes
-the total up fails the gate until trimmed — or the baseline is raised on purpose, in a
-reviewed commit.
+`32174` B (~8049 tokens): the directive (862), `AGENTS.md` (1230), nine `SKILL.md`
+files (29594), and the `pre_bash_guard.sh` + `stop_gate.sh` templates (281 + 207). A
+new or longer skill that pushes the total up fails the gate until trimmed — or the
+baseline is raised on purpose, in a reviewed commit.
 
 ## Out of scope (deliberate)
 
-- **Dynamic gate output** (the verdict table the Stop hook feeds back on failure): it
-  varies per run, so ratcheting it would jitter; auditing it is the separate
+- **Messages composed at run time** — `deny "$reason"` with a reason built from the
+  branch/config, and the verdict table the Stop hook feeds back on failure: they vary
+  per run, so ratcheting them would jitter; auditing it is the separate
   "gate output trimmed to what a reader acts on" item in #135.
 - **Exact tokenization**: would add a model-specific dependency for no ratchet benefit.
 - **The MCP-vs-CLI advisory** and the enhancement-catalog entry from #135: advisory

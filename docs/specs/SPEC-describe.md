@@ -24,7 +24,7 @@ only** — never from hand-written prose that can drift:
 | Checks (id, what it enforces, lane) | `checks/{shared,python,ci}/[0-9]*.sh` | parse `id=`/`cmd=`; fallback: `run_check "ID" "tool"` for the five inline scripts |
 | Which are required / heavy *here* | `borromeanrings.toml` via `load_config` | `required_checks`, `heavy_checks` |
 | Ratchets | the `cmd=` text contains "ratchet" | derived, not listed by hand |
-| Decisions | `docs/adr/0*.md` | count + the ADR each check's header cites |
+| Decisions | `docs/adr/0*.md` | count only (per-check ADR citation lives in `docs/CHECKS.md`) |
 | Governance matrices | `docs/ENFORCEMENT-COVERAGE.md` §6 table | parse `| **Name** | status |` rows — the one hand-maintained input, and it is the matrices' single source |
 | Commands | `*.sh` at repo root | verify / status / ledger / merge / init / adopt / install-global |
 | Skills | `.claude/skills/*/` directory names | the installed set, not their prose |

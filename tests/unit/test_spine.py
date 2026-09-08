@@ -1,10 +1,11 @@
 """Tests for the policy spine loader (docs/specs/SPEC-spine.md §5)."""
 
+import warnings
 from pathlib import Path
 
 import pytest
 
-from meta_harness.spine import load_config
+from meta_harness.spine import CONFIG_NAME, LEGACY_CONFIG_NAME, load_config, resolve_config_path
 
 
 def _write(tmp_path: Path, body: str) -> Path:
@@ -241,3 +242,46 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+# --- legacy config-name fallback (issue #62: borromeo.toml -> borromeanrings.toml) ---
+
+
+def test_legacy_config_name_loads_with_deprecation_warning(tmp_path: Path) -> None:
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    canonical = tmp_path / "borromeanrings.toml"
+    with pytest.warns(DeprecationWarning, match="borromeo.toml.*borromeanrings.toml"):
+        loaded = load_config(canonical)
+    assert loaded.required_checks == ("00_build",)
+
+
+def test_canonical_config_name_wins_over_legacy_without_warning(tmp_path: Path) -> None:
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["legacy"]\n', encoding="utf-8")
+    canonical = _write(tmp_path, '[checks]\nrequired = ["canonical"]\n')
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loaded = load_config(canonical)
+    assert loaded.required_checks == ("canonical",)
+    assert caught == []
+
+
+def test_missing_both_config_names_raises(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        load_config(tmp_path / "borromeanrings.toml")
+
+
+def test_resolve_config_path_falls_back_only_for_canonical_name(tmp_path: Path) -> None:
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    other = tmp_path / "other.toml"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert resolve_config_path(other) == other
+        assert resolve_config_path(str(other)) == other
+    assert caught == []
+    canonical = str(tmp_path / "borromeanrings.toml")
+    with pytest.warns(DeprecationWarning):
+        assert resolve_config_path(canonical) == tmp_path / "borromeo.toml"
+
+
+def test_config_name_constants_are_the_two_spellings() -> None:
+    assert (CONFIG_NAME, LEGACY_CONFIG_NAME) == ("borromeanrings.toml", "borromeo.toml")

@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from meta_harness.status import (
     ProjectStatus,
     build_status,
@@ -309,3 +311,36 @@ def test_main_render_mode(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "proj" in out
     assert "governed" in out
+
+
+# --- legacy config name (issue #62) -----------------------------------------
+
+
+def _write_legacy_project(root: Path, toml: str = _MINIMAL_TOML) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "borromeo.toml").write_text(toml, encoding="utf-8")
+    return root
+
+
+def test_discover_finds_legacy_named_project(tmp_path: Path) -> None:
+    _write_legacy_project(tmp_path / "old")
+    _write_project(tmp_path / "new")
+    assert discover_projects([tmp_path]) == [
+        (tmp_path / "new").resolve(),
+        (tmp_path / "old").resolve(),
+    ]
+
+
+def test_gather_legacy_project_loads_config_and_tracks_dirty(tmp_path: Path) -> None:
+    proj = _write_legacy_project(tmp_path / "old")
+    _git_init(proj)
+    subprocess.run(["git", "-C", str(proj), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(proj), "commit", "-q", "-m", "init"], check=True)
+    with pytest.warns(DeprecationWarning):
+        clean = gather(proj)
+    assert clean.required_count == 2
+    assert clean.config_dirty is False
+    (proj / "borromeo.toml").write_text(_MINIMAL_TOML + "\n# edit\n", encoding="utf-8")
+    with pytest.warns(DeprecationWarning):
+        dirty = gather(proj)
+    assert dirty.config_dirty is True

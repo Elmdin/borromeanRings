@@ -25,7 +25,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from meta_harness.spine import load_config
+from meta_harness.spine import CONFIG_NAME, LEGACY_CONFIG_NAME, load_config
 from meta_harness.status_assess import (
     ProjectStatus,
     build_status,
@@ -50,11 +50,15 @@ _SKIP_DIRS = frozenset(
         "venv",
     }
 )
-_CONFIG_NAME = "borromeanrings.toml"
+_CONFIG_NAME = CONFIG_NAME
+# Both spellings mark a governed project; the legacy one loads via spine's fallback.
+_CONFIG_NAMES = (CONFIG_NAME, LEGACY_CONFIG_NAME)
 
 
 def discover_projects(roots: Sequence[Path | str], *, max_depth: int = 6) -> list[Path]:
     """Every directory containing ``borromeanrings.toml`` under ``roots`` (depth-bounded).
+
+    A legacy ``borromeo.toml`` (pre-rename, issue #62) also marks a governed project.
 
     Build-output, vendored, and cache directories are pruned from the walk.
     """
@@ -68,7 +72,7 @@ def discover_projects(roots: Sequence[Path | str], *, max_depth: int = 6) -> lis
             if depth >= max_depth:
                 dirnames[:] = []
             dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
-            if _CONFIG_NAME in filenames:
+            if any(name in filenames for name in _CONFIG_NAMES):
                 # Resolve so a symlinked alias and its real path collapse to one row.
                 found.add(Path(dirpath).resolve())
     return sorted(found)
@@ -91,7 +95,7 @@ def _is_git_repo(path: Path) -> bool:
 def _config_dirty(path: Path) -> bool:
     try:
         result = subprocess.run(  # nosec B603 B607 — fixed argv, no shell; only queries git
-            ["git", "-C", str(path), "status", "--porcelain", _CONFIG_NAME],
+            ["git", "-C", str(path), "status", "--porcelain", "--", *_CONFIG_NAMES],
             capture_output=True,
             text=True,
             check=False,

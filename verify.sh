@@ -25,8 +25,14 @@ export BORROMEANRINGS_HOME PROJECT_ROOT
 CONFIG="$PROJECT_ROOT/borromeanrings.toml"
 
 if [ ! -f "$CONFIG" ]; then
-  echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
-  exit 1
+  if [ -f "$PROJECT_ROOT/borromeo.toml" ]; then
+    # Pre-rename config name (issue #62): still honored (meta_harness.spine falls back to
+    # it), but deprecated — say so on every run until the project renames the file.
+    echo "borromeanRings: DEPRECATED config name borromeo.toml in $PROJECT_ROOT — still honored; rename it: git mv borromeo.toml borromeanrings.toml (see docs/RENAME.md)." >&2
+  else
+    echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
+    exit 1
+  fi
 fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the

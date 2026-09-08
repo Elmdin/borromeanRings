@@ -12,7 +12,20 @@ queue is merged.
 
 ## [Unreleased]
 
+### Deprecated
+- The pre-rename config file name `borromeo.toml` (issue #62). It still loads —
+  `meta_harness.spine.resolve_config_path` falls back to it when `borromeanrings.toml`
+  is absent, with a `DeprecationWarning`; `verify.sh` prints a notice on every run and
+  the hooks/`status.sh` still recognise the project — so no already-governed project
+  silently falls out of governance. Migrate with `git mv borromeo.toml borromeanrings.toml`.
+  The `meta_harness` package and the `.meta-harness/` evidence directory are deliberately
+  NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
+
 ### Added
+- `docs/RENAME.md` (issue #62): the borromeo -> borromeanRings rename tail — what was
+  renamed, what deliberately was not and why, and the exact commands to fix a local
+  clone's remote URL, re-run `install-global.sh`, and refresh the GitHub label
+  descriptions that still say "borromeo".
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

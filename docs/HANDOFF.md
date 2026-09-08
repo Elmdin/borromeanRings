@@ -55,9 +55,9 @@ PR, get it reviewed, and hand the approval to a human.
 
 Work the queue in this order. Each stage's PRs are independent of the next stage's.
 
-**Stage 0 — land what is open.** As of 2026-09-05: #129, #123, #122, #124 are CI-clean
-and stacked in that order; #125, #126, #127 follow once their bases land. Approvals are
-the only thing outstanding.
+**Stage 0 — land what is open.** As of 2026-09-05: #129 and #147 are independent and
+CI-clean; #123, #122, #124 are CI-clean and stacked in that order; #125, #126, #127
+follow once their bases land. Approvals are the only thing outstanding.
 
 **Stage 1 — the gate learns to look before it builds.** #131 (prior-art & reuse gate).
 Its Ruff component is a one-line config change; do that first, resolve every finding
@@ -73,7 +73,8 @@ recommends abandonware), #128 (adopt.sh tests), #137 (PreCompact hook).
 
 **Stage 4 — the big features, each spec-first.** #130 (API-usage contracts; needs
 `ast-grep` and breaks the Python-only barrier), #79 + #138 (archetypes and the remaining
-matrices — #79's "must be non-`noop`" idea is the mechanism), #134 (evidence + risk band).
+matrices — the "an archetype declares which checks must be non-`noop`" mechanism described
+in #130 and #138 is what makes #79 tractable), #134 (evidence + risk band).
 
 **Stage 5 — research epics, build only on an explicit go.** #140–#146. Each says so in
 its body. Spec, then stop and ask.
@@ -86,13 +87,13 @@ worked at any point.
 | Question | Source |
 |---|---|
 | What does every check enforce? | `docs/CHECKS.md` (generated claims must match the registry — #132 gates this) |
-| Why is the code shaped this way? | `docs/adr/` — 50 ADRs; read the one a check cites |
+| Why is the code shaped this way? | `docs/adr/` — read the one a check cites (do not trust any count written in prose; `ls docs/adr` is the truth) |
 | What is shipped vs planned? | `docs/ROADMAP.md` (Phase 1.5 is what shipped after v0) |
 | What is enforced across the six matrices? | `docs/ENFORCEMENT-COVERAGE.md` |
 | What was researched and why? | `docs/research/` — video review, tooling survey |
 | How is this repo governed? | `borromeanrings.toml` — the policy spine, single source of truth |
 | Is it working right now? | `./status.sh` (this project) · `./ledger.sh` (is the gate catching anything) |
-| How do I label/prioritise an issue? | `docs/TRIAGE.md` |
+| How do I label/prioritise an issue? | `docs/TRIAGE.md` (lands with #129) |
 
 The index of all open work is epic **#69**.
 

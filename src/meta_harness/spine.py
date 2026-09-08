@@ -84,6 +84,11 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [supply_chain] — lockfile integrity + pinned dependencies (ADR-0061). No lockfile
+    # declared ⇒ 76_lockfile is a noop; pin_optional extends 78_pins to optional groups.
+    supply_chain_lockfile: str = ""
+    supply_chain_manifests: tuple[str, ...] = ("pyproject.toml", "package.json")
+    supply_chain_pin_optional: bool = False
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -120,6 +125,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    supply_chain = raw.get("supply_chain", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -172,4 +178,9 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        supply_chain_lockfile=str(supply_chain.get("lockfile", "")),
+        supply_chain_manifests=tuple(
+            supply_chain.get("manifests", ["pyproject.toml", "package.json"])
+        ),
+        supply_chain_pin_optional=bool(supply_chain.get("pin_optional", False)),
     )

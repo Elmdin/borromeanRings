@@ -241,3 +241,21 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_supply_chain_loaded_and_defaults(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[supply_chain]\n'
+        'lockfile = "uv.lock"\nmanifests = ["pyproject.toml"]\npin_optional = true\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.supply_chain_lockfile == "uv.lock"
+    assert cfg.supply_chain_manifests == ("pyproject.toml",)
+    assert cfg.supply_chain_pin_optional is True
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.supply_chain_lockfile == ""
+    assert off.supply_chain_manifests == ("pyproject.toml", "package.json")
+    assert off.supply_chain_pin_optional is False

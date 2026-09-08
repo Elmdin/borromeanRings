@@ -13,6 +13,25 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Supply-chain hardening (ADR-0061, #58): two heavy-lane checks and an SBOM entry point,
+  all native (stdlib only, no network, no new dependency) and threshold-free.
+  **`76_lockfile`** fails when a dependency manifest (`pyproject.toml`, `package.json`)
+  changed since the merge-base without the declared `[supply_chain].lockfile` changing —
+  working-tree and untracked changes count; no lockfile declared ⇒ `noop`, declared-but-
+  missing / non-git / git error ⇒ fail closed. **`78_pins`** requires every
+  `[project].dependencies` requirement (optional groups too with `pin_optional = true`)
+  to carry an upper bound or exact pin (`==`, `~=`, `<`; a direct URL needs a commit hash
+  or `sha256=`), naming each offending line verbatim; no requirements ⇒ `noop`; `dynamic`
+  dependencies or malformed TOML ⇒ fail. **`sbom.sh`** emits a deterministic CycloneDX 1.5
+  JSON of the declared closure via `tomllib` + `importlib.metadata` (name/version/purl +
+  dependency graph; unresolved requirements listed, never dropped) — an inventory that
+  states it is *not* signed or attested. Applied here: `lockfile = ""` (this repo has none
+  and nothing regenerates one — honest `noop`), `pin_optional = true`, and every dev
+  requirement bounded above at its next major. Dependabot, SLSA provenance/signing and
+  SHA-pinned Actions need CI or a remote service and are recorded in the ADR as maintainer
+  decisions with the exact config. Unit (100 % line + branch on both modules) + integration
+  (real `verify.sh --heavy` on fixture repos: stale lock ⇒ red; both changed ⇒ green;
+  undeclared ⇒ `noop`; missing lock and broken git index ⇒ fail closed).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

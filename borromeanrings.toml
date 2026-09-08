@@ -69,6 +69,19 @@ ignore_vulns = []
 deny = ["GPL-2", "GPL-3", "GPLv2", "GPLv3", "AGPL", "Affero", "SSPL", "GNU General Public"]
 allow_packages = []
 
+[supply_chain]
+# Lockfile integrity (heavy check 76_lockfile) + pinned dependencies (heavy check
+# 78_pins). ADR-0061. This repo has NO lockfile today: it is a source-installed tool
+# whose only dependencies are the dev toolchain (`pip install -e ".[dev]"` in CI), and
+# no maintainer tooling produces uv.lock/poetry.lock — so `lockfile` is empty and
+# 76_lockfile reports noop, honestly, rather than inventing a lock nothing regenerates.
+# Declare one here the day a lockfile exists (e.g. lockfile = "uv.lock"). pin_optional
+# is on because the dev group IS this project's supply chain: every check parses those
+# tools' output, so an unbounded major bump can silently change a verdict.
+lockfile = ""
+manifests = ["pyproject.toml", "package.json"]
+pin_optional = true
+
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
@@ -123,6 +136,8 @@ heavy = [
   "70_pip_audit",
   "72_licenses",
   "74_secret_history",
+  "76_lockfile",
+  "78_pins",
 ]
 
 [hygiene]

@@ -67,7 +67,7 @@ harder to game.
 | Dependency / CVE audit | T0 | ✅ | `checks/ci/70_pip_audit.sh` (heavy lane) — pip-audit, `[audit]` ignores (ADR-0034) |
 | Secret scanning | T0 | ✅ | `checks/shared/12_secrets.sh` — native high-confidence scan (tracked files); gitleaks (entropy) is the heavy-lane follow-up (ADR-0032). **Hardening candidate:** fails vacuously on a non-git dir (empty `git ls-files`) — a "can't-scan ≠ nothing-to-find" gap found in rollout (spaceThink) |
 | Git-history secret scan | T0 | ❌ | candidate — a deleted-then-committed secret stays compromised; scan history, not just HEAD |
-| Pinned deps / lockfile integrity / SBOM | T0 | ⚠️ | `pyproject.toml`; no lockfile-integrity gate. **SBOM generation + supply-chain provenance** is the next security build (candidate) |
+| Pinned deps / lockfile integrity / SBOM | T0 | ✅ | `checks/ci/78_pins.sh` (upper bound / exact pin per requirement), `checks/ci/76_lockfile.sh` (manifest change ⇒ lockfile change; `noop` here — no lockfile), `sbom.sh` (CycloneDX 1.5, stdlib, unsigned) — ADR-0061. Signing/provenance + Dependabot are maintainer decisions (CI-dependent; exact config in the ADR) |
 | License compliance | T0 | ✅ | `checks/ci/72_licenses.sh` (heavy lane) — pip-licenses denylist (ADR-0035) |
 | Fuzzing / DAST | T1/T3 | ❌ | |
 
@@ -164,7 +164,7 @@ real project of that archetype needs it (as `examples/textkit` justified `34_api
 | Matrix | Status | First real rows |
 |---|---|---|
 | **AI-agent quality** | partial | agent-enhancement recommender ✅; eval-regression ratchet, citation verification (candidates — **agent-only, no API keys**) |
-| **Security & compliance** | partial | SAST / CVE / secrets / licenses ✅; SBOM + git-history secret-scan (next) |
+| **Security & compliance** | partial | SAST / CVE / secrets / licenses / pins / lockfile / SBOM ✅; git-history secret-scan ✅; provenance signing + Dependabot (maintainer, CI-dependent) |
 | **Delivery / DORA** | partial | branch / commit / merge / CI gates ✅; PR-size ratchet (git-derivable); deploy-freq / MTTR (telemetry-gated) |
 | **Operational / SRE** | archetype | needs a deployed service (candidate archetype: `AutoApply`) |
 | **Data / ML** | archetype | needs an ML project |

@@ -106,3 +106,136 @@ def test_gather_brief_reads_wired_hooks_and_missing_identity(tmp_path: Path) -> 
     assert "Last gate: never run here" in text
     assert "Commit identity: no [git] identity declared" in text
     assert "Enforcement: MANUAL" in text
+
+
+# --- byte-exact renderings: every character of the brief traces to an input -------------
+
+
+def test_brief_is_byte_exact_with_a_failing_verdict() -> None:
+    text = render_brief(
+        project="/home/u/proj/",
+        verdict=Verdict(
+            ok=False,
+            checks=(("13_adr", "fail"), ("17_prior_art", "noop"), ("00_build", "pass")),
+            run_id="r9",
+            harness_version="v1",
+        ),
+        enforcement=Enforcement("partial", "2/6 hooks wired"),
+        identity=("wimaan3", "dev@example.com"),
+        harness_home="/opt/br",
+    )
+    assert text == "\n".join(
+        [
+            "borromeanRings context restored after compaction — proj",
+            "",
+            "Last gate: FAIL (run r9, borromeanRings v1)",
+            "Open obligations:",
+            "  - 13_adr: FAIL — fix before the next Stop gate",
+            "  - 17_prior_art: inspected nothing (noop) — a green here proves less than it looks",
+            "⚠ Enforcement: PARTIAL — 2/6 hooks wired",
+            "Commit identity policy: wimaan3 <dev@example.com>; author overrides are blocked",
+            "Re-gate: /opt/br/verify.sh",
+        ]
+    )
+
+
+def test_brief_is_byte_exact_with_a_clean_pass_and_no_run_id() -> None:
+    text = render_brief(
+        project="proj",
+        verdict=Verdict(ok=True, checks=(("00_build", "pass"),)),
+        enforcement=Enforcement("auto", "6/6 hooks wired"),
+        identity=None,
+        harness_home="/h",
+    )
+    assert text == "\n".join(
+        [
+            "borromeanRings context restored after compaction — proj",
+            "",
+            "Last gate: PASS (borromeanRings unknown version)",
+            "Open obligations: none recorded",
+            "Enforcement: AUTO — 6/6 hooks wired",
+            "Commit identity: no [git] identity declared",
+            "Re-gate: /h/verify.sh",
+        ]
+    )
+
+
+def test_brief_truncation_is_exact() -> None:
+    many = tuple((f"{i:02d}_c", "fail") for i in range(12))
+    text = render_brief(
+        project="/p",
+        verdict=Verdict(ok=False, checks=many),
+        enforcement=Enforcement("auto", "ok"),
+        identity=None,
+        harness_home="/h",
+    )
+    lines = text.splitlines()
+    assert lines[3] == "Open obligations:"
+    assert lines[4] == "  - 00_c: FAIL — fix before the next Stop gate"
+    assert lines[13] == "  - 09_c: FAIL — fix before the next Stop gate"
+    assert lines[14] == "  … and 2 more (see .meta-harness/)"
+    assert lines[15].startswith("Enforcement:")
+    # exactly ten listed, never eleven
+    assert sum(1 for line in lines if line.startswith("  - ")) == 10
+    # exactly ten ⇒ no truncation line at all
+    ten = render_brief(
+        project="/p",
+        verdict=Verdict(ok=False, checks=many[:10]),
+        enforcement=Enforcement("auto", "ok"),
+        identity=None,
+        harness_home="/h",
+    )
+    assert "more" not in ten
+
+
+def test_obligations_are_exact_and_ordered() -> None:
+    v = Verdict(ok=False, checks=(("b", "noop"), ("a", "error"), ("c", "pass"), ("d", "fail")))
+    assert obligations(v) == [
+        "a: ERROR — fix before the next Stop gate",
+        "d: FAIL — fix before the next Stop gate",
+        "b: inspected nothing (noop) — a green here proves less than it looks",
+    ]
+
+
+def _settings(project: Path, payload: str) -> None:
+    (project / ".claude").mkdir(exist_ok=True)
+    (project / ".claude" / "settings.json").write_text(payload, encoding="utf-8")
+
+
+def test_gather_brief_reports_auto_when_every_hook_is_wired(tmp_path: Path) -> None:
+    import json
+
+    from meta_harness.status_assess import HOOK_SCRIPTS
+
+    (tmp_path / "borromeanrings.toml").write_text(
+        '[checks]\nrequired = ["00_build"]\n', encoding="utf-8"
+    )
+    hooks = {
+        event: [{"hooks": [{"type": "command", "command": f"/opt/br/.claude/hooks/{script}"}]}]
+        for event, script in HOOK_SCRIPTS.items()
+    }
+    _settings(tmp_path, json.dumps({"hooks": hooks}))
+    text = gather_brief(tmp_path, "/opt/br")
+    n = len(HOOK_SCRIPTS)
+    assert f"Enforcement: AUTO — {n}/{n} hooks wired to this borromeanRings" in text
+    assert "⚠" not in text
+
+
+def test_gather_brief_settings_edge_cases(tmp_path: Path) -> None:
+    (tmp_path / "borromeanrings.toml").write_text(
+        '[checks]\nrequired = ["00_build"]\n[git]\nname = "n"\n', encoding="utf-8"
+    )
+    # no settings file at all ⇒ the "no .claude/settings.json" wording, and a name
+    # without an email is NOT an identity policy
+    text = gather_brief(tmp_path, "/h")
+    assert "⚠ Enforcement: MANUAL — no .claude/settings.json" in text
+    assert "Commit identity: no [git] identity declared" in text
+    # a valid but empty object ⇒ "no borromeanRings hooks wired"
+    _settings(tmp_path, "{}")
+    assert "no borromeanRings hooks wired" in gather_brief(tmp_path, "/h")
+    # a JSON array is not settings ⇒ treated as absent
+    _settings(tmp_path, "[]")
+    assert "no .claude/settings.json" in gather_brief(tmp_path, "/h")
+    # malformed ⇒ treated as absent
+    _settings(tmp_path, "{oops")
+    assert "no .claude/settings.json" in gather_brief(tmp_path, "/h")

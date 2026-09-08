@@ -241,3 +241,22 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_archetypes_loaded_and_default_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[project]\narchetypes = ["cli", "library"]\n',
+    )
+    assert load_config(declared).archetypes == ("cli", "library")
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).archetypes == ()
+
+
+def test_unknown_archetype_fails_closed_at_config_time(tmp_path: Path) -> None:
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[project]\narchetypes = ["cli", "firmware"]\n',
+    )
+    with pytest.raises(ValueError, match="firmware"):
+        load_config(config)

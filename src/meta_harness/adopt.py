@@ -27,6 +27,7 @@ RECOMMENDED: tuple[str, ...] = (
     "33_coupling",
     "45_docstrings",
     "01_source_coherence",
+    "21_archetype",  # noop until [project].archetypes is declared; then fail-closed
 )
 
 # Recommended checks that are ratchets: each needs a baseline file seeded from

@@ -8,6 +8,10 @@ language = "python"  # selects checks/python/ (+ checks/shared/); see ADR-0015
 package = "meta_harness"
 src_dir = "src"
 tests_dir = "tests"
+# What KIND of application this is (ADR-0062): a CLI (verify.sh / status.sh / adopt.sh
+# are the entry points) built on an importable library (meta_harness). Selects the
+# required features 21_archetype gates and requires 00_build + 40_test to be non-noop.
+archetypes = ["cli", "library"]
 
 [git]
 # Declared commit identity (the maintainer's — configurable, NOT a contributor
@@ -104,6 +108,7 @@ required = [
   "09_commits",
   "13_adr",
   "14_container",
+  "21_archetype",
   "12_secrets",
   "11_changelog",
   "10_format",

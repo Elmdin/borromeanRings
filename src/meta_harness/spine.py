@@ -14,6 +14,20 @@ from typing import Any
 
 import tomllib
 
+#: The closed vocabulary of application archetypes a project may declare in
+#: ``[project].archetypes``. Lives here (not in meta_harness.archetypes) because the spine
+#: is an architecture leaf and must import no domain module; the catalog is keyed by
+#: exactly these names and a unit test binds the two. See SPEC-archetypes.md, ADR-0062.
+ARCHETYPES: tuple[str, ...] = (
+    "library",
+    "cli",
+    "web-api",
+    "web-app",
+    "ml",
+    "embedded",
+    "data-pipeline",
+)
+
 
 @dataclass(frozen=True)
 class Config:
@@ -30,6 +44,10 @@ class Config:
     src_dir: str = "src"
     tests_dir: str = "tests"
     language: str = "python"  # selects checks/<language>/ — the per-language check set
+    # [project].archetypes — what KIND of application this is (ADR-0062). Selects the
+    # required-feature set 21_archetype gates and which checks must be non-noop. Empty ⇒
+    # the archetype dimension is off. Validated against ARCHETYPES (fail-closed).
+    archetypes: tuple[str, ...] = ()
     # [git] — declared commit identity; empty ⇒ identity enforcement is off.
     git_name: str = ""
     git_email: str = ""
@@ -86,6 +104,18 @@ class Config:
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
 
 
+def _archetypes(project: Mapping[str, Any]) -> tuple[str, ...]:
+    """``[project].archetypes`` validated against :data:`ARCHETYPES`; unknown ⇒ raise."""
+    declared = tuple(str(name) for name in project.get("archetypes", []))
+    unknown = [name for name in declared if name not in ARCHETYPES]
+    if unknown:
+        raise ValueError(
+            f"borromeanrings.toml [project].archetypes has unknown archetype(s) "
+            f"{', '.join(unknown)} — known: {', '.join(ARCHETYPES)} (fail-closed)."
+        )
+    return declared
+
+
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     """Load and validate the policy spine from ``borromeanrings.toml``.
 
@@ -99,7 +129,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         The validated :class:`Config`.
 
     Raises:
-        ValueError: if no required checks are declared.
+        ValueError: if no required checks are declared, or an archetype is unknown.
     """
     raw: dict[str, Any] = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     required = list(raw.get("checks", {}).get("required", []))
@@ -130,6 +160,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
         language=str(project.get("language", "python")),
+        archetypes=_archetypes(project),
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),
         specs_dir=str(layout.get("specs_dir", "")),

@@ -24,6 +24,27 @@ queue is merged.
   (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
 
 ### Added
+- Application archetypes (ADR-0062, #79 phase 1): a project declares what KIND of app it
+  is — `[project].archetypes = ["cli", "library"]` (vocabulary: `library`, `cli`,
+  `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`; unknown ⇒ fail closed at config
+  time) — and `21_archetype` gates the **required features of that kind**: a health route
+  declared, structured logging configured, an input-validation layer, an auth mechanism,
+  a rate limiter, config from the environment (web-api); an i18n catalog, a viewport meta,
+  a bundle budget, an error page (web-app); a model card, datasheet, schema, fixed seeds,
+  lockfile, evaluation script, baseline, NaN guard, rollback command (ml); watchdog,
+  static analysis, HAL, linker script, host tests, pinned toolchain (embedded); and so on.
+  Every feature is a binary file-presence or content-regex fact with an evidence path in
+  the log (`[src/api/routes.py:1]`) — no model, no network, no build; what cannot be decided
+  that way lives in the archetype's advisory **playbook** instead. The catalog is versioned
+  immutable data (`meta_harness.archetypes.CATALOG`). Second half: an archetype can require
+  a check to be **non-`noop`** — the verdict now turns the run FAIL when e.g. a declared
+  `web-app`'s `15_a11y` inspected no HTML (*"required to inspect something by archetype
+  web-app"*), the #130 vacuity case; `15_a11y` accordingly reports `noop` (not `pass`) on
+  no tracked HTML. `verify.sh` refuses a config the spine rejects instead of falling back to
+  `python`. This repo declares `cli` + `library` (six features, all evidenced, nothing
+  faked). Unit (catalog integrity, evaluate on fixtures, exact render) + integration (off /
+  pass / fail / unknown / hollow-green-turned-red / negative control). Adopt-recommended.
+  Closes matrix rows O5+, O6, O7, O11, M1, M5, M6, M9, M11, M12, M16, U10s, U12d, U14s, U17.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

@@ -77,6 +77,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass` | `[a11y].require`, `exclude` | 0045, 0049 |
+| `21_archetype` | The project has every **required feature of its declared archetypes** (a health route, structured logging, a `MODEL_CARD.md`, a rollback command, an i18n catalog, …) — binary presence/content facts with an evidence path each; no archetypes ⇒ `noop`. Separately, the verdict **fails the run when a check an archetype requires to be non-`noop` inspected nothing** (e.g. `web-app` ⇒ `15_a11y`) | `[project].archetypes` (`library`, `cli`, `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`); catalog + playbooks in `meta_harness.archetypes` | 0062 |
 
 ## Fast lane — Python checks
 

@@ -40,8 +40,14 @@ fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
+# The spine validates the whole config here (fail-closed: an unknown archetype or an empty
+# required set stops the gate with the reason, rather than running checks against a config
+# the verdict would refuse anyway).
 language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
-  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
+  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>&1)" || {
+  echo "borromeanRings: refusing to run — $CONFIG is invalid: ${language##*$'\n'}" >&2
+  exit 1
+}
 case "$language" in
   "" | *[!a-z0-9_-]*)
     echo "borromeanRings: invalid [project].language: '$language' (use [a-z0-9_-])." >&2
@@ -76,6 +82,7 @@ import os
 import sys
 from pathlib import Path
 
+from meta_harness.archetypes import non_noop_violations
 from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
@@ -119,6 +126,17 @@ for cid in expected:
         ok = False
     rows.append((cid, status.upper()))
 
+# Archetype clause (ADR-0062): a check the declared [project].archetypes require to be
+# non-noop but whose receipt is `noop` — or which is not in the expected set at all — turns
+# the run FAIL. The one place an archetype overrides a check's own non-failing `noop`
+# (ADR-0049): "inspected nothing" is legitimate for a greenfield project, not for a
+# declared web app. No archetypes declared ⇒ empty tuple ⇒ behaviour unchanged.
+archetype_failures = non_noop_violations(
+    config.archetypes, {cid: status.lower() for cid, status in rows}
+)
+if archetype_failures:
+    ok = False
+
 width = max(len(c) for c, _ in rows)
 print()
 print(f"  borromeanRings gate  (project: {project_root})")
@@ -127,6 +145,8 @@ print("  " + "-" * (width + 14))
 for cid, status in rows:
     print(f"  {cid.ljust(width)}   {status}")
 print("  " + "-" * (width + 14))
+for msg in archetype_failures:
+    print(f"  ARCHETYPE: {msg}")
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
 # A green built partly on checks that inspected NOTHING is not the same green as one
 # where every check did real work. Say so here, or the verdict over-claims (ADR-0049).

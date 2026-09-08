@@ -13,9 +13,7 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
-- `describe.sh` + `04_self_description`: the capability report is generated from the check registry, and a README that states a check/gate count must match it (ADR-0052, #132).
-
-### Added
+- `describe.sh` (`--json`, `--readme`) + `04_self_description`: the capability report is generated from the check registry, the README block is regenerated in place, and a README that states a check/gate count must match the registry (ADR-0052, #132).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

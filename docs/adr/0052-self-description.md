@@ -28,8 +28,9 @@ renders a capability report whose every fact is traceable to a file:
   description rather than listed by hand;
 - decision count from `docs/adr/`; matrices parsed from `ENFORCEMENT-COVERAGE.md` §6,
   the one hand-maintained input and the matrices' single source;
-- commands from the root scripts, skills from their frontmatter, advisory lanes from
-  module presence.
+- commands from the root scripts, skills from the installed directory names;
+- `--readme` regenerates the README's describe block in place, so the numbers a reader
+  sees are the registry's, not a hand edit.
 
 **Guard the counts with a gate.** `04_self_description` fails closed when a count the
 README states does not equal the registry — `**N checks**` against scripts on disk,

@@ -9,6 +9,7 @@
 # Usage:
 #   ./describe.sh            # Markdown report for THIS project
 #   ./describe.sh --json     # machine-readable
+#   ./describe.sh --readme   # regenerate the README's describe block in place
 set -uo pipefail
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

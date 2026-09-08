@@ -404,6 +404,8 @@ def test_replace_block_exact_forms() -> None:
     assert replace_block("intro\n", block) == f"intro\n\n{block}\n"
     # absent, no trailing newline: newline added first
     assert replace_block("intro", block) == f"intro\n\n{block}\n"
+    # an empty file gets exactly the block, no leading blank lines
+    assert replace_block("", block) == f"{block}\n"
     # markers in the wrong order are treated as absent (never slice backwards)
     wrong = f"{BLOCK_END}\nx\n{BLOCK_BEGIN}\n"
     assert replace_block(wrong, block) == f"{wrong}\n{block}\n"
@@ -478,3 +480,26 @@ def test_main_json_is_the_gathered_data(tmp_path: Path, capsys, monkeypatch) -> 
     monkeypatch.setattr("sys.argv", ["describe", "--json"])
     assert main() == 0
     assert json.loads(capsys.readouterr().out)["required"] == ["05_hygiene"]
+
+
+def test_main_readme_regenerates_the_block_in_place(tmp_path: Path, capsys, monkeypatch) -> None:
+    home = _fixture_home(tmp_path / "home")
+    readme = home / "README.md"
+    readme.write_text(
+        f"# proj\n\nintro\n\n{BLOCK_BEGIN}\nstale\n{BLOCK_END}\n\nouttro\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("BORROMEANRINGS_HOME", str(home))
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(home))
+    assert main(["--readme"]) == 0
+    assert "wrote the describe block" in capsys.readouterr().out
+    text = readme.read_text(encoding="utf-8")
+    assert text.startswith("# proj\n\nintro\n\n" + BLOCK_BEGIN)
+    assert text.endswith(BLOCK_END + "\n\nouttro\n")
+    assert "stale" not in text
+    assert "**2 checks**" in text and "**1 are required on this repo**" in text
+    # and the guard agrees with what was written
+    assert count_claims(text) == {"checks": 2}
+    # no README yet ⇒ one is created holding just the block
+    readme.unlink()
+    assert main(["--readme"]) == 0
+    assert readme.read_text(encoding="utf-8").startswith(BLOCK_BEGIN + "\n**2 checks**")

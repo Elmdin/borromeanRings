@@ -27,12 +27,15 @@ only** — never from hand-written prose that can drift:
 | Decisions | `docs/adr/0*.md` | count + the ADR each check's header cites |
 | Governance matrices | `docs/ENFORCEMENT-COVERAGE.md` §6 table | parse `| **Name** | status |` rows — the one hand-maintained input, and it is the matrices' single source |
 | Commands | `*.sh` at repo root | verify / status / ledger / merge / init / adopt / install-global |
-| Skills | `.claude/skills/*/SKILL.md` frontmatter `description` | |
-| Advisory lanes | fixed list with module check: enhancements, profiler, critics, research skill | asserts the module exists |
-| Enforced vs advisory vs planned | required ⇒ enforced; modules above ⇒ advisory; `ROADMAP.md` ⏳ rows ⇒ planned | |
+| Skills | `.claude/skills/*/` directory names | the installed set, not their prose |
 
-Output: Markdown to stdout (`--json` for machines). The `borromeanrings-status` skill and
-`AGENTS.md` point at it.
+Not derived (deliberately, until there is a source of truth to derive from): advisory
+lanes and "planned" rows — a fixed hand-list would be exactly the drift this replaces.
+
+Output: Markdown to stdout (`--json` for machines). `--readme` rewrites the block between
+`<!-- describe:begin -->` / `<!-- describe:end -->` in the project's README (appends if
+absent), touching nothing outside the markers; `summary_block` + `replace_block` are the
+pure core of that. The `borromeanrings-status` skill and `AGENTS.md` point at it.
 
 ### `04_self_description` — the drift guard (a gate)
 

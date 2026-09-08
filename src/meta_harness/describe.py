@@ -224,31 +224,6 @@ def gather(home: Path | str, project: Path | str) -> dict[str, object]:
     }
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    """CLI: print the capability report (Markdown, or ``--json``). Always exits 0."""
-    import json
-    import os
-    import sys
-
-    args = list(sys.argv[1:] if argv is None else argv)
-    home = os.environ.get("BORROMEANRINGS_HOME") or str(Path(__file__).resolve().parents[2])
-    project = (
-        os.environ.get("BORROMEANRINGS_PROJECT")
-        or os.environ.get("CLAUDE_PROJECT_DIR")
-        or os.getcwd()
-    )
-    data = gather(home, project)
-    if "--json" in args:
-        checks = data["checks"]
-        if not isinstance(checks, list):  # pragma: no cover - gather() always returns a list
-            raise TypeError("gather() returned a non-list 'checks' entry")
-        out = {**data, "checks": [asdict(c) for c in checks]}
-        print(json.dumps(out, indent=2))
-    else:
-        print(render_report(**data))  # type: ignore[arg-type]
-    return 0
-
-
 BLOCK_BEGIN = "<!-- describe:begin -->"
 BLOCK_END = "<!-- describe:end -->"
 
@@ -293,9 +268,54 @@ def replace_block(readme_text: str, block: str) -> str:
     Everything outside the markers is preserved byte-for-byte: the generator owns only
     its own block, never the surrounding prose.
     """
+    if not readme_text:
+        return block + "\n"
     start, end = readme_text.find(BLOCK_BEGIN), readme_text.find(BLOCK_END)
     if start < 0 or end < 0 or end < start:
         sep = "" if readme_text.endswith("\n") else "\n"
         return readme_text + sep + "\n" + block + "\n"
     end += len(BLOCK_END)
     return readme_text[:start] + block + readme_text[end:]
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI: print the capability report (Markdown, or ``--json``), or ``--readme`` to
+    regenerate the README's describe block in place. Always exits 0."""
+    import json
+    import os
+    import sys
+
+    args = list(sys.argv[1:] if argv is None else argv)
+    home = os.environ.get("BORROMEANRINGS_HOME") or str(Path(__file__).resolve().parents[2])
+    project = (
+        os.environ.get("BORROMEANRINGS_PROJECT")
+        or os.environ.get("CLAUDE_PROJECT_DIR")
+        or os.getcwd()
+    )
+    data = gather(home, project)
+    if "--readme" in args:
+        # Rewrite (or append) the generated block in the PROJECT's README; the prose
+        # around it is untouched. 04_self_description then holds the README to it.
+        checks = data["checks"]
+        if not isinstance(checks, list):  # pragma: no cover - gather() always returns a list
+            raise TypeError("gather() returned a non-list 'checks' entry")
+        readme = Path(project) / "README.md"
+        current = readme.read_text(encoding="utf-8") if readme.is_file() else ""
+        block = summary_block(
+            checks,
+            required=data["required"],  # type: ignore[arg-type]
+            heavy=data["heavy"],  # type: ignore[arg-type]
+            matrix_rows=data["matrix_rows"],  # type: ignore[arg-type]
+        )
+        readme.write_text(replace_block(current, block), encoding="utf-8")
+        print(f"wrote the describe block in {readme}")
+        return 0
+    if "--json" in args:
+        checks = data["checks"]
+        if not isinstance(checks, list):  # pragma: no cover - gather() always returns a list
+            raise TypeError("gather() returned a non-list 'checks' entry")
+        out = {**data, "checks": [asdict(c) for c in checks]}
+        print(json.dumps(out, indent=2))
+    else:
+        print(render_report(**data))  # type: ignore[arg-type]
+    return 0

@@ -31,9 +31,14 @@ from meta_harness.api_diff import public_api
 
 
 def _names(source: str) -> set[str]:
-    """Public top-level symbol names in ``source``; empty when it does not parse."""
+    """Public top-level symbol names in ``source``; empty when it does not parse.
+
+    Top-level only, as ADR-0051 states: ``public_api`` also lists methods (dotted
+    ``Class.method``), but adding a method to an existing class is elaboration of a
+    surface that already exists, not new surface that warrants a prior-art survey.
+    """
     try:
-        return set(public_api(source))
+        return {name for name in public_api(source) if "." not in name}
     except SyntaxError:
         return set()
 

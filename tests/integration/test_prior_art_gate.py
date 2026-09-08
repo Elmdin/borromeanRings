@@ -98,3 +98,14 @@ def test_change_adding_no_public_surface_is_noop(tmp_path: Path) -> None:
     assert code == 0, stdout
     assert statuses.get("17_prior_art") == "noop"
     assert "inspected NOTHING" in stdout
+
+
+def test_unreadable_config_fails_closed_not_noop(tmp_path: Path) -> None:
+    """A broken spine must never read as 'nothing to inspect'."""
+    project = _feature_repo(tmp_path / "p", {"src/new_mod.py": "def brand_new():\n    pass\n"})
+    (project / "borromeanrings.toml").write_text(
+        CONFIG + "\n[project]\nsrc_dir = 42\n", encoding="utf-8"
+    )
+    code, _, statuses = _gate(project)
+    assert code != 0
+    assert statuses.get("17_prior_art") == "fail"

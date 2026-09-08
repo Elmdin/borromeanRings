@@ -95,3 +95,17 @@ def test_violation_names_every_new_symbol_and_its_file() -> None:
     assert v is not None
     for name in ("one", "two", "three", "src/a.py", "src/b.py"):
         assert name in v
+
+
+def test_new_method_on_existing_class_is_not_new_surface() -> None:
+    """ADR-0051: new surface is a new top-level function or class, not a new method."""
+    before = "class Foo:\n    def a(self):\n        pass\n"
+    old = {"src/pkg/m.py": before}
+    new = {"src/pkg/m.py": before + "\n    def b(self):\n        pass\n"}
+    assert new_public_symbols(old, new) == {}
+
+
+def test_new_class_counts_but_its_methods_are_not_listed_separately() -> None:
+    old = {"src/pkg/m.py": ""}
+    new = {"src/pkg/m.py": "class Bar:\n    def go(self):\n        pass\n"}
+    assert new_public_symbols(old, new) == {"src/pkg/m.py": ["Bar"]}

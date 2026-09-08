@@ -40,7 +40,13 @@ fi
 # what `git show <rev>:<path>` needs to reach the same files from the repo root.
 changed="$(git -C "$PROJECT_ROOT" diff --relative --name-only "$merge_base"...HEAD 2>/dev/null || true)"
 git_prefix="$(git -C "$PROJECT_ROOT" rev-parse --show-prefix 2>/dev/null || true)"
-src_dir="$(borromeanrings_project_cfg src_dir)"
+# Fail closed if the config cannot be read: an empty src_dir would make every path fall
+# outside the source prefix and the check would report noop for a broken spine.
+if ! src_dir="$(borromeanrings_project_cfg src_dir 2>>"$log")" || [ -z "$src_dir" ]; then
+  echo "cannot read [project].src_dir from borromeanrings.toml — failing closed" >>"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
   "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" "$branch" "$merge_base" "$git_prefix" "$src_dir" "$changed" >"$log" 2>&1 <<'PY'

@@ -68,7 +68,8 @@ class EnhancementTool:
 # Seed catalog. Curated, not exhaustive; verify each URL before wiring. Add entries
 # via a PR (this is data, and the checker treats it as data — see ADR-0037).
 CATALOG: tuple[EnhancementTool, ...] = (
-    # --- act on API-key traffic only: never offered to claude-code -------------------
+    # --- act on API-key traffic only (LiteLLM, Helicone, GPTCache, Langfuse): never
+    # --- offered to claude-code ----------------------------------------------------------
     EnhancementTool(
         "LiteLLM",
         "model-routing",
@@ -139,7 +140,7 @@ CATALOG: tuple[EnhancementTool, ...] = (
     ),
     EnhancementTool(
         "ast-grep",
-        "evaluation",
+        "context",
         "Structural (AST) search, lint, and rewrite: deterministic, offline, machine-readable.",
         "you want precise structural invariants over code (API-usage rules) without regex.",
         "https://github.com/ast-grep/ast-grep",
@@ -152,6 +153,8 @@ CATALOG: tuple[EnhancementTool, ...] = (
         "you can't tell what the agent did across a run ('it went off building').",
         "https://github.com/langfuse/langfuse",
         maintained_as_of="2026-09-02",
+        needs_api_key=True,
+        applies_to=("api-key",),
     ),
     EnhancementTool(
         "Promptfoo",
@@ -178,6 +181,8 @@ def recommend(
     error — the caller may declare aspirational interests). A tool that cannot act
     on the substrate is never returned, whatever the interests say.
     """
+    if substrate not in SUBSTRATES:
+        raise ValueError(f"unknown substrate {substrate!r}; expected one of {SUBSTRATES}")
     usable = [tool for tool in CATALOG if substrate in tool.applies_to]
     if not interests:
         return usable

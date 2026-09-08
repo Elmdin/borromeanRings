@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+import pytest
+
 from meta_harness.enhancements import (
     CATALOG,
     CATEGORIES,
@@ -116,13 +118,26 @@ def test_api_key_tools_are_not_recommended_for_claude_code() -> None:
     """LiteLLM/Helicone/GPTCache act on API-key traffic that subscription Claude Code
     does not expose. Recommending them there sends the user somewhere they cannot go."""
     names = {t.name for t in recommend(substrate="claude-code")}
-    for absent in ("LiteLLM", "Helicone", "GPTCache"):
+    for absent in ("LiteLLM", "Helicone", "GPTCache", "Langfuse"):
         assert absent not in names, f"{absent} offered for a substrate it cannot serve"
 
 
 def test_api_key_tools_still_recommended_where_they_apply() -> None:
     names = {t.name for t in recommend(substrate="api-key")}
-    assert {"LiteLLM", "Helicone"} <= names
+    assert {"LiteLLM", "Helicone", "Langfuse"} <= names
+
+
+def test_every_key_needing_tool_is_confined_to_api_key_substrate() -> None:
+    """The invariant behind the substrate filter: needs_api_key ⇒ not offered to claude-code."""
+    for tool in CATALOG:
+        if tool.needs_api_key:
+            assert tool.applies_to == ("api-key",), f"{tool.name} needs a key yet serves more"
+
+
+def test_unknown_substrate_is_an_error_not_an_empty_answer() -> None:
+    """A typo must not read as 'nothing applies to you'."""
+    with pytest.raises(ValueError, match="unknown substrate"):
+        recommend(substrate="clode-code")
 
 
 def test_survey_additions_are_present_and_keyless() -> None:

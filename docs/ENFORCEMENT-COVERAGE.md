@@ -160,15 +160,20 @@ ratchets), *the user's opt-in* (critic activation), or the **other governance ax
 The A–K matrix above is **one axis** (code quality). borromeanRings governs it strongly; these
 are the other axes, each a full matrix. Per "justified building", each row lands only when a
 real project of that archetype needs it (as `examples/textkit` justified `34_api_diff`).
+The full row-by-row matrices — criterion, enforcing check or gap issue, buildability
+(deterministic-now / telemetry-gated / archetype-blocked, wired to #79), cited source — live
+under [`docs/matrices/`](matrices/README.md). Status words: **partial** = rows known, no
+document maps them all; **documented** = a matrix document maps every row; **archetype** is
+no longer used (an archetype-blocked row is a row, not a status).
 
 | Matrix | Status | First real rows |
 |---|---|---|
 | **AI-agent quality** | partial | agent-enhancement recommender ✅; eval-regression ratchet, citation verification (candidates — **agent-only, no API keys**) |
-| **Security & compliance** | partial | SAST / CVE / secrets / licenses ✅; SBOM + git-history secret-scan (next) |
-| **Delivery / DORA** | partial | branch / commit / merge / CI gates ✅; PR-size ratchet (git-derivable); deploy-freq / MTTR (telemetry-gated) |
-| **Operational / SRE** | archetype | needs a deployed service (candidate archetype: `AutoApply`) |
-| **Data / ML** | archetype | needs an ML project |
-| **Product / UX** | archetype | a11y / Core Web Vitals (candidate archetype: `portfolio` — has `package.json`) |
+| **Security & compliance** | documented | [`matrices/02`](matrices/02-security-compliance.md): SAST / CVE / secrets (+history) / licenses / container ✅; SBOM, lockfile, provenance, CI hardening (gaps → #58, #74, #60) |
+| **Delivery / DORA** | documented | [`matrices/03`](matrices/03-delivery-dora.md): branch / commit / changelog / ADR / CI / merge / API-diff gates ✅; batch-size ratchet (git-derivable, next); four keys (telemetry-gated) |
+| **Operational / SRE** | documented | [`matrices/04`](matrices/04-operational-sre.md): `14_container` (non-root / pinned base / healthcheck) + hygiene + honest-`noop` ✅; health, SLO, canary, postmortem rows archetype-blocked (#79) |
+| **Data / ML** | documented | [`matrices/05`](matrices/05-data-ml.md): ML Test Score rows, all threshold-free ratchets; shared rows (tests, secrets, ADR) ✅; the rest archetype-blocked (#79) |
+| **Product / UX** | documented | [`matrices/06`](matrices/06-product-ux.md): `15_a11y` (lang / alt / title) ✅; labels, links, headings static (next); contrast, focus, Core Web Vitals ratchet rendered/heavy; heuristics archetype-blocked (#79) |
 
 ## 4. How rows graduate
 

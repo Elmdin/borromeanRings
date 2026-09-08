@@ -13,6 +13,18 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Governance matrices #2–#6 documented (#138) — `docs/matrices/` holds one row-by-row
+  document each for **security & compliance**, **delivery / DORA**, **operational / SRE**,
+  **data / ML** and **product / UX**, plus an index of the shared conventions. Every row is a
+  binary check or a threshold-free ratchet (never a percentage target), names the check that
+  enforces it today — verified against the script, e.g. `14_container` rule `healthcheck`,
+  `15_a11y` rule `html_lang`, `74_secret_history` — or the gap issue that would close it, is
+  tagged deterministic-now / telemetry-gated / archetype-blocked (the last wired to #79), and
+  cites a checkable source (OWASP ASVS 4.0.3, NIST SSDF, SLSA, OpenSSF Scorecard, DORA /
+  *Accelerate*, Google SRE Book and Workbook, CIS Docker Benchmark, ML Test Score, WCAG 2.2,
+  Nielsen heuristics). `docs/ENFORCEMENT-COVERAGE.md` §6 now links each matrix and reports it
+  as `documented` (the `archetype` status word is retired: archetype-blocked is a row
+  property, not a matrix status).
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

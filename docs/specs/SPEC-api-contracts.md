@@ -64,6 +64,10 @@ at the point of writing. Advisory there (exit 0); the gate is the backstop (ADR-
 - `paired` / `requires_before` are per-function, lexical, statement-ordered: no
   inter-procedural or control-flow analysis. A pair across two functions is reported;
   that is the conservative (fail-closed) reading and is documented on the rule.
+- `required_arg` sees keywords written at the call site only; one forwarded through
+  `**kwargs` is reported as missing (a false positive the rule documents, not hides).
+- `must_check` treats a bare `f()` and a bare `await f()` statement as discarded; a value
+  bound, returned, compared or passed on counts as checked even if it is later ignored.
 - Provenance is asserted, not verified: a cited section can still be misread.
 
 ## Acceptance

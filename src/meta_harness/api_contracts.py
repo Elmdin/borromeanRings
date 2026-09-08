@@ -140,22 +140,34 @@ class _Call:
     name: str
     node: ast.Call
     discarded: bool  # the call is a bare expression statement
-    function: str  # enclosing function name ("" at module level)
+    function: str  # enclosing function name ("" at module level), for ``within`` globs
     order: int  # statement order within the enclosing function body
     is_async: bool = False  # enclosing function is ``async def``
+    scope: int = 0  # identity of the enclosing def (its line), so same-named defs never merge
+
+
+def _own_nodes(node: ast.AST) -> Iterable[ast.AST]:
+    """``node`` and its descendants, stopping at nested function/class definitions."""
+    yield node
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield from _own_nodes(child)
 
 
 def _calls_in_statement(
-    stmt: ast.stmt, ctx: tuple[str, int, bool], discarded: set[int]
+    stmt: ast.stmt, ctx: tuple[str, int, bool, int], discarded: set[int]
 ) -> list[_Call]:
-    """Call sites in one statement, excluding nested definitions (visited separately)."""
-    function, order, is_async = ctx
+    """Call sites owned by one statement (nested definitions are visited on their own)."""
+    function, order, is_async, scope = ctx
     out: list[_Call] = []
-    for node in ast.walk(stmt):
+    for node in _own_nodes(stmt):
         if isinstance(node, ast.Call):
             name = _dotted(node.func)
             if name is not None:
-                out.append(_Call(name, node, id(node) in discarded, function, order, is_async))
+                out.append(
+                    _Call(name, node, id(node) in discarded, function, order, is_async, scope)
+                )
     return out
 
 
@@ -168,25 +180,39 @@ def _nested_defs(stmt: ast.stmt) -> list[ast.FunctionDef | ast.AsyncFunctionDef]
     ]
 
 
+def _discarded_call_ids(tree: ast.Module) -> set[int]:
+    """Calls whose value is dropped: a bare ``f()`` or a bare ``await f()`` statement."""
+    ids: set[int] = set()
+    for stmt in ast.walk(tree):
+        if not isinstance(stmt, ast.Expr):
+            continue
+        value = stmt.value
+        if isinstance(value, ast.Await):
+            value = value.value
+        if isinstance(value, ast.Call):
+            ids.add(id(value))
+    return ids
+
+
 def _calls(tree: ast.Module) -> list[_Call]:
     """Every call site with the context the rules need, in source order."""
     found: list[_Call] = []
-    discarded = {
-        id(stmt.value)
-        for stmt in ast.walk(tree)
-        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
-    }
+    discarded = _discarded_call_ids(tree)
 
-    def visit(body: Iterable[ast.stmt], function: str, is_async: bool = False) -> None:
+    def visit(
+        body: Iterable[ast.stmt], function: str, is_async: bool = False, scope: int = 0
+    ) -> None:
         for order, stmt in enumerate(body):
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                visit(stmt.body, stmt.name, isinstance(stmt, ast.AsyncFunctionDef))
+                visit(stmt.body, stmt.name, isinstance(stmt, ast.AsyncFunctionDef), stmt.lineno)
             elif isinstance(stmt, ast.ClassDef):
-                visit(stmt.body, function, is_async)
+                visit(stmt.body, function, is_async, scope)
             else:
-                found.extend(_calls_in_statement(stmt, (function, order, is_async), discarded))
+                found.extend(
+                    _calls_in_statement(stmt, (function, order, is_async, scope), discarded)
+                )
                 for node in _nested_defs(stmt):
-                    visit(node.body, node.name, isinstance(node, ast.AsyncFunctionDef))
+                    visit(node.body, node.name, isinstance(node, ast.AsyncFunctionDef), node.lineno)
 
     visit(tree.body, "")
     return found
@@ -230,12 +256,16 @@ _SITE_RULES: dict[str, Callable[[Rule, _Call], str | None]] = {
 }
 
 
-def _by_function(calls: Sequence[_Call]) -> dict[str, list[_Call]]:
-    """Call sites grouped by enclosing function (module level excluded: no scope)."""
-    groups: dict[str, list[_Call]] = {}
+def _by_function(calls: Sequence[_Call]) -> dict[int, list[_Call]]:
+    """Call sites grouped by enclosing definition (module level excluded: no scope).
+
+    Keyed by the definition's identity, never its name: two classes with a ``close``
+    method are two scopes, and one must not satisfy the other's ``paired`` rule.
+    """
+    groups: dict[int, list[_Call]] = {}
     for call in calls:
         if call.function:
-            groups.setdefault(call.function, []).append(call)
+            groups.setdefault(call.scope, []).append(call)
     return groups
 
 

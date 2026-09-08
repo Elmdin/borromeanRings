@@ -13,7 +13,7 @@ source = "https://docs.python.org/3/library/asyncio-task.html#asyncio.create_tas
 [[rules]]
 kind = "banned"
 symbol = "asyncio.get_event_loop"
-message = "deprecated when no running loop; use asyncio.run() at the top level or asyncio.get_running_loop() inside coroutines"
+message = "banned outright by this pack: the call is deprecated when no loop is running (the common case in new code) and the two safe spellings cover every need — asyncio.run() at the top level, asyncio.get_running_loop() inside coroutines"
 source = "https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.get_event_loop"
 
 [[rules]]

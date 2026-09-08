@@ -207,3 +207,45 @@ def test_functions_nested_in_blocks_and_classes_are_still_scoped() -> None:
     )
     report = check_source(src, rules)
     assert [v.line for v in report.violations] == [3, 6, 9, 12]
+
+
+# --- PR #160 review: scopes are definitions, not names; no double counting; await ----------
+
+
+def test_paired_does_not_let_one_class_satisfy_another_with_the_same_method_names() -> None:
+    rules = _one("paired", symbol="self.open", pair="self.close")
+    src = (
+        "class A:\n    def run(self):\n        self.open()\n        self.close()\n\n"
+        "class B:\n    def run(self):\n        self.open()\n"  # B.run never closes
+    )
+    report = check_source(src, rules)
+    assert [v.line for v in report.violations] == [8]
+
+
+def test_requires_before_is_scoped_to_the_definition_not_the_name() -> None:
+    rules = _one("requires_before", symbol="dev.read", before="dev.init")
+    src = "def go():\n    dev.init()\n\ndef go():\n    dev.read()\n"  # redefinition, same name
+    assert [v.line for v in check_source(src, rules).violations] == [5]
+
+
+def test_calls_in_defs_nested_in_blocks_are_counted_once_in_the_inner_scope() -> None:
+    rules = _one("banned", symbol="sleep")
+    src = (
+        "if FLAG:\n    def tick():\n        sleep(1)\n"
+        "    with ctx():\n        def late():\n            sleep(2)\n"
+    )
+    report = check_source(src, rules)
+    assert report.references == 2
+    assert [v.line for v in report.violations] == [3, 6]
+    # and the inner scope owns them: forbidden_in on the inner names fires, on the outer not
+    inner = _one("forbidden_in", symbol="sleep", within="tick")
+    assert [v.line for v in check_source(src, inner).violations] == [3]
+
+
+def test_must_check_sees_a_bare_await_as_discarded() -> None:
+    rules = _one("must_check", symbol="fetch")
+    src = (
+        "async def main():\n    await fetch()\n    data = await fetch()\n"
+        "    return await fetch()\n    await pending\n"  # a bare awaited NAME is not a call
+    )
+    assert [v.line for v in check_source(src, rules).violations] == [2]

@@ -291,3 +291,190 @@ def test_number_word_handles_tens_and_compounds() -> None:
 def test_count_claims_ignores_a_non_numeric_gate_word() -> None:
     # "(several gates" matches the shape but is not a number ⇒ no claim, not a crash.
     assert "gates" not in count_claims("The required set (several gates on this repo).")
+
+
+# --- exact-output tests: every rendered byte traces to an input (mutation ratchet) -------
+
+
+def test_report_is_byte_exact() -> None:
+    checks = [
+        CheckInfo("05_hygiene", "hygiene", "shared", False),
+        CheckInfo("40_test", "pytest (ratchet)", "python", True),
+        CheckInfo("60_mutation", "mutmut", "ci", True),
+    ]
+    text = render_report(
+        checks,
+        required=("05_hygiene", "40_test"),
+        heavy=("60_mutation",),
+        adr_count=7,
+        matrix_rows=[("Security", "partial")],
+        commands=["verify.sh"],
+        skills=["s1"],
+    )
+    expected = "\n".join(
+        [
+            "# borromeanRings — capabilities (generated; do not edit)",
+            "",
+            "**3 checks** on disk · **2 required** on this repo · 1 heavy-lane · "
+            "2 threshold-free ratchets · 7 recorded decisions (ADRs)",
+            "",
+            "## Checks",
+            "",
+            "| Check | Lane | Enforces | Here |",
+            "|---|---|---|---|",
+            "| `05_hygiene` | shared | hygiene | required |",
+            "| `40_test` | python | pytest (ratchet) *(ratchet)* | required |",
+            "| `60_mutation` | ci | mutmut *(ratchet)* | heavy |",
+            "",
+            "## Governance matrices",
+            "",
+            "- **Security** — partial",
+            "",
+            "## Commands",
+            "",
+            "- `verify.sh`",
+            "",
+            "## Skills (installed into governed projects)",
+            "",
+            "- `s1`",
+            "",
+            "## Guarantees",
+            "",
+            "- **Fail-closed by allowlist**: only `pass`/`noop` are non-failing (ADR-0049).",
+            "- **Honest about nothing**: a check that inspected nothing reports `noop`, "
+            "never `pass`.",
+            "- **Threshold-free**: ratchets are non-regression, never arbitrary targets.",
+            "- **Tamper-evident receipts** per run, with a persisted verdict + history "
+            "(ADR-0026/0046/0047).",
+            "- **Governs by reference, per-project opt-in** (ADR-0013).",
+            "",
+        ]
+    )
+    assert text == expected
+
+
+def test_report_marks_available_and_says_when_no_matrices() -> None:
+    text = render_report(
+        [CheckInfo("06_git_identity", "identity", "shared", False)],
+        required=(),
+        heavy=(),
+        adr_count=0,
+        matrix_rows=[],
+        commands=[],
+        skills=[],
+    )
+    assert "| `06_git_identity` | shared | identity | available |" in text
+    assert "- (none parsed)" in text
+    assert "**0 required**" in text and "0 heavy-lane" in text and "0 threshold-free" in text
+
+
+def test_summary_block_is_byte_exact() -> None:
+    checks = [
+        CheckInfo("05_hygiene", "hygiene", "shared", False),
+        CheckInfo("40_test", "pytest", "python", True),
+        CheckInfo("60_mutation", "mutmut", "ci", True),
+        CheckInfo("70_pip_audit", "audit", "ci", False),
+    ]
+    block = summary_block(
+        checks, required=("05_hygiene",), heavy=("60_mutation",), matrix_rows=[("A", "done")]
+    )
+    expected = "\n".join(
+        [
+            BLOCK_BEGIN,
+            "**4 checks** across three lanes — 1 shared, 1 Python, 2 heavy/CI — of which "
+            "**1 are required on this repo** and 2 are threshold-free ratchets.",
+            "",
+            "Governance matrices: A (done).",
+            "",
+            "Run `./describe.sh` for the generated report of every check, what it enforces, "
+            "and where it applies. This block is generated; `04_self_description` fails the "
+            "gate if the counts above stop matching the registry.",
+            BLOCK_END,
+        ]
+    )
+    assert block == expected
+
+
+def test_replace_block_exact_forms() -> None:
+    block = f"{BLOCK_BEGIN}\nnew\n{BLOCK_END}"
+    # inside: exactly the marked region swapped, both neighbours intact
+    text = f"before\n{BLOCK_BEGIN}\nold\n{BLOCK_END}\nafter\n"
+    assert replace_block(text, block) == f"before\n{block}\nafter\n"
+    # absent, trailing newline present: one blank line then the block
+    assert replace_block("intro\n", block) == f"intro\n\n{block}\n"
+    # absent, no trailing newline: newline added first
+    assert replace_block("intro", block) == f"intro\n\n{block}\n"
+    # markers in the wrong order are treated as absent (never slice backwards)
+    wrong = f"{BLOCK_END}\nx\n{BLOCK_BEGIN}\n"
+    assert replace_block(wrong, block) == f"{wrong}\n{block}\n"
+
+
+def test_describe_script_reports_each_field_exactly(tmp_path: Path) -> None:
+    _script(tmp_path, "python", "32_complexity.sh", 'id="32_complexity"\ncmd="Radon RATCHET"\n')
+    (found,) = discover_checks(tmp_path)
+    assert found == CheckInfo("32_complexity", "Radon RATCHET", "python", True)
+    # run_check fallback: id from run_check, enforces "tool: command", ratchet from command
+    _script(tmp_path, "shared", "99_x.sh", 'run_check "99_real" "ruff" "ruff check (ratchet)"\n')
+    by_id = {c.id: c for c in discover_checks(tmp_path)}
+    assert by_id["99_real"] == CheckInfo("99_real", "ruff: ruff check (ratchet)", "shared", True)
+    # run_check with a $-variable command and no header ⇒ undeclared, under the file stem
+    _script(tmp_path, "ci", "98_y.sh", 'run_check "98_v" "tool" "$CMD"\n')
+    by_id = {c.id: c for c in discover_checks(tmp_path)}
+    assert by_id["98_y"] == CheckInfo(
+        "98_y", "undeclared (no id=/cmd=, no header comment, no run_check)", "ci", False
+    )
+
+
+def test_header_comment_exact_forms() -> None:
+    from meta_harness.describe import _header_comment
+
+    assert _header_comment("#!/bin/bash\n# 12_secrets — secret scan  \n") == "secret scan"
+    assert _header_comment("#!/bin/bash\n# 12_secrets - secret scan\n") == "secret scan"
+    assert _header_comment("#!/bin/bash\n# plain summary\n") == "plain summary"
+    # only the first five lines after the shebang are considered
+    assert _header_comment("#!/bin/bash\n\n\n\n\n\n# too late\n") == ""
+
+
+def test_matrices_exact_rows() -> None:
+    text = (
+        "## 5. Before\n| **Nope** | x |\n\n## 6. Beyond\n\n| M | S |\n|---|---|\n"
+        "| **Security** | partial |\n| **DORA** |  planned  |\n\n## 7. After\n| **Later** | y |\n"
+    )
+    assert matrices(text) == [("Security", "partial"), ("DORA", "planned")]
+    # a §6 at the end of the file (no following section) still parses
+    assert matrices("## 6. End\n| **Only** | done |\n") == [("Only", "done")]
+
+
+def test_gather_values_are_exact(tmp_path: Path) -> None:
+    home = _fixture_home(tmp_path / "home")
+    data = gather(home, home)
+    assert data["required"] == ("05_hygiene",)
+    assert data["heavy"] == ()
+    assert data["adr_count"] == 1
+    assert data["matrix_rows"] == [("Security", "partial")]
+    assert data["commands"] == ["verify.sh"]
+    assert data["skills"] == ["borromeanrings-status"]
+    assert [c.id for c in data["checks"]] == ["05_hygiene", "40_test"]
+
+
+def test_main_json_is_the_gathered_data(tmp_path: Path, capsys, monkeypatch) -> None:
+    import json
+
+    home = _fixture_home(tmp_path / "home")
+    monkeypatch.setenv("BORROMEANRINGS_HOME", str(home))
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(home))
+    assert main(["--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["required"] == ["05_hygiene"]
+    assert out["checks"][0] == {
+        "id": "05_hygiene",
+        "enforces": "hygiene",
+        "lane": "shared",
+        "ratchet": False,
+    }
+    # CLAUDE_PROJECT_DIR is the fallback project, and argv=None reads sys.argv
+    monkeypatch.delenv("BORROMEANRINGS_PROJECT")
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(home))
+    monkeypatch.setattr("sys.argv", ["describe", "--json"])
+    assert main() == 0
+    assert json.loads(capsys.readouterr().out)["required"] == ["05_hygiene"]

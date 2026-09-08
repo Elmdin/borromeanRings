@@ -63,17 +63,17 @@ Per-section bytes (UTF-8, computed by splitting the file on `## ` headings):
 
 | Section | Before | After | Note |
 |---|---:|---:|---|
-| frontmatter (name + description — loaded in **every** session, invoked or not) | 692 | 569 | description rewritten; same triggers, adds the budget/disk stance |
-| intro | 292 | 280 | now states the one rule that matters: state on disk, summaries in context |
-| §0 Budget | — | 275 | **new**: declared, editable knobs |
-| §1 Plan | 836 | 542 | same content; prose compressed; plan now written to `plan.md` |
-| §2 Search | 725 | 1056 | grew: extract-not-ingest, cache, symbol-level reads, sub-agents, saturation stop |
-| §3 Show your work | 189 | 184 | same; "one line each", log on disk |
-| §4 Synthesize | 174 | 140 | same; `report.md` |
-| §5 Verify | 362 | 284 | same gate; verify against the *saved* passage, re-fetch only if missing |
-| §6 Coverage | 177 | 189 | adds "budget used" |
+| frontmatter (name + description — loaded in **every** session, invoked or not) | 692 | 555 | description rewritten; same triggers, adds the budget/disk stance |
+| intro | 292 | 310 | states the one rule that matters: state on disk under `docs/research/<slug>/` (committed research state, not scratch; write nowhere else), summaries in chat |
+| §0 Budget | — | 271 | **new**: declared, editable knobs |
+| §1 Plan | 836 | 521 | same content; prose compressed; plan now written to `plan.md` |
+| §2 Search | 725 | 1048 | grew: extract-not-ingest, cache, symbol-level reads, sub-agents, saturation stop |
+| §3 Show your work | 189 | 155 | same; "one line each", log on disk |
+| §4 Synthesize | 174 | 130 | same; `report.md` |
+| §5 Verify | 362 | 367 | same gate; verify against the *saved* passage, re-fetch only if missing; over-cap passages saved whole, only the entailing lines quoted in chat |
+| §6 Coverage | 177 | 178 | adds "budget used" |
 | Tactics to draw on | 476 | 0 | **cut**: it restated §1 (query mutations, dorking, platforms), §2 (credibility, spam) and the saturation rule now in §2. Nothing unique was lost — see §4 below |
-| Config note | 253 | 173 | same; adds "budget defaults" as a declarable preference |
+| Config note | 253 | 159 | same; adds "budget defaults" as a declarable preference |
 | **total** | **4176** | **3692** | |
 
 Note on the tokens column: `context_budget` uses bytes/4 rounded up — a consistent measure for
@@ -96,8 +96,8 @@ what the prose instructs. Reading the old prose, in the order of likely impact:
 | 3 | **Unbounded fan-out: no rounds, no per-round query or source bound** | §1 "aim for *many*… Don't settle for one or two"; §2 "Run the full set of mutations across the chosen engines/platforms", "don't ingest only the first page", "follow citation chains" | mutations × engines × platforms × pages × chains, with the only stop ("saturation") buried in the tactics footnote | Estimate: 10 mutations × 3 engines = 30 searches ≈ 30–90 KB of search results before a single page is read |
 | 4 | **Re-verification re-fetches; no cache/dedupe of URLs or queries** | §5 verifies "for each claim" against "that source's text" — the text is not saved, so a later verification pass re-fetches; no "don't re-fetch" rule (only "don't repeat queries", in the footnote) | Each claim can trigger a second fetch of a page already paid for | Estimate: up to 1× the fetch cost again for a claim-dense answer |
 | 5 | **Visibility implemented as echo** | §3 "surface each query you send and each source you read" with no bound on how much | Read as "narrate everything", it duplicates tool output in agent prose | Estimate: +10–30% over the tool results themselves |
-| 6 | **No sub-agent isolation** | Not mentioned | Sub-agents get their own context window; the parent only receives the summary. The old skill never suggests it, so all fetch noise lands in the main window | Estimate: delegating fetch+extract moves ~most of driver 1/2 out of the parent; the survey (`AGENT-TOOLING-SURVEY.md` §2) documents the isolation |
-| 7 | **Whole-file reads on code hosts** | §1 lists "code hosts" as a platform; nothing about symbol-level reads | Reading a 1 000-line file to find one function | Estimate: file-size dependent; pyright-lsp / Serena (enhancement catalog, `fix/enhancement-catalog-audit`) are the catalogued answer — referenced, not installed |
+| 6 | **No sub-agent isolation** | Not mentioned | Sub-agents get their own context window; the parent only receives the summary. The old skill never suggests it, so all fetch noise lands in the main window | Estimate: delegating fetch+extract moves ~most of driver 1/2 out of the parent; `docs/research/AGENT-TOOLING-SURVEY.md` §2 (PR #148, `feat/prior-art-gate` — this checkout may not have it yet) documents the isolation |
+| 7 | **Whole-file reads on code hosts** | §1 lists "code hosts" as a platform; nothing about symbol-level reads | Reading a 1 000-line file to find one function | Estimate: file-size dependent; pyright-lsp / Serena are catalogued in `enhancements.py` once PR #149 merges (not on this base) — referenced, not installed; the skill uses them only if installed and falls back to grep/sed ranges |
 | 8 | **Static file** | 4176 B | Loaded once on invocation; the 692 B frontmatter on every session | **Measured**: ~1K tokens; ~1% of the incident. Not a driver |
 
 Ordering rationale: 1–3 compound (3 produces the volume, 2 makes each unit large, 1 makes the
@@ -112,12 +112,12 @@ reduction on a benchmark query" therefore stays **open**; see §5.
 | Change (new SKILL.md) | Driver(s) |
 |---|---|
 | §0 declared budget: defaults 3 rounds, 8 queries/round, 5 sources/round, ≤40 extracted lines/source, shown in the plan and editable by the user; extra rounds only on request after the coverage report | 3, 4 |
-| Working state on disk: `docs/research/<slug>/plan.md`, `log.md`, `sources/<n>.md`, `graph.md`, `report.md`; conversation gets one line per query/source | 1, 5 |
+| Working state on disk: `docs/research/<slug>/plan.md`, `log.md`, `sources/<n>.md`, `graph.md`, `report.md` — **committed** research state (the repo's surveys live in `docs/research/` too), not scratch; the agent writes nowhere else; conversation gets one line per query/source | 1, 5 |
 | "Extract, never ingest": fetch with a prompt for the relevant passages; save passages, not pages | 2 |
 | Cache: never re-fetch a URL in `sources/`, never repeat a query in `log.md` | 4 |
-| Verify against the **saved passage**; re-fetch only if the passage is missing | 4 (keeps the fail-closed gate: entailment against real source text, now on disk) |
+| Verify against the **saved passage**; re-fetch only if the passage is missing; a passage longer than the extract cap is saved whole in the slug dir and only its entailing lines are quoted in chat | 4 (keeps the fail-closed gate: entailment against real source text, now on disk) |
 | Sub-agent delegation of fetch+extract where available, returning one line per source | 6 |
-| Symbol-level reads for code hosts, naming pyright-lsp / Serena from the catalog | 7 |
+| Symbol-level reads for code hosts: pyright-lsp / Serena if installed (catalogued once #149 merges), else grep/sed ranges | 7 |
 | Saturation stop promoted from the footnote to a rule: a round with no new relevant source ends the search | 3 |
 | Cut "Tactics to draw on"; compressed §1/§4/§5 prose; shorter description | 8 |
 
@@ -152,7 +152,8 @@ visibility + steering).
 - **Instrumented before/after on a benchmark query** (issue #47 AC 1–2): needs a real research
   session through the user's agent, which is the very cost under audit; it is also not
   deterministic. Recommended: run one bounded query with `/usage` (or the OTel
-  `claude_code.token.usage` counter, survey §2) before and after, and record it here.
+  `claude_code.token.usage` counter, `AGENT-TOOLING-SURVEY.md` §2, PR #148) before and after,
+  and record it here.
 - **`[research]` budget defaults in `borromeanrings.toml`**: the skill honours them if present,
   but `spine.py` does not parse a `[research]` table today; adding one is a separate change.
 - **Global installed copy**: `install-global.sh` copies this skill to `~/.claude/skills/`; that

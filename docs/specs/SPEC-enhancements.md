@@ -23,6 +23,7 @@ profiler-style advisory recommender — proposes, never gates.
 - **Honest certainty** — `verified=False` entries (e.g. user-suggested OmniRoute)
   render with a "verify before wiring" marker; every entry carries a source URL.
 - **Curated, not authoritative** — a new tool is a one-line catalog PR (data).
+- **Verified by** `tests/unit/test_enhancements.py` (catalog integrity, filtering, rendering).
 
 ## borromeanRings config
 

@@ -84,6 +84,12 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [predicates] — hedge-word lint + graph integrity over acceptance predicates
+    # (ADR-0064). Off unless enabled; hedges EXTEND the built-in list.
+    predicates_enabled: bool = False
+    predicates_paths: tuple[str, ...] = ("docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE")
+    predicates_hedges: tuple[str, ...] = ()
+    predicates_require_reference: bool = True
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -120,6 +126,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    predicates = raw.get("predicates", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -172,4 +179,11 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        predicates_enabled=bool(predicates.get("enabled", False)),
+        predicates_paths=tuple(
+            str(p)
+            for p in predicates.get("paths", ["docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE"])
+        ),
+        predicates_hedges=tuple(str(h) for h in predicates.get("hedges", [])),
+        predicates_require_reference=bool(predicates.get("require_reference", True)),
     )

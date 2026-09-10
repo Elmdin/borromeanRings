@@ -13,6 +13,19 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Predicate lint (`23_predicates`, `meta_harness.predicates`, ADR-0064, #174): the
+  checkable statements this repo's documents make — SPEC `Contract`/`Guarantees`/
+  `Acceptance` bullets, ADR `Consequences` bullets phrased must/never/shall, issue-form
+  task items — are now read by a gate. Any **hedge word** ("appropriately", "as needed",
+  "reasonable"; a fixed list organised by ISO/IEC/IEEE 29148 §5.2.7's ambiguity categories,
+  extended per project via `[predicates].hedges`) fails the gate as
+  `file:line — predicate — hedge`, and any SPEC that names **no** shipped check id, existing
+  test file or issue is reported as an **orphan**. Only resolvable references count, so the
+  orphan rule cannot be vacuous — a mutation-driven test replaces the detector with one that
+  finds nothing and asserts the suite notices (the defect 4D's validator shipped). Opt-in via
+  `[predicates].enabled`; `noop` when off or when nothing was found; fails closed on an
+  unreadable file. Dogfooded: five hedged predicates in this repo's SPECs/ADRs were rewritten
+  as observable facts and five orphan SPECs now name their unit-test file.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

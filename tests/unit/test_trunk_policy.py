@@ -719,9 +719,13 @@ def test_shell_alias_is_refused_on_protected_or_when_it_names_one() -> None:
         "is protected (trunk-based policy, ADR-0058): " + COMMIT_HINT + "."
     )
     assert branch_policy_violation("git sh", "feat/x", PROTECTED, aliases=ALIASES) == (
-        "'git sh' runs alias sh = !git push origin main, which the guard cannot see through "
-        "and names protected branch 'main' (trunk-based policy, ADR-0058): spell the git "
-        "command out."
+        "'git push' targets protected branch 'main' (trunk-based policy, ADR-0058): push a "
+        "feature branch and land via PR + gate. [via shell alias 'sh' = '!git push origin main']"
+    )
+    # A body the parser cannot read at all still trips the names-a-protected-branch rule.
+    assert branch_policy_violation("git w", "feat/x", PROTECTED, aliases={"w": "!weird main"}) == (
+        "'git w' runs alias w = !weird main, which the guard cannot see through and names "
+        "protected branch 'main' (trunk-based policy, ADR-0058): spell the git command out."
     )
     assert branch_policy_violation("git s", "feat/x", PROTECTED, aliases=ALIASES) is None
 
@@ -771,3 +775,107 @@ def test_resolver_receives_the_located_invocation() -> None:
     facts = _Recorder("main")
     branch_policy_violation("cd ../wt_main && git commit -m x", "feat/x", PROTECTED, facts_at=facts)
     assert facts.calls == [Invocation(("git", "commit", "-m", "x"), "../wt_main")]
+
+
+# --- PR #169 re-review: shell aliases and unrelated repos ----------------------------
+
+SHELL_ALIASES = {
+    "sp": "!git push",
+    "sl": "!git log",
+    "fp": '!f() { git push "$@"; }; f',
+    "loop": "!git loop",
+    "inner": "!git sp",
+}
+PUSH_MAIN = (
+    "'git push' targets protected branch 'main' (trunk-based policy, ADR-0058): "
+    "push a feature branch and land via PR + gate."
+)
+
+
+def test_shell_alias_is_judged_with_its_trailing_arguments() -> None:
+    assert branch_policy_violation(
+        "git sp origin main", "feat/x", PROTECTED, aliases=SHELL_ALIASES
+    ) == (PUSH_MAIN + " [via shell alias 'sp' = '!git push']")
+    assert (
+        branch_policy_violation(
+            "git sp origin HEAD:main", "feat/x", PROTECTED, aliases=SHELL_ALIASES
+        )
+        is not None
+    )
+    assert (
+        branch_policy_violation("git sp origin feat/x", "feat/x", PROTECTED, aliases=SHELL_ALIASES)
+        is None
+    )
+
+
+def test_shell_alias_to_a_read_is_allowed_with_arguments() -> None:
+    assert (
+        branch_policy_violation("git sl origin main", "feat/x", PROTECTED, aliases=SHELL_ALIASES)
+        is None
+    )
+    assert (
+        branch_policy_violation("git sl -1 main", "feat/x", PROTECTED, aliases=SHELL_ALIASES)
+        is None
+    )
+
+
+def test_shell_alias_floor_when_the_body_hides_the_verb_behind_dollar_at() -> None:
+    assert branch_policy_violation(
+        "git fp origin HEAD:main", "feat/x", PROTECTED, aliases=SHELL_ALIASES
+    ) == (
+        "'git fp' runs shell alias '!f() { git push \"$@\"; }; f', whose text runs a "
+        "branch-writing command, with arguments naming protected branch 'main' "
+        "(trunk-based policy, ADR-0058): spell the git command out."
+    )
+    assert (
+        branch_policy_violation("git fp origin feat/x", "feat/x", PROTECTED, aliases=SHELL_ALIASES)
+        is None
+    )
+
+
+def test_nested_shell_aliases_are_followed_and_bounded() -> None:
+    reason = branch_policy_violation(
+        "git inner origin main", "feat/x", PROTECTED, aliases=SHELL_ALIASES
+    )
+    assert (
+        reason
+        == PUSH_MAIN + " [via shell alias 'sp' = '!git push'] [via shell alias 'inner' = '!git sp']"
+    )
+    assert (
+        branch_policy_violation(
+            "git loop origin feat/x", "feat/x", PROTECTED, aliases=SHELL_ALIASES
+        )
+        is None
+    )
+    assert branch_policy_violation("git loop", "main", PROTECTED, aliases=SHELL_ALIASES) is not None
+
+
+def test_ungoverned_repo_is_out_of_scope() -> None:
+    def unrelated(_inv: Invocation) -> RepoFacts:
+        return RepoFacts("main", {"p": "push"}, governed=False)
+
+    assert (
+        branch_policy_violation(
+            "cd ../other && git commit -m x", "feat/x", PROTECTED, facts_at=unrelated
+        )
+        is None
+    )
+    assert (
+        branch_policy_violation(
+            "cd ../other && git push origin main", "feat/x", PROTECTED, facts_at=unrelated
+        )
+        is None
+    )
+    assert (
+        branch_policy_violation(
+            "git -C ../other p origin main", "feat/x", PROTECTED, facts_at=unrelated
+        )
+        is None
+    )
+    # A governed worktree on main is still refused.
+    assert (
+        branch_policy_violation(
+            "cd ../wt_main && git commit -m x", "feat/x", PROTECTED, facts_at=_Recorder("main")
+        )
+        == COMMIT_ON_MAIN
+    )

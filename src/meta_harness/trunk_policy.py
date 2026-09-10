@@ -29,11 +29,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from meta_harness.trunk_aliases import (
+    ALIAS_VERBS,
     POLICY,
     alias_floor,
     alias_write_violation,
+    args_name_protected,
     inline_aliases,
     resolve_alias,
+    shell_alias_command,
 )
 
 #: git global options that consume the following argument.
@@ -67,6 +70,8 @@ _PUSH_WITH_VALUE: frozenset[str] = frozenset(
 )
 #: git global options that move the invocation to another repo/directory.
 _DIR_GLOBALS: tuple[str, ...] = ("-C", "--git-dir", "--work-tree")
+#: How many nested ``!`` aliases the guard follows before treating one as opaque.
+_SHELL_ALIAS_DEPTH = 4
 #: Shell words that change the directory for the rest of the command.
 _CD_WORDS: frozenset[str] = frozenset({"cd", "pushd"})
 
@@ -105,6 +110,7 @@ class RepoFacts:
 
     head: str
     aliases: Mapping[str, str] = field(default_factory=dict)
+    governed: bool = True  # False ⇒ an unrelated repo: the policy does not apply there
 
 
 # --- tokenizing a shell command line ---------------------------------------------
@@ -501,8 +507,40 @@ def _opaque_alias_violation(
     return None
 
 
+def _shell_alias_violation(
+    name: str,
+    definition: str,
+    args: Sequence[str],
+    invocation: Invocation,
+    facts: RepoFacts,
+    protected: Sequence[str],
+    depth: int,
+) -> str | None:
+    """Judge a ``!`` alias as the shell command git actually runs.
+
+    The definition text plus the invocation's trailing words is parsed and judged
+    like any other command (nested aliases followed, depth-bounded). Floor: a
+    definition that mentions a governed verb, invoked with arguments naming a
+    protected branch in any refspec spelling, is refused even when the body could
+    not be read (``"$@"`` inside a function, an indirection the parser misses).
+    """
+    command = shell_alias_command(definition, args)
+    for inner in located_invocations(command, invocation.cwd):
+        reason = _invocation_violation(inner, facts, protected, depth + 1)
+        if reason:
+            return f"{reason} [via shell alias '{name}' = '{definition}']"
+    named = args_name_protected(args, protected) if ALIAS_VERBS.search(definition) else None
+    if named is not None:
+        return (
+            f"'git {name}' runs shell alias '{definition}', whose text runs a branch-writing "
+            f"command, with arguments naming protected branch '{named}' ({POLICY}): "
+            f"spell the git command out."
+        )
+    return None
+
+
 def _invocation_violation(
-    invocation: Invocation, facts: RepoFacts, protected: Sequence[str]
+    invocation: Invocation, facts: RepoFacts, protected: Sequence[str], depth: int = 0
 ) -> str | None:
     """Reason one located invocation violates the policy in its own repo, else None."""
     head = facts.head
@@ -513,6 +551,13 @@ def _invocation_violation(
     aliases = {**facts.aliases, **inline_aliases(invocation.argv)}
     real_sub, real_args, opaque = resolve_alias(sub, args, aliases)
     if opaque is not None:
+        definition = aliases.get(real_sub, "")
+        if definition.startswith("!") and depth < _SHELL_ALIAS_DEPTH:
+            reason = _shell_alias_violation(
+                real_sub, definition, real_args, invocation, facts, protected, depth
+            )
+            if reason:
+                return reason
         return _opaque_alias_violation(sub, opaque, head, protected)
     via = f" [via alias '{sub}' = '{aliases[sub]}']" if real_sub != sub else ""
     if head in protected and _lands_on_head(real_sub, real_args, head):
@@ -522,6 +567,17 @@ def _invocation_violation(
         )
     reason = _ref_violation(real_sub, real_args, head, protected)
     return f"{reason}{via}" if reason else None
+
+
+def _facts_for(
+    invocation: Invocation,
+    default: RepoFacts,
+    facts_at: Callable[[Invocation], RepoFacts] | None,
+) -> RepoFacts:
+    """The repo facts an invocation is judged against: resolved only when it moves."""
+    if facts_at is None or (invocation.cwd is None and not _moves_repo(invocation.argv)):
+        return default
+    return facts_at(invocation)
 
 
 def branch_policy_violation(
@@ -547,9 +603,9 @@ def branch_policy_violation(
         return None
     default = RepoFacts(head=head, aliases=aliases or {})
     for invocation in located_invocations(command):
-        facts = default
-        if facts_at is not None and (invocation.cwd is not None or _moves_repo(invocation.argv)):
-            facts = facts_at(invocation)
+        facts = _facts_for(invocation, default, facts_at)
+        if not facts.governed:
+            continue  # an unrelated repo: out of scope, its branch names are not ours
         reason = _invocation_violation(invocation, facts, protected)
         if reason:
             return reason

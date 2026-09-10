@@ -49,6 +49,13 @@ def repo_aliases(cwd: str, globals_: Sequence[str] = ()) -> dict[str, str]:
     return aliases
 
 
+def common_dir(cwd: str, globals_: Sequence[str] = ()) -> str | None:
+    """Absolute, resolved ``--git-common-dir`` of the repo at ``cwd`` (shared by all its
+    worktrees); None when unreadable."""
+    out = _git([*globals_, "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd)
+    return os.path.realpath(out.strip()) if out and out.strip() else None
+
+
 def checked_out_branches(cwd: str) -> set[str]:
     """Branches checked out in ANY worktree of the repo at ``cwd``."""
     out = _git(["worktree", "list", "--porcelain"], cwd) or ""
@@ -74,18 +81,26 @@ def facts_resolver(project_dir: str, protected: Sequence[str]) -> Callable[[Invo
     """A ``facts_at`` callback for :func:`trunk_policy.branch_policy_violation`.
 
     Reads HEAD and aliases from the invocation's *effective* repo (its ``cd`` chain
-    plus ``-C``/``--git-dir``/``--work-tree``). When that repo cannot be resolved,
-    it answers conservatively: HEAD is reported as the first declared protected
-    branch checked out in **any** worktree of the governed repo, so a write in an
-    unknown directory is refused rather than waved through.
+    plus ``-C``/``--git-dir``/``--work-tree``). A repo whose common dir differs
+    from the governed project's is **unrelated** (``governed=False``): its branch
+    names are not this project's, so the policy does not apply there — a sibling
+    repo that happens to have a ``main`` is not our ``main``. Worktrees share the
+    common dir and stay governed. When the effective repo cannot be resolved, it
+    answers conservatively: HEAD is reported as the first declared protected branch
+    checked out in **any** worktree of the governed repo, so a write in an unknown
+    directory is refused rather than waved through.
     """
+    project_common = common_dir(project_dir)
 
     def resolve(invocation: Invocation) -> RepoFacts:
         globals_ = git_globals(invocation.argv)
         directory = _resolve_dir(project_dir, invocation.cwd)
         head = head_branch(directory, globals_) if directory is not None else None
         if head is not None and directory is not None:
-            return RepoFacts(head=head, aliases=repo_aliases(directory, globals_))
+            governed = project_common is None or common_dir(directory, globals_) == project_common
+            return RepoFacts(
+                head=head, aliases=repo_aliases(directory, globals_), governed=governed
+            )
         checked_out = checked_out_branches(project_dir)
         fallback = next((p for p in protected if p in checked_out), None)
         return RepoFacts(

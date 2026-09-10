@@ -254,3 +254,40 @@ def test_values_containing_equals_split_on_the_first_one() -> None:
 )
 def test_floor_mentions_are_each_sufficient(command: str) -> None:
     assert alias_floor(command) == FLOOR_REASON
+
+
+# --- PR #169 re-review: shell aliases carry their trailing arguments -------------
+
+from meta_harness.trunk_aliases import args_name_protected, shell_alias_command  # noqa: E402
+
+
+def test_shell_alias_command_appends_the_invocation_words() -> None:
+    assert shell_alias_command("!git push", ["origin", "main"]) == "git push origin main"
+    assert shell_alias_command("!git push", []) == "git push"
+    assert shell_alias_command('!f() { git push "$@"; }; f', ["a b"]) == (
+        "f() { git push \"$@\"; }; f 'a b'"
+    )
+    assert shell_alias_command("git log", ["-1"]) == "git log -1"  # tolerant of a missing !
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["origin", "main"], "main"),
+        (["origin", "+main"], "main"),
+        (["origin", "HEAD:main"], "main"),
+        (["origin", "feat/x:refs/heads/main"], "main"),
+        (["origin", "refs/heads/main"], "main"),
+        (["--force-with-lease=main:abc", "origin", "feat/x"], "main"),
+        (["origin", "refs/heads/*:refs/heads/*"], "main"),
+        (["origin", ":main"], "main"),
+        (["origin", "dev"], "dev"),
+        (["origin", "feat/x"], None),
+        (["origin", "main-2"], None),
+        (["origin", "feat/main"], None),
+        ([], None),
+        ([""], None),
+    ],
+)
+def test_args_name_protected(args: list[str], expected: str | None) -> None:
+    assert args_name_protected(args, ("main", "dev")) == expected

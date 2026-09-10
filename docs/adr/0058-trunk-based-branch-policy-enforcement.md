@@ -40,7 +40,11 @@ mentions plus a verb), and judges each invocation in its *effective directory* �
 `cd`/`pushd` chains and `-C`/`--git-dir`/`--work-tree` are followed and HEAD/aliases
 read there; an unresolvable directory is judged as the protected branch checked out in
 any worktree of the repo. Pure logic in `meta_harness.trunk_aliases`; the fixed-argv git
-reads in `meta_harness.trunk_policy_git`. Non-shell invocations remain out of scope.
+reads in `meta_harness.trunk_policy_git`. A `!` shell alias is judged as the command git runs (its text plus the trailing words),
+with a floor when its text mentions a governed verb and the arguments name a protected
+branch; and the policy applies only when the effective repo *is* the governed project
+(same `--git-common-dir`; worktrees included) — an unrelated repo on a branch called
+`main` is out of scope. Non-shell invocations remain out of scope.
 
 **Configuration** is the existing `[collaboration].protected_branches` — the issue's
 proposed `[branching].protected` is folded into it rather than added beside it (one

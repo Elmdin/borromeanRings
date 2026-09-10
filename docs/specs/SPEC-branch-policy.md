@@ -75,6 +75,21 @@ taken to be the first declared protected branch checked out in **any** worktree 
 the governed repo (`git worktree list --porcelain`), so a write in an unknown place
 is refused rather than waved through.
 
+A **`!` shell alias** is judged as the command git actually runs — its text *plus the
+invocation's trailing words* (`git sp origin main` with `alias.sp = !git push` is
+`git push origin main`) — recursively through the same policy, depth-bounded. Floor: a
+`!` definition that mentions a governed verb, invoked with arguments naming a protected
+branch in any refspec spelling (`main`, `+main`, `HEAD:main`, `refs/heads/main`,
+`--force-with-lease=main:…`, globs), is refused even when the body hides the verb behind
+`"$@"`. A shell alias whose body could not be read at all keeps the earlier rule
+(refused on a protected branch or when its text names one).
+
+**Governed repo only.** The policy applies to *this* project: an invocation whose
+effective repo has a different `--git-common-dir` than the governed project is
+**unrelated** and skipped (`RepoFacts.governed = False`) — a sibling repo that happens to
+have a branch called `main` is not our `main`. Worktrees share the common dir and stay
+governed; a project that is not itself a git repo governs every directory conservatively.
+
 **Out of scope:** non-shell invocations (a Python `subprocess.run(["git", "push", …])`,
 an editor plugin, a Makefile target) are not seen by a Bash PreToolUse hook at all —
 that is what the gate backstop and server-side protection (#60) are for.
@@ -147,6 +162,11 @@ Every row is a test in `tests/unit/test_trunk_policy.py` (exact reason) and
 | `cd ../wt-on-main && git commit`, `git -C ../wt-on-main commit` | F | **deny** | judged in the effective directory (HEAD there is protected) |
 | `cd ../wt-on-feature && git commit` | F | allow | HEAD there is a feature branch |
 | `cd nowhere && git commit` | F | **deny** if a protected branch is checked out in any worktree | directory unknowable ⇒ conservative |
+| `git sp origin main` with `alias.sp = !git push` | F | **deny** | judged as `git push origin main`; reason says `[via shell alias 'sp' = '!git push']` |
+| `git sl origin main` with `alias.sl = !git log` | F | allow | judged as `git log origin main` |
+| `git fp origin HEAD:main` with `alias.fp = !f() { git push "$@"; }; f` | F | **deny (floor)** | verb in the body + argument names a protected branch |
+| `cd ../unrelated-repo-on-main && git commit`, `git -C ../unrelated commit` | F | allow | different `--git-common-dir` ⇒ not this project (SPEC §3.1 "Governed repo only") |
+| `cd ../this-projects-worktree-on-main && git commit` | F | **deny** | same common dir ⇒ governed |
 | anything | detached HEAD | allow (push rows still apply) | no branch to protect |
 | anything | `protected_branches = []` | allow | policy off (opt-in) |
 

@@ -275,7 +275,30 @@ def worktrees(repo: Path, tmp_path: Path) -> dict[str, Path]:
     _git(repo, "worktree", "add", "-q", "-b", "feat/y", str(tmp_path / "wt_feat"))
     _git(repo, "config", "alias.p", "push")
     _git(repo, "config", "alias.l", "log --oneline")
+    _git(repo, "config", "alias.sp", "!git push")
+    _git(repo, "config", "alias.sl", "!git log")
+    other = tmp_path / "other"  # an UNRELATED repo that happens to sit on main
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "main")
+    (other / "g").write_text("g")
+    _git(other, "add", "g")
+    _git(other, "commit", "-q", "-m", "init")
     return {"repo": repo, "wt_main": tmp_path / "wt_main", "wt_feat": tmp_path / "wt_feat"}
+
+
+def test_shell_alias_with_trailing_arguments_is_denied(worktrees: dict[str, Path]) -> None:
+    reason = _decision(worktrees["repo"], "git sp origin main")
+    assert reason is not None and "[via shell alias 'sp' = '!git push']" in reason
+    assert _decision(worktrees["repo"], "git sp origin feat/x") is None
+
+
+def test_shell_alias_to_a_read_is_allowed(worktrees: dict[str, Path]) -> None:
+    assert _decision(worktrees["repo"], "git sl origin main") is None
+
+
+def test_cd_into_an_unrelated_repo_on_main_is_allowed(worktrees: dict[str, Path]) -> None:
+    assert _decision(worktrees["repo"], "cd other && git commit -m x") is None
+    assert _decision(worktrees["repo"], "git -C other commit -m x") is None
 
 
 def test_alias_to_push_is_denied(worktrees: dict[str, Path]) -> None:

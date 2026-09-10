@@ -31,7 +31,11 @@ queue is merged.
   `GIT_CONFIG_*`, plus a floor on config/alias mentions with a verb), and each
   invocation is judged in its effective directory (`cd …`, `-C`, `--git-dir`), reading
   HEAD there — an unresolvable directory is judged as the protected branch checked out
-  in any worktree.
+  in any worktree. Re-review: a `!` shell alias is judged as the command git runs (its
+  text plus the trailing words, e.g. `git sp origin main` ⇒ `git push origin main`) with
+  a verb-plus-protected-argument floor, and the policy applies only inside the governed
+  repo (same `--git-common-dir`, worktrees included) — an unrelated sibling repo on
+  `main` is no longer refused.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

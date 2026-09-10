@@ -135,5 +135,38 @@ def test_resolver_reads_aliases_of_the_target_repo(repos: dict[str, Path], tmp_p
     _git(other, "config", "alias.q", "push")
     resolve = tpg.facts_resolver(str(repos["repo"]), ("main",))
     assert resolve(Invocation(("git", "-C", str(other), "q"), None)) == RepoFacts(
-        "feat/z", {"q": "push"}
+        "feat/z", {"q": "push"}, governed=False
     )
+
+
+def test_common_dir_is_shared_by_worktrees(repos: dict[str, Path], tmp_path: Path) -> None:
+    assert tpg.common_dir(str(repos["wt_main"])) == tpg.common_dir(str(repos["repo"]))
+    assert tpg.common_dir(str(repos["repo"])) == str((repos["repo"] / ".git").resolve())
+    (tmp_path / "plain").mkdir()
+    assert tpg.common_dir(str(tmp_path / "plain")) is None
+
+
+def test_unrelated_repo_on_main_is_not_governed(repos: dict[str, Path], tmp_path: Path) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "main")
+    (other / "g").write_text("g")
+    _git(other, "add", "g")
+    _git(other, "commit", "-q", "-m", "init")
+    resolve = tpg.facts_resolver(str(repos["repo"]), ("main",))
+    assert resolve(Invocation(("git", "commit"), "../other")) == RepoFacts(
+        "main", {}, governed=False
+    )
+    # This project's own worktree on main stays governed.
+    assert resolve(Invocation(("git", "commit"), "../wt_main")).governed is True
+
+
+def test_project_that_is_not_a_repo_governs_everything(tmp_path: Path) -> None:
+    (tmp_path / "plain").mkdir()
+    (tmp_path / "r").mkdir()
+    _git(tmp_path / "r", "init", "-q", "-b", "main")
+    (tmp_path / "r" / "g").write_text("g")
+    _git(tmp_path / "r", "add", "g")
+    _git(tmp_path / "r", "commit", "-q", "-m", "init")
+    resolve = tpg.facts_resolver(str(tmp_path / "plain"), ("main",))
+    assert resolve(Invocation(("git", "commit"), "../r")).governed is True

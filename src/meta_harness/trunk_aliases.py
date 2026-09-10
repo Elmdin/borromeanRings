@@ -19,6 +19,7 @@ Two pure pieces close that (PR #169 review, ADR-0058):
 
 from __future__ import annotations
 
+import fnmatch
 import re
 import shlex
 from collections.abc import Mapping, Sequence
@@ -47,6 +48,8 @@ ALIAS_VERBS: re.Pattern[str] = re.compile(
     r"(?<![\w-])(push|commit|merge|rebase|reset|branch|update-ref|symbolic-ref)(?![\w-])"
 )
 _MAX_ALIAS_DEPTH = 8
+#: Refspec-ish separators: a word names every branch it contains in any spelling.
+_REF_SEPARATORS = ("=", ":")
 _CONFIG_READS: frozenset[str] = frozenset(
     {"--get", "--get-all", "--get-regexp", "-l", "--list", "--unset", "--unset-all"}
 )
@@ -192,6 +195,34 @@ def alias_write_violation(argv: Sequence[str], sub: str, args: Sequence[str]) ->
         f"'git config' would set alias '{name}' = '{value}', which runs a branch-writing "
         f"command ({POLICY}): aliases cannot be used to dodge the branch guard."
     )
+
+
+def shell_alias_command(definition: str, args: Sequence[str]) -> str:
+    """The shell command git runs for a ``!`` alias: its text plus the trailing words.
+
+    git executes ``sh -c '<definition> "$@"' <definition> <args…>``, so the
+    invocation's arguments are appended to whatever the alias text is.
+    """
+    body = definition[1:] if definition.startswith("!") else definition
+    return f"{body} {shlex.join(args)}".strip()
+
+
+def args_name_protected(args: Sequence[str], protected: Sequence[str]) -> str | None:
+    """The first protected branch an argument names in any refspec spelling, else None.
+
+    ``main``, ``+main``, ``HEAD:main``, ``feat/x:refs/heads/main``,
+    ``--force-with-lease=main:abc`` and glob refspecs all name ``main``.
+    """
+    for arg in args:
+        pieces = [arg.lstrip("+")]
+        for sep in _REF_SEPARATORS:
+            pieces = [piece for word in pieces for piece in word.split(sep)]
+        for piece in pieces:
+            name = piece.removeprefix("refs/heads/")
+            hit = next((p for p in protected if fnmatch.fnmatch(p, name)), None)
+            if hit is not None and name:
+                return hit
+    return None
 
 
 def alias_floor(command: str) -> str | None:

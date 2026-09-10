@@ -31,6 +31,8 @@ reviewable artefact rather than a judgement re-made at every review.
 | `allow` | list of strings | `[]` | The human's classification, made durable: phrases whose overlap is acknowledged as generic. Each entry is normalized exactly like the text (below). A TOML comment beside each entry records **why**; the comment is what a reviewer reads in the diff. |
 
 Environment: `BORROMEANRINGS_PROVENANCE_SOURCES` — a colon-separated list of extra source
+(a path containing a literal `:` is not supported and splits into a nonexistent entry,
+which then fails closed; use `[provenance].sources` for such a path)
 paths. The check reads the config first, then **appends** the environment entries. This
 lets a maintainer point the check at a machine-local sibling project without committing
 the path. An entry that is empty after splitting is ignored.
@@ -120,6 +122,8 @@ receipt never carries more of a source than the overlapping six words and their 
   fact, not a score. The shingle size (6) is the unit of evidence, not a pass mark.
 - **Human classifies, gate remembers.** The gate never guesses "distinctive". Every
   unlisted overlap fails; the human either re-authors or allowlists with a reason. The
+reason is a TOML comment beside the entry, a review convention the parser cannot see:
+an entry without one is caught by the PR reviewer, not by the gate. The
   allowlist is code-reviewed like everything else.
 - **Fail-closed.** An absent or empty source, a git error inside a repo, or an allow
   entry that would match everything all fail. Only "nothing to compare" is `noop`.

@@ -5,8 +5,8 @@ how much is at stake (``stakes``: ``low`` or ``high`` — two opt-in tiers, neve
 what counts as finished (``done_when``), when the agent must stop (``stop_when``), what it
 may never do (``may_not``) and who answers for it (``owner``). ``high`` additionally
 requires the spine's ``[charter].high_stakes_fields`` (default rollback, reviewer,
-blast_radius). Nothing is defaulted, repaired or coerced: every problem is a
-:class:`Violation` naming the field, and they are all reported at once.
+blast_radius). Validation has no fallback path: a missing or malformed field becomes a
+:class:`Violation` naming it, and every violation is collected before any is reported.
 
 The hedge rule is deliberately tiny and local: a ``done_when`` item that *is* a hedge
 phrase ("it works", "good enough") or *contains* a hedge word is not a predicate. Hedge

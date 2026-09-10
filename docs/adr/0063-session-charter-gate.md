@@ -45,9 +45,10 @@ this Apache-2.0 repository, so its text and code cannot be carried over.
 ## License rule (recorded, not just followed)
 The 4D mechanism was read to understand *what* it enforces; nothing under `4D/canon/` was
 read. `SPEC-charter.md`, `meta_harness.charter`, `22_charter.sh`, the tests and this ADR are
-re-authored: no sentence, code, or non-generic field name is copied. The generic keys
-(`goal`, `stakes`, `done_when`, `stop_when`, `may_not`) describe the concept, not its
-expression, and are the only names in common. Same resolution as ADR-0020.
+re-authored: no sentence, code, or non-generic field name is copied. The charter's own
+keys (`goal`, `stakes`, `done_when`, `stop_when`, `may_not`, `owner`) were chosen here; the
+source's charter uses a different and larger field set, and the one name the two share
+(`stakes`) is the generic word for the concept. Same resolution as ADR-0020.
 
 ## Alternatives considered
 - **Charter in `borromeanrings.toml`** — rejected: the spine says what is *enforced*; the

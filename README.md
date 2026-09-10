@@ -73,7 +73,7 @@ step-by-step way to exercise every feature on a fresh project.
 The required set is declared in `borromeanrings.toml` `[checks].required` (nineteen gates
 on this repo; `06_git_identity` exists but is intentionally excluded so external
 contributors pass CI — see ADR-0019). The table above is the v0 core; the full set of
-**28 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
+**29 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
 keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 ## Layout

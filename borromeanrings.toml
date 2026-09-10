@@ -91,6 +91,18 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[verification]
+# The mathematical-verification ladder (tier 1 of 3; SPEC-verification-ladder.md, ADR-0074).
+# `properties` is the project-relative directory holding the property suite that check
+# 27_properties runs. There is NO default — writing the key is an affirmative claim, so an
+# empty value means the tier is OFF, and a declared directory with no property tests FAILS
+# (a verification claim with no evidence is the vacuity ADR-0049 exists to catch). An
+# unknown key under [verification] fails config loading closed, so a typo can't silently
+# switch the rule off. borromeanRings declares none yet: 27_properties reports `noop` here
+# (rule off), and no property suite was invented to make it look busy. Tiers 2 (SMT) and 3
+# (formal proof) are specified, not built — see the SPEC and issues #204 / #205.
+properties = ""
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -108,6 +120,7 @@ required = [
   "11_changelog",
   "10_format",
   "20_lint",
+  "27_properties",
   "30_typecheck",
   "32_complexity",
   "33_coupling",

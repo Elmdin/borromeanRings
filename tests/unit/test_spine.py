@@ -241,3 +241,46 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_verification_properties_loaded_and_defaults_off(tmp_path: Path) -> None:
+    """Tier 1 of the verification ladder is opt-in: no key ⇒ the rule is off."""
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[verification]\nproperties = "tests/properties"\n',
+    )
+    assert load_config(declared).verification_properties == "tests/properties"
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).verification_properties == ""
+
+    empty_section = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n[verification]\n')
+    assert load_config(empty_section).verification_properties == ""
+
+    blank = _write(
+        tmp_path, '[checks]\nrequired = ["00_build"]\n[verification]\nproperties = "  "\n'
+    )
+    assert load_config(blank).verification_properties == ""
+
+
+def test_unknown_verification_key_is_fail_closed(tmp_path: Path) -> None:
+    """A typo'd verification claim must never read as 'nothing declared' (ADR-0074).
+
+    ``propertys = "tests/properties"`` would otherwise switch the rule off in silence —
+    a self-disabling gate, the hazard ADR-0049 exists to remove. The message must name
+    the offending key so the fix is obvious.
+    """
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[verification]\n'
+        'propertys = "tests/properties"\nsmt = []\n',
+    )
+    with pytest.raises(ValueError) as excinfo:
+        load_config(config)
+    message = str(excinfo.value)
+    assert "unknown key" in message
+    assert "propertys, smt" in message  # every unknown key, sorted, comma-separated
+    assert "Known: properties" in message  # and what the known keys actually are
+    # `endswith`, not `in`: the message must end with the reason, so a mutation that
+    # pads the literal is caught rather than shrugged at.
+    assert message.endswith("fail-closed instead.")

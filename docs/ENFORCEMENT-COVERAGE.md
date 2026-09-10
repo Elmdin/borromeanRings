@@ -47,7 +47,9 @@ harder to game.
 | Tests pass | T0 | ✅ | `checks/…/40_test.sh` |
 | Coverage non-regression | T1 | ❌ | **candidate** — no check exists (`.borromeanrings-coverage-baseline` was never wired; this row previously mis-claimed ✅). Buildable now; mutation is the stronger signal but coverage catches un-executed code |
 | **Mutation score** (assertion/oracle strength) | T1 | ✅ | `checks/ci/60_mutation.sh` (heavy lane); ratchet 0.83 vs baseline 0.80; fail-closed on 0-evaluated (ADR-0022) |
-| Property-based / metamorphic testing present | T1/T3 | ❌ | deferred — mutation testing already measures oracle strength |
+| Property-based testing (tier 1 of the verification ladder) | T0 | ✅ | `checks/python/27_properties.sh` — runs the declared suite; binary and **count-free** (never "how many properties"); declared-but-empty ⇒ fail; runner absent ⇒ `noop` naming it (ADR-0074) |
+| SMT / symbolic contracts (tier 2) | T0 | ❌ | **specified, not built** — `docs/specs/SPEC-verification-ladder.md`, #204; z3/CrossHair absent and nothing is installed |
+| Machine-checked proof (tier 3, opt-in per module) | T0 | ❌ | **specified, not built** — gates on "the proof checks" + "the statement is unchanged since a human reviewed it" (a hash); #205 |
 | Boundary-value / equivalence design | T2 | ⚠️ | `56_critics` rubric `boundary_value` — advisory critic, dormant until a judge is wired (ADR-0036) |
 | Flaky-test detection | T1 | ❌ | rerun variance; quarantine |
 | Every bug-fix ships a regression test | T0/process | ⚠️ | stated in rules, not enforced |

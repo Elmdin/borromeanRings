@@ -13,6 +13,33 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- **Verification ladder, tier 1 — property-based tests (ADR-0074, #140).** The gate can now
+  run a project's *universal* statements, not just its examples. `27_properties` runs the
+  suite declared at `[verification].properties` (pytest + Hypothesis) under a **binary,
+  threshold-free** rule: nothing declared ⇒ `noop` (rule off) · **declared but empty ⇒
+  `fail`** · runner not importable ⇒ `noop` **naming it** (borromeanRings never installs a
+  project's toolchain) · a falsified property ⇒ `fail`. It **never counts properties, never
+  ratchets on how many exist, and never targets a number of examples** — ADR-0022 chose a
+  mutation ratchet over a coverage percentage for exactly this reason, and "number of
+  properties" is the same trap one rung up; the file probe is `find … -print -quit`, so the
+  check is structurally unable to see a count. Declared-but-empty fails because
+  `[verification]` has **no defaults**: writing the key is an affirmative claim, and a claim
+  with no evidence behind it is the vacuity ADR-0049 exists to catch (`pass` would be that
+  defect verbatim; `noop` would make the declaration free). An **unknown key under
+  `[verification]` fails config loading closed** (`spine.VERIFICATION_KEYS`), so a typo
+  (`propertys = …`) can't silently switch a verification claim off. Order of evaluation is
+  part of the contract: everything decidable *without* a runner is decided first, so a
+  missing tool can never mask a broken claim. Unit-tested on the spine (including the
+  fail-closed typo) + eight integration cases driving the real `verify.sh`, each shown to
+  fail under a deliberate sabotage of the branch it covers. **Tiers 2 (SMT) and 3 (formal
+  proof) ship as specification only** — `docs/specs/SPEC-verification-ladder.md` covers all
+  three with their honest limits (an SMT proof covers the model you wrote, not the code you
+  shipped; a proof of the wrong theorem is worth nothing, so the *statement* is the reviewed
+  artifact) — with acceptance criteria filed as #204 and #205. z3 and CrossHair are not on
+  this machine and nothing was installed to change that. borromeanRings declares the check
+  and **no** property directory, so its own gate honestly reports `noop — rule off`; no
+  suite was invented to make the check look busy. `adopt.py`'s `RECOMMENDED` set is
+  unchanged: adopting a verification tier is a project's decision, not a migration's.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code
@@ -45,7 +72,7 @@ queue is merged.
   `last_verdict.json` + `verdict_history.jsonl`, back-compatible default `""`), and written
   as `harness_version.txt` into the receipt bundle. Answers "is it stable / which version
   verified this project?". Surfacing it as a `status.sh` column is a deferred follow-up.
-- Checks catalog (`docs/CHECKS.md`): the single reference for **every** check (all 27 across
+- Checks catalog (`docs/CHECKS.md`): the single reference for **every** check (all 29 across
   the shared / Python / heavy-CI lanes) — what each enforces, its `borromeanrings.toml`
   config keys, its lane, whether it's a threshold-free ratchet, and its ADR. Plus how to
   enable a check (`init.sh`/`adopt.sh`/manual) and how to opt a project into *automatic*

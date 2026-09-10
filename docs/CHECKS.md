@@ -76,7 +76,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `12_secrets` | No high-confidence provider tokens / private keys in tracked files; **fails closed on a non-git dir** | (scan; escape hatch inline) | 0032 / 0042 |
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
-| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass` | `[a11y].require`, `exclude` | 0045, 0049 |
+| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). Opt-in per project: form controls have an accessible name, `<a href>` has discernible text, one `<h1>` and no skipped levels (WCAG 3.3.2+4.1.2/2.4.4/1.3.1). Reports `file:line — [rule] — reason`. No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass`. Contrast/focus/target size need a rendered DOM — not faked here (#210) | `[a11y].require`, `exclude` | 0045, 0049, 0075 |
 
 ## Fast lane — Python checks
 

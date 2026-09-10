@@ -2,18 +2,22 @@
 # 15_a11y — static accessibility (a11y) invariants for the project's HTML: the
 # Product/UX slice of the SWE matrix (#6). Enforces (per [a11y].require) the
 # high-confidence, deterministic facts a screen-reader user is blocked by and that
-# need no rendered DOM: a full document declares <html lang>, every <img> carries an
-# alt, and a full document has a non-empty <title>. Native (stdlib html.parser; no
-# axe-core/node). Threshold-free — presence facts only, no score target. No tracked
-# HTML ⇒ `noop` (not a UI project: legitimate, but never a green that claims a11y was
-# inspected — ADR-0049). Off unless 15_a11y is in [checks].required.
-# See SPEC-accessibility.md, ADR-0045, ADR-0049.
+# need no rendered DOM. Gated by default: a full document declares <html lang>, every
+# <img> carries an alt, a full document has a non-empty <title>. Opt-in per project
+# (ADR-0075): every form control has an accessible name, every <a href> has
+# discernible text, the heading outline is well-formed. Native (stdlib html.parser; no
+# axe-core/node). Threshold-free — presence facts only, no score target. Contrast,
+# keyboard reachability and target size are properties of the RENDERED page, not the
+# source: deliberately not faked here, specified for an opt-in heavy lane (#210). No
+# tracked HTML ⇒ `noop` (not a UI project: legitimate, but never a green that claims
+# a11y was inspected — ADR-0049). Off unless 15_a11y is in [checks].required.
+# See SPEC-accessibility.md, ADR-0045, ADR-0049, ADR-0075.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../_lib.sh"
 
 id="15_a11y"
 log="$RECEIPT_DIR/$id.log"
-cmd="static a11y invariants (html lang, img alt, page title per [a11y].require)"
+cmd="static a11y invariants (lang, alt, title, labels, links, headings per [a11y].require)"
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$PROJECT_ROOT" >"$log" 2>&1 <<'PY'
 import subprocess  # nosec B404 — fixed argv, no shell; only queries git
@@ -95,7 +99,10 @@ for rel in files:
     findings = a11y_findings(html, require=cfg.a11y_require)
     for f in findings:
         total += 1
-        print(f"  - {rel}: [{f.rule}] {f.message}")
+        # file:line for an offending element; file alone when the violation is an
+        # absence (no <title>, no <h1>) or a count — never invent a line.
+        where = f"{rel}:{f.line}" if f.line is not None else rel
+        print(f"  - {where} — [{f.rule}] — {f.message}")
 
 if total:
     print(f"\nACCESSIBILITY — {total} issue(s) across {len(files)} HTML file(s).")

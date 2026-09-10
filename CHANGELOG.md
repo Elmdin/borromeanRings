@@ -12,7 +12,35 @@ queue is merged.
 
 ## [Unreleased]
 
+### Added
+- **Static a11y rules for labels, link text and heading structure** (ADR-0075, #159) —
+  matrix rows U4–U6 of `docs/matrices/06-product-ux.md`, added to `15_a11y` (not a second
+  check) and **opt-in** via `[a11y].require`, so a project adopts one at a time:
+  `control_label` (every `<select>`/`<textarea>`/`<input>` except
+  `hidden|submit|button|reset|image` has an accessible name — a wrapping or
+  `for=`-associated `<label>`, a non-empty `aria-label`, or an `aria-labelledby` naming an
+  id that **exists**; WCAG 2.2 SC 3.3.2, 4.1.2), `link_text` (every `<a href>` has
+  non-empty text, an ARIA name, or an `<img alt="...">` inside it; SC 2.4.4), and
+  `heading_structure` (a full document has exactly one `<h1>`; no heading skips a level;
+  `<template>` and comment content excluded; SC 1.3.1). Findings now carry a source line
+  and are reported as `file:line — [rule] — what is wrong` (an absence, such as a missing
+  `<title>` or `<h1>`, prints without a line rather than inventing one). Defaults are
+  unchanged — `[a11y].require` still defaults to the three ADR-0045 rules, and `adopt`'s
+  `RECOMMENDED` set is untouched.
+  Deliberately **not** built and specified instead (#210): contrast, keyboard
+  reachability/visible focus, target size and the axe-core violation ratchet (rows
+  U7–U9, U18) are properties of the *rendered* page, not the source. No banned-phrase
+  ("click here") list either: link purpose *in context* is a judgement, not a fact.
+
 ### Fixed
+- `15_a11y` read the HTML tree in three ways a browser does not (found in review of
+  #159, and applying to the rules shipped in ADR-0045 as well): **duplicate attributes**
+  resolved last-wins where the HTML parsing spec keeps the *first*
+  (`<html lang="" lang="en">` was read as valid); **`<script>`/`<style>` source** was
+  treated as rendered text, so a link containing only code looked named; and
+  **`<template>` content** — inert until cloned — could supply a document's `<title>` or
+  an enclosing link's name. Each is now resolved the way the DOM would, with tests in
+  both directions.
 - `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
   the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus

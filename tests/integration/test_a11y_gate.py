@@ -9,6 +9,10 @@ fixture projects and pin the three outcomes:
 * **no HTML** — gate green, receipt ``noop``, hollowness surfaced in the gate output;
 * **clean HTML** — a real ``pass``;
 * **violating HTML** — ``fail``, unchanged.
+
+It also pins the opt-in rules added by ADR-0075 (``control_label``, ``link_text``,
+``heading_structure``): off unless a project names them in ``[a11y].require``, and when
+named, reported as ``file:line — [rule] — what is wrong``.
 """
 
 import json
@@ -29,6 +33,41 @@ CLEAN_HTML = (
     '<body><img src="a.png" alt="a logo"></body></html>\n'
 )
 BAD_HTML = '<!DOCTYPE html>\n<html><head></head><body><img src="a.png"></body></html>\n'
+
+# Every rule this module knows, including the three that are opt-in by default.
+CONFIG_ALL_RULES = CONFIG + (
+    '\n[a11y]\nrequire = ["html_lang", "img_alt", "page_title", "control_label", '
+    '"link_text", "heading_structure"]\n'
+)
+
+# Clean under the default three rules, but violates all three opt-in rules: a heading
+# level skip (line 6), an unlabelled control (line 7) and an empty link (line 8).
+OPT_IN_BAD_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Signup</title></head>
+<body>
+<h1>Sign up</h1>
+<h3>Your details</h3>
+<input type="email">
+<a href="/help"></a>
+</body>
+</html>
+"""
+
+# The same page, fixed: the control is labelled, the link has text, no level is skipped.
+OPT_IN_CLEAN_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Signup</title></head>
+<body>
+<h1>Sign up</h1>
+<h2>Your details</h2>
+<label for="email">Email</label><input type="email" id="email">
+<a href="/help">Help</a>
+</body>
+</html>
+"""
 
 
 def _run_gate(project: Path) -> tuple[int, str, dict[str, str]]:
@@ -168,3 +207,50 @@ def test_non_git_project_without_html_is_noop(tmp_path: Path) -> None:
     code, stdout, statuses = _run_gate(project)
     assert code == 0, stdout
     assert statuses.get("15_a11y") == "noop"
+
+
+def test_opt_in_rules_are_off_until_a_project_names_them(tmp_path: Path) -> None:
+    """A page violating only the opt-in rules passes under the default require set.
+
+    The three rules added by ADR-0075 must not fire for a project that never adopted
+    them — turning them all on at once would break every governed frontend at a stroke.
+    """
+    project = _git_project(
+        tmp_path / "optin-off", {"borromeanrings.toml": CONFIG, "site/index.html": OPT_IN_BAD_HTML}
+    )
+    code, stdout, statuses = _run_gate(project)
+    assert code == 0, stdout
+    assert statuses.get("15_a11y") == "pass"
+    log = _a11y_log(project)
+    for rule in ("control_label", "link_text", "heading_structure"):
+        assert rule not in log, log
+
+
+def test_adopted_rules_fail_and_name_the_file_line_and_rule(tmp_path: Path) -> None:
+    """Once adopted, each violation is reported as `file:line — [rule] — what is wrong`."""
+    project = _git_project(
+        tmp_path / "optin-bad",
+        {"borromeanrings.toml": CONFIG_ALL_RULES, "site/index.html": OPT_IN_BAD_HTML},
+    )
+    code, stdout, statuses = _run_gate(project)
+    assert code != 0, f"HTML violating the adopted a11y rules must FAIL:\n{stdout}"
+    assert statuses.get("15_a11y") == "fail"
+    log = _a11y_log(project)
+    assert "site/index.html:6 — [heading_structure] —" in log, log
+    assert "site/index.html:7 — [control_label] —" in log, log
+    assert "site/index.html:8 — [link_text] —" in log, log
+    # The WCAG success criterion travels with the finding, so the fix is lookup-able.
+    for criterion in ("1.3.1", "3.3.2", "2.4.4"):
+        assert criterion in log, log
+
+
+def test_fixing_the_markup_makes_the_adopted_rules_pass(tmp_path: Path) -> None:
+    """Negative control: the corrected page is a real pass, not a noop."""
+    project = _git_project(
+        tmp_path / "optin-clean",
+        {"borromeanrings.toml": CONFIG_ALL_RULES, "site/index.html": OPT_IN_CLEAN_HTML},
+    )
+    code, stdout, statuses = _run_gate(project)
+    assert code == 0, stdout
+    assert statuses.get("15_a11y") == "pass"
+    assert "inspected NOTHING" not in stdout

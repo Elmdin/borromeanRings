@@ -33,6 +33,7 @@ from meta_harness.status_assess import (
     classify_enforcement,
     read_project_verdict,
     read_rewrite_tally,
+    read_self_report_tally,
     render,
     render_self_status,
     summarize,
@@ -170,6 +171,7 @@ def _self_report(project_hint: Path | str) -> str:
         harness_home=harness_home,
         installed_version=os.environ.get("HARNESS_VERSION", ""),
         rewrite_tally=read_rewrite_tally(project),
+        self_report_tally=read_self_report_tally(project),
     )
 
 

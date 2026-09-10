@@ -9,15 +9,20 @@ from meta_harness.verdict import (
     NON_FAILING_STATUSES,
     REWRITE_CONTRACT_FILE,
     REWRITE_STATUSES,
+    SELF_REPORT_FILE,
+    SELF_REPORT_STATUSES,
     VERDICT_HISTORY_FILE,
     RewriteTally,
+    SelfReportTally,
     Verdict,
     append_history,
     append_rewrite_record,
+    append_self_report_record,
     is_failing,
     read_history,
     read_last_verdict,
     read_rewrite_tally,
+    read_self_report_tally,
     write_last_verdict,
 )
 
@@ -212,3 +217,30 @@ def test_rewrite_tally_is_fail_soft_and_fail_closed(tmp_path: Path) -> None:
     # malformed lines are skipped; an unrecognised or missing status is never "honoured"
     assert read_rewrite_tally(tmp_path) == RewriteTally(honoured=1, unknown=2)
     assert REWRITE_STATUSES == ("honoured", "not_honoured", "exempt", "unknown")
+
+
+# --- self-report records (ADR-0066) ------------------------------------------------------
+
+
+def test_self_report_record_appends_and_tallies_by_status(tmp_path: Path) -> None:
+    for status in ("present", "present", "absent", "malformed", "graded", "exempt", "unknown"):
+        append_self_report_record(tmp_path, {"status": status, "prompt_hash": "h"})
+    raw = (tmp_path / SELF_REPORT_FILE).read_text(encoding="utf-8")
+    assert raw.count("\n") == 7 and raw.startswith('{"status": "present", "prompt_hash": "h"}\n')
+    tally = read_self_report_tally(tmp_path)
+    assert tally == SelfReportTally(present=2, absent=1, malformed=1, graded=1, exempt=1, unknown=1)
+    assert (tally.judged, tally.total) == (5, 7)
+    assert SELF_REPORT_FILE == ".meta-harness/self_report.jsonl"
+
+
+def test_self_report_tally_is_fail_soft_and_fail_closed(tmp_path: Path) -> None:
+    assert read_self_report_tally(tmp_path) == SelfReportTally()
+    path = tmp_path / SELF_REPORT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '{"status": "present"}\n\n{garbage\n[1]\n{"status": "honoured"}\n{"no": "status"}\n',
+        encoding="utf-8",
+    )
+    # a rewrite-contract status is not a self-report status: never counted as present
+    assert read_self_report_tally(tmp_path) == SelfReportTally(present=1, unknown=2)
+    assert SELF_REPORT_STATUSES == ("present", "absent", "malformed", "graded", "exempt", "unknown")

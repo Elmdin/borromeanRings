@@ -33,28 +33,35 @@ fi
 borromeanrings_claim stop "$session_id" || exit 0
 trap 'borromeanrings_release stop "$session_id"' EXIT TERM INT
 
-# Rewrite-contract receipt (ADR-0059, #81): did the reply that just ended open with the
-# "Reading this as:" line the UserPromptSubmit directive asked for? Decided from the
-# session transcript the substrate names in the payload (transcript_path) — nothing else
-# is read — and appended to .meta-harness/rewrite_contract.jsonl. Runs BEFORE the no-op
-# guard: a reply that only answered a question is exactly where the reading matters.
-# Record, don't nag: advisory in v1 — never blocks, never fails this hook. Skipped when
-# the directive is off ([prompt_rewriting].enabled) so an absent reading is never
+# Reply-shape receipts, decided from the session transcript the substrate names in the
+# payload (transcript_path) — nothing else is read — and appended under .meta-harness/:
+#   * rewrite contract (ADR-0059, #81): did the reply OPEN with the "Reading this as:"
+#     line the UserPromptSubmit directive asked for? -> rewrite_contract.jsonl
+#   * self-report (ADR-0066, #176): did the reply END with the structural VERIFICATION
+#     STATUS block, free of confidence grades? -> self_report.jsonl
+# Runs BEFORE the no-op guard: a reply that only answered a question is exactly where
+# the reading and the report matter. Record, don't nag: advisory — never blocks, never
+# fails this hook. Each receipt is skipped when its switch is off ([prompt_rewriting] /
+# [self_report].enabled, the latter defaulting to the former) so an absent line is never
 # recorded as a broken promise nobody made.
-# The payload travels over stdin (as for the parse above), never argv. Bounded
-# (BORROMEANRINGS_REWRITE_TIMEOUT seconds, default 10): a stalled filesystem under the
-# transcript must never park the Stop hook.
+# One python process for both: the payload travels over stdin (as for the parse above),
+# never argv, and is read once. Bounded (BORROMEANRINGS_REWRITE_TIMEOUT seconds, default
+# 10): a stalled filesystem under the transcript must never park the Stop hook.
 printf '%s' "$input" | borromeanrings_bounded "${BORROMEANRINGS_REWRITE_TIMEOUT:-10}" \
   env PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c '
 import sys
 from pathlib import Path
 
-from meta_harness.rewrite_contract import record_from_payload
+from meta_harness import rewrite_contract, self_report
 from meta_harness.spine import load_config
 
 project = Path(sys.argv[1])
-if load_config(project / "borromeanrings.toml").prompt_rewriting_enabled:
-    record_from_payload(project, sys.stdin.read())
+config = load_config(project / "borromeanrings.toml")
+payload = sys.stdin.read()
+if config.prompt_rewriting_enabled:
+    rewrite_contract.record_from_payload(project, payload)
+if config.self_report_enabled:
+    self_report.record_from_payload(project, payload)
 ' "$PROJECT_DIR" >/dev/null 2>&1 || true
 
 # No-op guard: if the governed input state is identical to the last proven-green

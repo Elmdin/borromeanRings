@@ -26,10 +26,12 @@ from typing import Any
 from meta_harness.adopt import plan_adoption
 from meta_harness.verdict import (
     RewriteTally,
+    SelfReportTally,
     Verdict,
     is_failing,
     read_last_verdict,
     read_rewrite_tally,
+    read_self_report_tally,
 )
 
 __all__ = [
@@ -39,6 +41,7 @@ __all__ = [
     "Enforcement",
     "ProjectStatus",
     "RewriteTally",
+    "SelfReportTally",
     "Verdict",
     "build_status",
     "classify_enforcement",
@@ -46,8 +49,10 @@ __all__ = [
     "obligations",
     "read_project_verdict",
     "read_rewrite_tally",
+    "read_self_report_tally",
     "render",
     "render_rewrite_line",
+    "render_self_report_line",
     "render_self_status",
     "summarize",
 ]
@@ -276,6 +281,28 @@ def render_rewrite_line(tally: RewriteTally | None) -> str:
     return f"{line} ({', '.join(aside)})" if aside else line
 
 
+def render_self_report_line(tally: SelfReportTally | None) -> str:
+    """The self-report line of the self-status report (ADR-0066).
+
+    How often replies ended with the structural VERIFICATION STATUS block. A statement
+    about the RECORD: malformed, graded, exempt and unknown verdicts are shown as such.
+    """
+    if tally is None or tally.total == 0:
+        return "no record"
+    line = f"present {tally.present} of {tally.judged}"
+    aside = [
+        f"{count} {name}"
+        for name, count in (
+            ("malformed", tally.malformed),
+            ("graded", tally.graded),
+            ("exempt", tally.exempt),
+            ("unknown", tally.unknown),
+        )
+        if count
+    ]
+    return f"{line} ({', '.join(aside)})" if aside else line
+
+
 def render_self_status(
     *,
     project: str,
@@ -286,6 +313,7 @@ def render_self_status(
     harness_home: str,
     installed_version: str = "",
     rewrite_tally: RewriteTally | None = None,
+    self_report_tally: SelfReportTally | None = None,
 ) -> str:
     """Render the one-project report (pure; safe on missing/partial facts)."""
     name = project.rstrip("/").rsplit("/", maxsplit=1)[-1] or project
@@ -335,6 +363,7 @@ def render_self_status(
     marker = {"auto": "", "partial": "⚠ ", "manual": "⚠ "}[enforcement.mode]
     lines.append(f"  {marker}Enforcement: {enforcement.mode.upper()} — {enforcement.detail}")
     lines.append(f"  Rewrite:      contract {render_rewrite_line(rewrite_tally)}")
+    lines.append(f"  Self-report:  {render_self_report_line(self_report_tally)}")
     if installed_version:
         lines.append(f"  Installed:    borromeanRings {installed_version} at {harness_home}")
     lines += [f"  Re-gate:      {harness_home}/verify.sh", ""]

@@ -103,3 +103,5 @@ Five skills make these disciplines actionable in a session. They install user-le
 | `ai-fluency-discernment` | Review an output / audit an agentic trajectory before building on it |
 | `ai-fluency-diligence` | Check disclosure and responsibility before sharing AI-assisted work |
 | `ai-fluency-stewardship` | Govern a long autonomous run — when to continue, interrupt, or stop |
+
+Each of the four 4D skills also states the *agent's* obligation for its competency, and the Stop hook records whether a reply ended with the structural `VERIFICATION STATUS` block (`docs/specs/SPEC-self-report.md`, ADR-0066).

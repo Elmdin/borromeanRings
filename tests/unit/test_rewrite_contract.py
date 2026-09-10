@@ -491,3 +491,19 @@ def test_record_from_payload_survives_garbage_and_missing_path(tmp_path: Path) -
     )
     tally = read_rewrite_tally(tmp_path)
     assert (tally.unknown, tally.judged) == (3, 0)
+
+
+def test_last_exchange_can_pick_the_final_reply_instead_of_the_first() -> None:
+    entries = parse_entries(
+        [
+            json.dumps(_user("q")),
+            json.dumps(_assistant(_text("first"))),
+            json.dumps(_assistant({"type": "tool_use", "name": "Bash"})),
+            json.dumps(_assistant(_text("last"))),
+        ],
+        1,
+    )
+    assert find_last_exchange(entries) == Exchange("q", "first", 2)
+    assert find_last_exchange(entries, final=True) == Exchange("q", "last", 4)
+    only_prompt = parse_entries([json.dumps(_user("q"))], 1)
+    assert find_last_exchange(only_prompt, final=True) == Exchange("q", None, None)

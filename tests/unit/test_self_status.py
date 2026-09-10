@@ -11,9 +11,11 @@ from meta_harness.status_assess import (
     HOOK_SCRIPTS,
     Enforcement,
     RewriteTally,
+    SelfReportTally,
     classify_enforcement,
     hollow_checks,
     render_rewrite_line,
+    render_self_report_line,
     render_self_status,
 )
 from meta_harness.verdict import Verdict
@@ -267,3 +269,40 @@ def test_self_status_shows_the_rewrite_contract_tally() -> None:
         harness_home=HOME,
     )
     assert "contract no record" in default
+
+
+# --- self-report tally (ADR-0066) --------------------------------------------------------
+
+
+def test_render_self_report_line_states_the_record_exactly() -> None:
+    assert render_self_report_line(None) == "no record"
+    assert render_self_report_line(SelfReportTally()) == "no record"
+    assert render_self_report_line(SelfReportTally(present=3, absent=1)) == "present 3 of 4"
+    assert render_self_report_line(SelfReportTally(present=1, graded=2, unknown=1)) == (
+        "present 1 of 3 (2 graded, 1 unknown)"
+    )
+    assert (
+        render_self_report_line(
+            SelfReportTally(present=0, absent=1, malformed=2, graded=3, exempt=4, unknown=5)
+        )
+        == "present 0 of 6 (2 malformed, 3 graded, 4 exempt, 5 unknown)"
+    )
+    assert render_self_report_line(SelfReportTally(exempt=1)) == "present 0 of 0 (1 exempt)"
+
+
+def test_self_status_shows_the_self_report_tally_under_the_rewrite_line() -> None:
+    report = render_self_status(
+        project="/p/x",
+        governed=True,
+        required=("40_test",),
+        last_verdict=None,
+        enforcement=Enforcement("auto", "6/6 hooks wired"),
+        harness_home=HOME,
+        rewrite_tally=RewriteTally(honoured=1),
+        self_report_tally=SelfReportTally(present=2, absent=1, graded=1),
+    )
+    assert (
+        "  Rewrite:      contract honoured 1 of 1 in this project\n"
+        "  Self-report:  present 2 of 4 (1 graded)\n"
+    ) in report
+    assert "  Self-report:  no record\n" in _render(None)

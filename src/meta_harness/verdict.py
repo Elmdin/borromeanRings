@@ -18,7 +18,7 @@ docs/specs/SPEC-status.md and ADR-0046.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +35,14 @@ REWRITE_CONTRACT_FILE = ".meta-harness/rewrite_contract.jsonl"
 #: outcomes; ``exempt`` (trivial prompt) and ``unknown`` (no evidence) are not, and a
 #: record carrying any other status is counted as ``unknown`` — never as honoured.
 REWRITE_STATUSES = ("honoured", "not_honoured", "exempt", "unknown")
+#: Append-only record of the self-report contract, one verdict per Stop: did the reply end
+#: with the structural VERIFICATION STATUS block, and was it free of confidence grades?
+#: Decided by meta_harness.self_report; tallied by the self-status view. See ADR-0066 (#176).
+SELF_REPORT_FILE = ".meta-harness/self_report.jsonl"
+#: The self-report verdict vocabulary. ``present``/``absent``/``malformed``/``graded`` are
+#: judged outcomes; ``exempt`` (trivial prompt) and ``unknown`` (no evidence) are not, and
+#: a record carrying any other status counts as ``unknown`` — never as present.
+SELF_REPORT_STATUSES = ("present", "absent", "malformed", "graded", "exempt", "unknown")
 
 #: Receipt statuses that do NOT fail the gate.
 #:
@@ -203,17 +211,18 @@ def append_rewrite_record(project_root: Path | str, rec: Mapping[str, object]) -
         fh.write(json.dumps(dict(rec)) + "\n")
 
 
-def read_rewrite_tally(project_root: Path | str) -> RewriteTally:
-    """Tally the project's rewrite-contract record (fail-soft: unreadable ⇒ all zeros).
+def _count_statuses(path: Path, statuses: Sequence[str]) -> dict[str, int]:
+    """Count the ``status`` of every well-formed record line in ``path``.
 
-    A malformed line is skipped; a well-formed record with an unrecognised status counts
-    as ``unknown`` (fail-closed: it is never evidence that the contract was honoured).
+    Fail-soft: an unreadable file is all zeros. A malformed line is skipped; a well-formed
+    record with an unrecognised status counts as ``unknown`` (fail-closed: it is never
+    evidence for the contract).
     """
+    counts = dict.fromkeys(statuses, 0)
     try:
-        raw = _rewrite_path(project_root).read_text(encoding="utf-8")
+        raw = path.read_text(encoding="utf-8")
     except OSError:
-        return RewriteTally()
-    counts = dict.fromkeys(REWRITE_STATUSES, 0)
+        return counts
     for line in raw.splitlines():
         if not line.strip():
             continue
@@ -225,4 +234,52 @@ def read_rewrite_tally(project_root: Path | str) -> RewriteTally:
             continue
         status = data.get("status")
         counts[status if status in counts else "unknown"] += 1
-    return RewriteTally(**counts)
+    return counts
+
+
+def read_rewrite_tally(project_root: Path | str) -> RewriteTally:
+    """Tally the project's rewrite-contract record (see :func:`_count_statuses`)."""
+    return RewriteTally(**_count_statuses(_rewrite_path(project_root), REWRITE_STATUSES))
+
+
+# --- self-report records (ADR-0066) ------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SelfReportTally:
+    """How often replies carried the structural VERIFICATION STATUS block, from the record."""
+
+    present: int = 0
+    absent: int = 0
+    malformed: int = 0
+    graded: int = 0
+    exempt: int = 0
+    unknown: int = 0
+
+    @property
+    def judged(self) -> int:
+        """Records that carry evidence either way (exempt and unknown do not)."""
+        return self.present + self.absent + self.malformed + self.graded
+
+    @property
+    def total(self) -> int:
+        """Every record, whatever its status."""
+        return self.judged + self.exempt + self.unknown
+
+
+def _self_report_path(project_root: Path | str) -> Path:
+    return Path(project_root) / SELF_REPORT_FILE
+
+
+def append_self_report_record(project_root: Path | str, rec: Mapping[str, object]) -> None:
+    """Append one self-report record as a JSON line (creates dirs; append-only)."""
+    path = _self_report_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(dict(rec)) + "\n")
+
+
+def read_self_report_tally(project_root: Path | str) -> SelfReportTally:
+    """Tally the project's self-report record (see :func:`_count_statuses`)."""
+    counts = _count_statuses(_self_report_path(project_root), SELF_REPORT_STATUSES)
+    return SelfReportTally(**counts)

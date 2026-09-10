@@ -157,6 +157,13 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
 # SPEC-prompt-rewrite.md and SPEC-rewrite-contract.md.
 enabled = true
 
+[self_report]
+# The Stop hook also records whether the reply ENDED with the structural VERIFICATION STATUS
+# block the ai-fluency-diligence skill asks for (Verified / Unverified / Weakest claim /
+# Assumed — never a confidence grade), to .meta-harness/self_report.jsonl (ADR-0066). Advisory;
+# never blocks. Defaults to [prompt_rewriting].enabled — set it only to diverge.
+enabled = true
+
 [enhancements]
 # Agent-enhancement recommender (advisory; ADR-0037). Categories of open-source
 # tools to surface for improving the WRAPPED agent (not the code). Advisory only

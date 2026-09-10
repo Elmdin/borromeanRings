@@ -24,6 +24,10 @@ class Config:
     # [checks].heavy — CI-tier checks required only under `verify.sh --heavy` (ADR-0033).
     heavy_checks: tuple[str, ...] = ()
     prompt_rewriting_enabled: bool = False
+    # [self_report].enabled — record the reply's VERIFICATION STATUS block at Stop
+    # (ADR-0066). Defaults to prompt_rewriting_enabled: the reply-shape contracts
+    # travel together unless a project says otherwise.
+    self_report_enabled: bool = False
     hygiene_requires: tuple[str, ...] = ()
     # [project] — what borromeanRings targets in the GOVERNED project (portability).
     package: str = ""  # importable package name (optional; "" → skip import check)
@@ -110,6 +114,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         )
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
+    self_report_enabled = bool(raw.get("self_report", {}).get("enabled", prompt_rewriting_enabled))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
     project = raw.get("project", {})
     git = raw.get("git", {})
@@ -125,6 +130,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
+        self_report_enabled=self_report_enabled,
         hygiene_requires=hygiene_requires,
         package=str(project.get("package", "")),
         src_dir=str(project.get("src_dir", "src")),

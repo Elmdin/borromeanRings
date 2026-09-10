@@ -92,9 +92,12 @@ Take Stewardship's three questions apart:
 - *Continue, interrupt, or stop?* — that is Diligence: accepting responsibility for what
   happens next.
 
-The tripwires decompose the same way (an irreversible action imminent is Diligence; a retry
-loop or a run with no reviewable artifact is process Discernment; an attempt to edit gate
-logic is a Delegation boundary). No question is a new *kind* of judgment; what is new is
+Each of the interrupt conditions this repo already wires lands in one of the four as well.
+When the guard refuses a destructive command, the judgment being exercised is Diligence.
+When the Stop hook escalates after its bounded retries, or a turn ends with nothing a
+reviewer could inspect, the failure is one of process, which is Discernment's second half.
+When an agent reaches for the gate's own logic, it has crossed the line the delegation
+drew. No question is a new *kind* of judgment; what is new is
 *when* it is exercised. A discipline exercised only at intervals is a schedule, not a skill.
 The framework's own teaching already groups the four by tempo — a strategic pair
 (Delegation and Diligence) and a moment-to-moment pair (Description and Discernment) — so

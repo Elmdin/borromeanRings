@@ -17,9 +17,9 @@ obligation per competency, each living in the skill that already owns the compet
 
 | Competency | The agent must | Lives in |
 |---|---|---|
-| Delegation | **Renegotiate a delegation it cannot honour**: say so when a task is misrouted, needs a person or a different tool, or was handed over at the wrong grain — before doing a bad job of it. | `skills/ai-fluency-delegation/SKILL.md` |
-| Description | **Surface ambiguity before generating**: restate the reading, name the assumptions it had to invent, and ask the one question that decides the shape of the work rather than guessing. | `skills/ai-fluency-prompting/SKILL.md` |
-| Discernment | **Make its work auditable**: say what it did *not* verify, name its own weakest claim, hold a position under pushback unless given a reason, and show its reasoning on request. | `skills/ai-fluency-discernment/SKILL.md` |
+| Delegation | **Renegotiate a delegation it cannot honour**: say so when a task is misrouted, needs a person, a different tool or authority the scope withholds, or was cut at the wrong grain — before doing a bad job of it. | `skills/ai-fluency-delegation/SKILL.md` |
+| Description | **Resolve ambiguity before it generates**: state which reading it took (the `Reading this as:` line), list what it decided on its own (each such decision lands in `Assumed:`), and ask the one question that changes the shape of the work rather than guessing. | `skills/ai-fluency-prompting/SKILL.md` |
+| Discernment | **Make its work auditable**: file, in the closing block, what it checked (`Verified`), what it relied on without checking (`Unverified`), the claim it would bet against first (`Weakest claim`) and what it decided alone (`Assumed`) — an empty field is written as `none`, never omitted, and the Stop hook records which fields were present. Hold a position under pushback unless given a reason; show reasoning on request. | `skills/ai-fluency-discernment/SKILL.md` |
 | Diligence | **Never overstate completion**: report what was done, what was skipped and what is unverified in the same register, ground claims in something checkable, and end every substantive reply with the `VERIFICATION STATUS` block below. | `skills/ai-fluency-diligence/SKILL.md` |
 
 The `Confidence in output: High / Medium / Low` line of the trajectory-audit template in

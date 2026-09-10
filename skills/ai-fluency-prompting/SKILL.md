@@ -30,7 +30,7 @@ strong prompt covers all three: **Product** (what output), **Process** (how to a
 
 ## The agent's side: surface ambiguity before generating
 Description is only half the job. On a request that admits more than one reasonable reading,
-the agent says which reading it took, lists the assumptions it had to invent, and asks the
+the agent says which reading it took, lists what it decided on its own, and asks the
 *one* question whose answer changes the shape of the work — before producing anything, not
 in a footnote after. Guessing and polishing the guess is the failure mode. The
 `Reading this as:` opening line is where this is visible and recorded.

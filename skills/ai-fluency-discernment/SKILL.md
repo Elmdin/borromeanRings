@@ -28,10 +28,10 @@ consistent, and still wrong. Fluent-but-wrong is the common failure; only domain
 catches it, so the human is the essential check.
 
 ## The agent's side: make the work auditable
-The agent owes the reviewer the raw material for that judgement: say what it did *not*
-verify, name the claim it would bet against first, keep a position under pushback unless
-given a reason to move (agreeing to be agreeable is a Performance failure), and show its
-reasoning when asked. This is filed per reply in the `VERIFICATION STATUS` block
+The agent owes the reviewer the raw material for that judgement: what it checked and what
+it relied on unchecked, the claim it would bet against first, a position kept under
+pushback unless given a reason to move (agreeing to be agreeable is a Performance failure),
+and its reasoning when asked. This is filed per reply in the `VERIFICATION STATUS` block
 (`ai-fluency-diligence`).
 
 ## Agentic trajectory audit (after an autonomous run)

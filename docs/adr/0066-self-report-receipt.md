@@ -11,14 +11,16 @@ actively contradicted the last point: the trajectory-audit template in
 `ai-fluency-discernment` ended with `Confidence in output: High / Medium / Low`.
 
 The 4D Fluency Compact work (#172) found this contradiction and resolved it against the
-grade. Its reasoning, re-authored here because that repository is CC BY-NC-SA and this one is
-Apache-2.0: an agent's estimate of its own reliability is not something a reader can check,
-so a grade — a decimal, a percentage, *or* a three-word ordinal — gives the reader nothing
-to do except defer. A defensive `Low` is as much a fabrication as an inflated `High`; the
-objection is to the grade, not to how many decimal places it carries. What a reader *can*
-check is a fact about the work: "I did not run the integration suite", "I assumed the
-timestamps are UTC", "the claim most likely wrong is X". Those facts keep the judgement where
-Discernment says it belongs: with the human.
+grade. The reasoning, stated here in borromeanRings terms because that repository is
+CC BY-NC-SA and this one is Apache-2.0: a grade is a claim about the agent that only the
+agent can produce, so it is exactly the kind of green this project refuses — a signal with
+nothing behind it that the gate could inspect (ADR-0049's hollow-green argument, applied to
+a reply). It makes no difference whether the grade has two decimals, a percent sign or three
+words: `Low` offered out of caution is as unbacked as `High` offered out of optimism, and
+either one invites the reader to threshold on it instead of reviewing. What the gate *can*
+inspect is whether the reply names checkable facts — a test suite that was not run, a
+timezone that was assumed, the one claim the agent would bet against — because each of those
+is something the reviewer can go and verify, which keeps Discernment with the human.
 
 ADR-0059 showed how to make a reply-shape request real: verify it from the transcript the
 Stop hook receives, record the verdict, tally it in self-status, never block. This decision
@@ -55,13 +57,14 @@ applies the same machinery to the closing block.
    closing block — and a project can diverge explicitly.
 
 ## Alternatives considered
-- **A derived grade computed from the four lines** (e.g. `Low` if anything is unverified) —
-  rejected for now. In a skill — a markdown instruction with no runtime — the "derivation"
-  would be performed by the model and rationalised after the fact: a self-assessment dressed
-  as a computation, which is worse than either honest option because it looks checkable and
-  is not. Revisit only if a runtime validates the block and computes the grade itself.
-- **Keep the ordinal for humans, the block for machines** — rejected: two forms of the same
-  thing citing each other is exactly the contradiction being closed.
+- **A grade derived from the four lines** (e.g. `Low` whenever `Unverified` is not `none`) —
+  rejected for now. Nothing in a skill computes; the agent would emit the grade and then
+  produce the four lines that justify it, so the "derivation" is a receipt the emitter
+  wrote for itself — the hollow-check pattern ADR-0049 exists to reject. Revisit if
+  `self_report.py` grows a validator that derives the grade from the recorded fields: then
+  the hook, not the model, would own the number, and `present_fields` would be its evidence.
+- **An ordinal in the skills, the block in the hook** — rejected: keeping both is the
+  contradiction this ADR closes, and each artifact would keep pointing at the other.
 - **A model judge of whether the block is *truthful*** — rejected: agent-only per ADR-0030,
   one call per Stop, and truthfulness is not what a hook can decide; presence and shape are.
 - **Block the Stop on a missing or graded block** — rejected for v1, as in ADR-0059: nagging

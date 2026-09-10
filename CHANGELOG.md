@@ -12,7 +12,26 @@ queue is merged.
 
 ## [Unreleased]
 
+### Added
+- Quote fidelity (ADR-0065, issue #175, sub-issue of #172): `24_quotes` +
+  `meta_harness.quotes` verify that every quotation a Markdown document marks with a source
+  (`> …` then `— source: docs/research/<slug>/<file>#L<a>-L<b>`, or the
+  `<!-- quote: … -->` comment form) is **verbatim** against that saved span — the mechanism
+  behind the research skill's fail-closed citation promise. Both sides are normalised the
+  same way (curly → straight quotes, whitespace collapsed, one wrapping `"` pair and trailing
+  sentence punctuation dropped) and nothing else; outcomes are verbatim / drifted (with a
+  unified diff) / missing / out-of-range / orphan marker, each listed as `file:line`. Opt-in
+  via `[quotes].enabled` + `paths`; no marked quotation ⇒ `noop`; an unreadable document or
+  source fails closed; no network. Registered in `[checks].required` here (currently `noop`:
+  no research document has a saved source yet), catalogued in `docs/CHECKS.md`;
+  `docs/specs/SPEC-quotes.md`. Unit- (100% line+branch) and integration-tested. The research
+  skill's §5 now requires the convention for verbatim quotes in `report.md` (still ≤ 3692 B).
+
 ### Changed
+- The research skill's ≤ 3692 B pin test moved from `tests/unit/test_context_budget.py` to
+  `tests/integration/test_context_budget_gate.py`: it reads the repo's `.claude/` tree, which
+  mutmut's `mutants/` copy lacks, so on the heavy lane it failed the clean-test run and
+  `60_mutation` evaluated 0 mutants (failing closed). Same assertion, still on every gate.
 - `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
   cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,
   per-file and per-section), and the dynamic drivers are traced and ranked — working state

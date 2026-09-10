@@ -14,6 +14,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from meta_harness.context_budget import measure_context_budget
+
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 GATE_TIMEOUT_S = 120
@@ -104,3 +106,17 @@ def test_unreadable_baseline_fails_closed(tmp_path: Path) -> None:
     assert code != 0, f"an unparseable baseline must fail closed:\n{stdout}"
     assert status == "fail"
     assert "unreadable baseline" in log
+
+
+def test_research_skill_static_cost_is_pinned() -> None:
+    """Issue #47 / ADR-0060: the research skill's SKILL.md may not regrow past the audited size.
+
+    3692 B is the value measured in docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md; lower is
+    fine (tighten the number when it drops), higher is a regression to justify. Lives here,
+    not in tests/unit: it reads the repo's .claude/ tree, which mutmut's mutants/ copy lacks.
+    """
+    repo = BORROMEANRINGS_HOME
+    skill = repo / ".claude" / "skills" / "borromeanrings-research" / "SKILL.md"
+    assert skill.is_file()
+    assert skill.stat().st_size <= 3692
+    assert measure_context_budget(repo).sources  # the file is one of the measured rows

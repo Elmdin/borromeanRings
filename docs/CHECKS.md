@@ -79,6 +79,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
 | `19_context_budget` | **Ratchet**: the bytes borromeanRings itself puts in the agent's context (prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, `SKILL.md` files, hook message templates) don't regress (no absolute cap; tokens ≈ bytes/4); nothing measurable ⇒ `noop` | `.borromeanrings-context-baseline`, seeded by `adopt.sh` | 0055 |
+| `24_quotes` | Every quotation marked `> …` + `— source: path#L<a>-L<b>` (or `<!-- quote: … -->`) in the Markdown under `paths` is **verbatim** against the saved source span (whitespace, curly quotes, trailing punctuation normalised; nothing else); drifted (with a diff) / missing / out-of-range / orphan ⇒ fail with `file:line`; no marked quotation ⇒ `noop`; unreadable file fails closed | `[quotes].enabled`, `paths` | 0065 |
 
 ## Fast lane — Python checks
 

@@ -91,6 +91,14 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[quotes]
+# Quote fidelity (check 24_quotes, ADR-0065): a quotation marked `> ...` + `— source:
+# path#L<a>-L<b>` in the Markdown under `paths` must be verbatim against that saved span
+# (the mechanism behind the research skill's fail-closed citations). Opt-in; no marked
+# quotation ⇒ noop. See docs/specs/SPEC-quotes.md.
+enabled = true
+paths = ["docs"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -107,6 +115,7 @@ required = [
   "12_secrets",
   "11_changelog",
   "19_context_budget",
+  "24_quotes",
   "10_format",
   "20_lint",
   "30_typecheck",

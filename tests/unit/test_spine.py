@@ -241,3 +241,16 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_quotes_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[quotes]\nenabled = true\npaths = ["docs", "notes"]\n',
+    )
+    config = load_config(declared)
+    assert config.quotes_enabled is True
+    assert config.quotes_paths == ("docs", "notes")
+    default = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert default.quotes_enabled is False
+    assert default.quotes_paths == ("docs",)

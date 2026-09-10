@@ -79,7 +79,7 @@ from pathlib import Path
 from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
-from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
+from meta_harness.verdict import Verdict, append_history, is_failing, status_label, write_last_verdict
 
 config_path, receipt_dir, project_root, heavy, harness_version = sys.argv[1:6]
 config = load_config(config_path)
@@ -90,6 +90,9 @@ expected = config.required_checks + (config.heavy_checks if heavy == "1" else ()
 rows = []
 ok = True
 intact_hashes = []
+# Optional per-check one-liners (a receipt's `summary` field, e.g. 60_mutation's
+# "evaluated N, score S"), printed beside the status. Only intact receipts contribute.
+summaries = {}
 for cid in expected:
     rpath = os.path.join(receipt_dir, f"{cid}.json")
     if not os.path.exists(rpath):
@@ -118,6 +121,7 @@ for cid in expected:
     if is_failing(status):
         ok = False
     rows.append((cid, status.upper()))
+    summaries[cid] = receipt.get("summary")
 
 width = max(len(c) for c, _ in rows)
 print()
@@ -125,7 +129,8 @@ print(f"  borromeanRings gate  (project: {project_root})")
 print(f"  harness-version: {harness_version}")
 print("  " + "-" * (width + 14))
 for cid, status in rows:
-    print(f"  {cid.ljust(width)}   {status}")
+    # status_label validates + bounds the summary (untrusted JSON a check wrote).
+    print(f"  {cid.ljust(width)}   {status_label(status, summaries.get(cid))}")
 print("  " + "-" * (width + 14))
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
 # A green built partly on checks that inspected NOTHING is not the same green as one

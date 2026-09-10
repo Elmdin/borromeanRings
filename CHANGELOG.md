@@ -13,6 +13,15 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Mutation-guard proof + evaluated count on the gate row (issue #187). `60_mutation` has
+  failed closed on zero evaluated mutants since ADR-0022; it is now pinned by
+  `tests/integration/test_mutation_guard.py`, which plants a unit test that reads a path
+  outside `src/`/`tests/` (the #160/#168 shape — absent from mutmut's copied sandbox) and
+  asserts `60_mutation` is `fail` with "MUTATION CHECK DID NOT RUN", then removes it and
+  asserts `pass` with a real count. Checks may now write a one-line `summary` field into
+  their receipt (`meta_harness.mutation.summary_line` for 60_mutation); the gate prints it
+  beside the status (`meta_harness.verdict.status_label`, validated + bounded) so the row
+  reads `PASS (evaluated N, score S)` / `FAIL (evaluated 0)` — a score alone is unreadable.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

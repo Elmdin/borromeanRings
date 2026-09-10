@@ -55,3 +55,6 @@ This **resolves DD-1**: mutation testing is adopted as a CI-tier ratchet, not an
   stays fast; a reusable heavy lane + reusable ratchet primitive now exist.
 - (−) A second `verify.sh` mode and a heavier CI run; mutmut config is tied to the current
   test layout (documented in `setup.cfg`); the baseline needs occasional review.
+- (+) The evaluated-mutant count is surfaced on the gate's verdict row via the receipt's
+  `summary` field (`PASS (evaluated N, score S)` / `FAIL (evaluated 0)`), and the fail-closed
+  rule is pinned by `tests/integration/test_mutation_guard.py` (issue #187).

@@ -34,19 +34,21 @@ baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 
 # Parse the score from the captured output and ratchet it — both in borromeanRings's
 # own tested code (meta_harness.mutation + meta_harness.ratchet), so the shell
-# only orchestrates.
-read -r score regressed evaluated <<EOF
+# only orchestrates. The 4th field is the receipt `summary` ("evaluated N, score S"),
+# which the gate prints on this check's verdict row (issue #187); `read` gives the
+# LAST variable the rest of the line, so its spaces are safe.
+read -r score regressed evaluated summary <<EOF
 $(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$log" "$baseline" <<'PY'
 import sys
 
-from meta_harness.mutation import mutation_score, parse_mutmut_summary, total_evaluated
+from meta_harness.mutation import mutation_score, parse_mutmut_summary, summary_line, total_evaluated
 from meta_harness.ratchet import decide_ratchet
 
 text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 counts = parse_mutmut_summary(text)
 score = mutation_score(counts)
 decision = decide_ratchet(score, float(sys.argv[2]), higher_is_better=True)
-print(f"{score:.4f} {1 if decision.regressed else 0} {total_evaluated(counts)}")
+print(f"{score:.4f} {1 if decision.regressed else 0} {total_evaluated(counts)} {summary_line(counts, decision)}")
 PY
 )
 EOF
@@ -65,6 +67,9 @@ elif [ "${regressed:-1}" = "1" ]; then
   code=1
 fi
 
-extra="$(python3 -c "import json,sys; print(json.dumps({'mutation_score': float(sys.argv[1]), 'mutation_baseline': float(sys.argv[2])}))" "${score:-0}" "$baseline" 2>/dev/null || echo '')"
+# `summary` rides in the receipt (hash-covered like every field) so the gate row reads
+# "PASS (evaluated N, score S)" / "FAIL (evaluated 0)" — the count is what makes the
+# score readable (a vacuous run scores 1.0). Empty if the parse step itself died.
+extra="$(python3 -c "import json,sys; print(json.dumps({'mutation_score': float(sys.argv[1]), 'mutation_baseline': float(sys.argv[2]), 'summary': sys.argv[3]}))" "${score:-0}" "$baseline" "${summary:-}" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

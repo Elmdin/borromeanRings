@@ -241,3 +241,35 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_provenance_declared_and_parsed(tmp_path: Path) -> None:
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n\n[provenance]\n'
+        'sources = ["/sib/4D", "vendor/notes.md"]\n'
+        'paths = ["docs"]\n'
+        'allow = ["cc by-nc-sa", "from pathlib import path"]\n',
+    )
+    cfg = load_config(config)
+    assert cfg.provenance_declared is True
+    assert cfg.provenance_sources == ("/sib/4D", "vendor/notes.md")
+    assert cfg.provenance_paths == ("docs",)
+    assert cfg.provenance_allow == ("cc by-nc-sa", "from pathlib import path")
+
+
+def test_provenance_defaults_when_absent(tmp_path: Path) -> None:
+    cfg = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert cfg.provenance_declared is False
+    assert cfg.provenance_sources == ()
+    assert cfg.provenance_paths == ("docs", "skills", ".claude/skills")
+    assert cfg.provenance_allow == ()
+
+
+def test_provenance_empty_table_is_declared_with_defaults(tmp_path: Path) -> None:
+    # `[provenance]` with nothing under it: declared (so the check is ON, honestly noop
+    # with no sources), paths at their default, no allowlist.
+    cfg = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n[provenance]\n'))
+    assert cfg.provenance_declared is True
+    assert cfg.provenance_sources == ()
+    assert cfg.provenance_paths == ("docs", "skills", ".claude/skills")

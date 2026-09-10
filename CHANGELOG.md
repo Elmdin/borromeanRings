@@ -25,7 +25,7 @@ queue is merged.
   finds nothing and asserts the suite notices (the defect 4D's validator shipped). Opt-in via
   `[predicates].enabled`; `noop` when off or when nothing was found; fails closed on an
   unreadable file. Dogfooded: five hedged predicates in this repo's SPECs/ADRs were rewritten
-  as observable facts and five orphan SPECs now name their unit-test file.
+  as yes/no statements and five orphan SPECs now name their unit-test file.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

@@ -5,11 +5,13 @@ A *predicate* is a checkable statement a document makes about done-ness: a SPEC
 as an obligation (must/never/shall), or an issue-form task-list item. Two defects are
 mechanical to detect and this module detects both, purely (no I/O):
 
-* **hedges** — a word that turns the predicate into a matter of opinion ("reviewed
-  appropriately"). :func:`hedged` names the first offending term.
-* **orphans** — a SPEC that names no shipped check id, no existing test file and no issue:
-  an obligation nobody is held to. Only *resolvable* references count, so the orphan set
-  can never be empty by construction (the vacuity 4D's validator once shipped).
+* **hedges** — a qualifier that leaves the predicate with no observable that would settle
+  it: "the HEALTHCHECK command is *meaningful*" has no yes/no answer, "the HEALTHCHECK
+  command *probes the service*" does. :func:`hedged` names the first such term.
+* **orphans** — a SPEC that names no shipped check id, no existing test file and no issue,
+  so no gate, test run or ticket can ever reach it. Only *resolvable* references count, so
+  the orphan set can never be empty by construction (the vacuity 4D's validator once
+  shipped).
 
 The list of hedge terms is this repo's own, organised by the ambiguity categories of
 ISO/IEC/IEEE 29148:2018 §5.2.7 and the INCOSE Guide for Writing Requirements.
@@ -147,7 +149,7 @@ class Predicate:
 
 @dataclass(frozen=True)
 class Finding:
-    """A predicate and the hedge term that makes it unevaluable."""
+    """A predicate and the hedge term that leaves it without a yes/no answer."""
 
     predicate: Predicate
     hedge: str
@@ -177,7 +179,7 @@ _ADR_SECTIONS = frozenset({"consequences"})
 _OBLIGATION = re.compile(r"\b(?:must|never|shall)\b", re.IGNORECASE)
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-_LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.*\S)\s*$")
+_LIST_ITEM = re.compile(r"^\s*(?:[-*+]|(\d+)[.)])\s+(.*\S)\s*$")
 _CHECKBOX = re.compile(r"^\s*[-*+]\s+\[[ xX]\]\s+(.*\S)\s*$")
 _FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 _TITLE_NUMBER = re.compile(r"^\d+(?:\.\d+)*\.?\s+")
@@ -245,11 +247,16 @@ class _SectionScanner:
             self.active = level
         self.current = None
 
+    def _interrupts_text(self, ordinal: str | None) -> bool:
+        """CommonMark: inside a running item, ``NNNN) text`` is a new ordered item only when
+        it starts at 1 — so a wrapped line beginning ``0047) had`` stays a continuation."""
+        return self.current is not None and ordinal is not None and int(ordinal) != 1
+
     def _collect(self, number: int, line: str) -> None:
         item = _LIST_ITEM.match(line)
-        if item:
-            self.current = [item.group(1)]
-            self.items.append((number, item.group(1)))
+        if item and not self._interrupts_text(item.group(1)):
+            self.current = [item.group(2)]
+            self.items.append((number, item.group(2)))
         elif self.current is not None and line.strip() and line[0] in " \t":
             self.current.append(line.strip())
             self.items[-1] = (self.items[-1][0], " ".join(self.current))
@@ -316,7 +323,7 @@ def orphans(
     """Paths of SPEC documents that name no shipped check, no existing test and no issue.
 
     Only references that *resolve* count: an id-shaped token absent from ``known_checks``,
-    a ``test_*.py`` absent from ``known_tests`` or ``#0`` contribute nothing.
+    a ``test_*.py`` absent from ``known_tests`` or ``#0`` does not rescue a SPEC.
     """
     return tuple(
         sorted(
@@ -367,8 +374,8 @@ def render(report: Report) -> str:
                 f"  {f.predicate.path}:{f.predicate.line} — {f.predicate.text} — {f.hedge}"
             )
         lines.append(
-            "  Name the observable fact instead "
-            "(a record exists, a check fails, a file is present)."
+            "  Replace the qualifier with the yes/no fact it stands for "
+            "(e.g. 'meaningful HEALTHCHECK' -> 'HEALTHCHECK probes the service')."
         )
     if report.orphans:
         lines.append(

@@ -46,7 +46,7 @@ def _run_gate(project: Path) -> tuple[int, str, str]:
 
 
 def test_off_is_noop_never_pass(tmp_path: Path) -> None:
-    hedged = "# SPEC — X\n\n## Contract\n- Reviewed appropriately.\n"
+    hedged = "# SPEC — X\n\n## Contract\n- The healthcheck is meaningful.\n"
     project = _project(
         tmp_path, {"borromeanrings.toml": CONFIG_OFF, "docs/specs/SPEC-x.md": hedged}
     )

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # 23_predicates — predicate lint: hedge words + graph integrity in acceptance predicates.
 #
-# A definition of done that says "reviewed appropriately" cannot be checked by anyone but
-# its author. This check extracts the predicates this project's documents make (SPEC
+# "The HEALTHCHECK command is meaningful" has no yes/no answer; "the HEALTHCHECK command
+# probes the service" does. This check extracts the predicates this project's documents make (SPEC
 # Contract/Guarantees/Acceptance bullets, ADR Consequences bullets phrased must/never/shall,
 # issue-form task-list items), fails on any hedge word (`file:line — predicate — hedge`),
 # and — with [predicates].require_reference — fails on any SPEC that names no shipped
-# check id, no existing test file and no issue (an orphan: an obligation nobody is held
-# to). Deterministic, native (stdlib regex), threshold-free. Off unless
+# check id, no existing test file and no issue (an orphan: a contract no gate, test run
+# or ticket can reach). Deterministic, native (stdlib regex), threshold-free. Off unless
 # [predicates].enabled; noop when no predicate was found; fail on an unreadable file.
 # See docs/specs/SPEC-predicates.md, ADR-0064.
 set -uo pipefail

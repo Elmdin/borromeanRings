@@ -9,10 +9,10 @@
 Every SPEC in this repo ends its `Contract`/`Guarantees` section with bullets that read as
 requirements, every ADR closes with `Consequences` bullets, and the issue form asks for
 acceptance checkboxes. None of those is read by any gate. Two defects therefore pass review
-unchallenged: a predicate whose truth is a matter of opinion ("reviewed appropriately",
-"a minimal file", "robust to variance"), and a SPEC that no check, test or issue points back
-to — an obligation nobody is held to. A first run of the lint over this repo found five of
-the former and five of the latter.
+unchallenged: a predicate with no yes/no answer ("whether the HEALTHCHECK command is
+*meaningful*", "a *minimal* file", "*robust* to variance"), and a SPEC that no check, test
+or issue points back to — a contract with no enforcement path. A first run of the lint over
+this repo found five of the former and five of the latter.
 
 The maintainer's 4D project had already met both defects in its `compact.yaml` validator:
 a hedge-word lint over `done_when` predicates and an orphan check over the obligation
@@ -64,17 +64,18 @@ the *mechanism* is ported and everything — code, word list, prose — is re-au
 ## Consequences
 
 - (+) This repo's own contracts are now checkable statements: five hedged predicates were
-  rewritten as observable facts (not deleted) and five orphan SPECs now name the test
+  rewritten as yes/no statements (not deleted) and five orphan SPECs now name the test
   file that verifies them. The rule runs on every gate from here on.
 - (+) Deterministic, native, threshold-free, honest about nothing (`noop`), fail-closed
   on unreadable input. Unit-tested to 100% line+branch coverage; integration-tested
   through the real `verify.sh` for every status.
-- (−) A word list is a lint, not a proof: a predicate can be unevaluable without using
-  any listed word, and a listed word can appear in a legitimate technical sense. The fix
+- (−) A word list catches the common failure, not every failure: a predicate can lack a
+  yes/no answer without using any listed word, and a listed word can appear in a legitimate technical sense. The fix
   for a false positive is to rephrase or, for genuinely advisory prose, move it out of
   the predicate section — never to empty the list.
 - (−) Existing ADRs' `Consequences` bullets are in scope; two historical ADRs (0002,
-  0047) had one word each rewritten with the same meaning. ADRs record decisions and
-  must not be rewritten in substance — this change is wording only, noted here.
+  0047) each had one qualifier swapped for the past participle "accepted", with no reason
+  or claim added. ADRs record decisions and must not be rewritten in substance — this change is
+  wording only, noted here.
 - (−) `#N` references are not verified against the tracker; a SPEC citing a closed or
   non-existent issue passes the orphan rule.

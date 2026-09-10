@@ -4,12 +4,13 @@ Check `23_predicates` · module `meta_harness.predicates` · ADR-0064 · issue #
 of #172). Opt-in per project via `[predicates].enabled`; fail-closed; threshold-free.
 
 ## Problem
-A definition of done that reads "the output is reviewed appropriately" cannot be checked by
-anyone but its author. Those words pass review because they *sound* like requirements.
+This repo's own container SPEC once promised not to judge "whether a HEALTHCHECK command
+is meaningful". *Meaningful* has no yes/no answer — "whether the HEALTHCHECK command probes
+the service" does. Such qualifiers pass review because they *sound* like requirements.
 This repo's own contracts live in SPEC `Contract`/`Guarantees` bullets, ADR `Consequences`
 bullets phrased as obligations, and issue-form acceptance checkboxes — none of which any
 gate reads today. A SPEC can also be written that no check, test, or issue ever points back
-to: an obligation nobody is held to. Both defects are mechanical to detect.
+to — a contract with no enforcement path. Both defects are mechanical to detect.
 
 ## Contract
 `23_predicates` extracts **predicates** from the documents under `[predicates].paths`,
@@ -31,7 +32,9 @@ text before the first ` — `, ` (`, `: ` (a colon followed by whitespace or end
 title) or ` / ` — so `## 3. Contract (the seam)` and
 `## 7. Contract / definition of "done"` both select. A predicate section ends at the next
 heading of the same or a higher level. A list item's continuation lines (indented, non-blank)
-are joined into the item; the reported line is the item's first line. Fenced code blocks are
+are joined into the item; the reported line is the item's first line. Inside an item, an
+indented line that starts with a number other than 1 (``0047) had …``) is a continuation,
+not a new ordered item (CommonMark's interruption rule). Fenced code blocks are
 skipped. A predicate is the item text with inline markdown left as-is; matching is
 case-insensitive on whitespace-normalized text.
 
@@ -65,10 +68,16 @@ best judgment · best effort · carefully · thoroughly · optimal · optimally
 ```
 
 `[predicates].hedges` **adds** project terms (never replaces the built-ins). The fix for a
-finding is to name the observable fact: "reviewed appropriately" → "a review record exists
-under `.meta-harness/`"; "a minimal file" → "a file containing only the header and an
-`## [Unreleased]` section". Prose that is genuinely advisory belongs outside the
-predicate section, not hedged inside it.
+finding is to replace the qualifier with the yes/no fact it stands for — the rewrites made
+in this repo: "whether a HEALTHCHECK command is *meaningful*" → "whether a HEALTHCHECK
+command probes the service" (SPEC-container); "write a *minimal* Keep-a-Changelog file" →
+"a file containing only the header and an `## [Unreleased]` section" (SPEC-adopt);
+"*robust* to the variance in license strings" → the concrete spellings that must match
+(SPEC-licenses). Prose that is genuinely advisory belongs outside the predicate section,
+not hedged inside it. **Quoted third-party text** (a verbatim quotation of another
+document, standard or tool output) is not one of this repo's predicates and is exempt from
+the rule — but the lint has no quote detection, so keep such quotations outside the
+predicate section or inside a fenced block (which is skipped).
 
 ### Graph integrity (orphans)
 `orphans(documents, known_checks, known_tests)` returns the SPEC paths that name **no
@@ -84,8 +93,8 @@ anywhere in the SPEC (a `Verified by: test_x.py` line is the convention):
 
 **Non-vacuity rule (learned from 4D):** only *resolvable* references count. A check id that
 matches the shape but is not shipped, a test file that does not exist, or a wildcard such as
-"all checks" contributes nothing — otherwise every SPEC would trivially reference something
-and the orphan set would be empty by construction. The test suite contains a mutation-driven
+"all checks" does not rescue a SPEC — otherwise every SPEC would trivially reference
+something and the orphan set would be empty by construction. The test suite contains a mutation-driven
 test (`test_predicates.py::test_orphan_detector_is_not_vacuous`) that replaces the detector
 with one returning nothing and asserts the orphan assertions then fail; the heavy lane's
 `60_mutation` ratchet covers the rest of the module.
@@ -102,8 +111,8 @@ with one returning nothing and asserts the orphan assertions then fail; the heav
 - `enabled = false` ⇒ **noop** ("rule off"), never pass.
 - no document under `paths` yields a predicate **and no SPEC is an orphan** ⇒ **noop** (exit
   code 3 from the embedded step, per ADR-0049) — the check inspected nothing and says so. A
-  SPEC with no predicate section *and* no reference is still an orphan and still fails: a
-  document nothing points at asserts nothing anyone is held to.
+  SPEC with no predicate section *and* no reference is still an orphan and still fails: no
+  gate, test run or ticket can reach it, whatever it says.
 - a file under `paths` that cannot be read or decoded ⇒ **fail**, naming the file (never
   skip a file and call the rest clean).
 - any hedged predicate or orphan SPEC ⇒ **fail**. Each hedge is reported as

@@ -3,7 +3,7 @@
 Predicates are the checkable statements this repo's documents make: SPEC ``Contract`` /
 ``Guarantees`` / ``Acceptance`` bullets, ADR ``Consequences`` bullets phrased as
 obligations, and issue-form task-list items. Two defects are mechanical: a hedge word
-that makes a predicate a matter of opinion, and a SPEC nothing points back to (an orphan).
+that leaves a predicate with no yes/no answer, and a SPEC nothing points back to (an orphan).
 See docs/specs/SPEC-predicates.md and ADR-0064.
 """
 
@@ -39,7 +39,7 @@ Prose with as needed in it is not a predicate.
 1. Numbered items count too.
    - nested bullets as well, verified by test_example.py
 ```
-- inside a fence: reviewed appropriately (skipped)
+- inside a fence: a meaningful healthcheck (skipped)
 ```
 
 ## Design
@@ -177,7 +177,8 @@ def test_extract_is_deterministic() -> None:
 @pytest.mark.parametrize(
     ("text", "hedge"),
     [
-        ("The output is reviewed appropriately.", "appropriately"),
+        ("The HEALTHCHECK command is meaningful.", "meaningful"),
+        ("Findings are triaged appropriately.", "appropriately"),
         ("Rotate keys as needed.", "as needed"),
         ("Rotate keys  AS   Needed.", "as needed"),
         ("Log a reasonable amount.", "reasonable"),
@@ -194,7 +195,7 @@ def test_hedged_names_the_offending_term(text: str, hedge: str) -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "A review record exists under `.meta-harness/`.",
+        "The HEALTHCHECK command probes the service.",
         "Writes are best-effort: a failure never turns PASS into FAIL.",
         "An improperly formed receipt fails.",
         "The etcd endpoint is pinned.",
@@ -206,13 +207,13 @@ def test_checkable_predicates_are_not_hedged(text: str) -> None:
 
 
 def test_hedged_reports_the_first_term_by_position() -> None:
-    assert hedged("roughly done, then reviewed appropriately") == "roughly"
+    assert hedged("roughly done, then triaged appropriately") == "roughly"
 
 
 def test_extra_hedges_extend_the_builtin_list() -> None:
     assert hedged("It is fluffy.") is None
     assert hedged("It is fluffy.", extra=("fluffy",)) == "fluffy"
-    assert hedged("Reviewed appropriately.", extra=("fluffy",)) == "appropriately"
+    assert hedged("A meaningful healthcheck.", extra=("fluffy",)) == "meaningful"
     assert hedged("It is  very  fluffy.", extra=("very fluffy",)) == "very fluffy"
 
 
@@ -353,12 +354,12 @@ def test_lint_with_no_predicates_is_empty() -> None:
 
 def test_render_failure_names_file_line_predicate_and_hedge() -> None:
     report = lint(
-        [_spec("SPEC-a.md", "Reviewed appropriately."), _spec("SPEC-b.md", "Fine; see #174.")],
+        [_spec("SPEC-a.md", "A meaningful healthcheck."), _spec("SPEC-b.md", "Fine; see #174.")],
         known_checks=frozenset(),
         known_tests=frozenset(),
     )
     text = render(report)
-    assert "docs/specs/SPEC-a.md:4 — Reviewed appropriately. — appropriately" in text
+    assert "docs/specs/SPEC-a.md:4 — A meaningful healthcheck. — meaningful" in text
     assert "1 hedged predicate" in text
     assert "ORPHAN" in text and "docs/specs/SPEC-a.md" in text.split("ORPHAN", 1)[1]
     assert "SPEC-b.md" not in text.split("ORPHAN", 1)[1]
@@ -411,3 +412,18 @@ def test_spec_with_no_predicate_section_and_no_reference_is_still_an_orphan() ->
     assert report.predicates == ()
     assert report.orphans == ("docs/specs/SPEC-empty.md",)
     assert report.ok is False
+
+
+def test_wrapped_line_starting_with_a_number_is_a_continuation() -> None:
+    """CommonMark: only an item numbered 1 may interrupt running text (bug seen in ADR-0064)."""
+    text = (
+        "## Contract\n- two historical ADRs (0002,\n  0047) had one word swapped.\n"
+        "  1. a real nested item\n"
+    )
+    assert [(p.line, p.text) for p in extract(_doc("SPEC-w.md", text))] == [
+        (2, "two historical ADRs (0002, 0047) had one word swapped."),
+        (4, "a real nested item"),
+    ]
+    # a numbered item after a blank line (no running item) starts normally at any number
+    fresh = "## Contract\n\n3. third\n"
+    assert [(p.line, p.text) for p in extract(_doc("SPEC-w.md", fresh))] == [(3, "third")]

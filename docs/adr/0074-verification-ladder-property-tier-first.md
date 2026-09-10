@@ -72,14 +72,21 @@ narrows a previous one, so it is recorded explicitly. ADR-0049 fixed "a missing 
 `error` (exit 127), never `noop`" for tools invoked through `run_check` — tools
 borromeanRings itself requires (ruff, mypy, bandit). The property runner is not one of
 those: it belongs to the *governed project's* declared verification stack, which
-borromeanRings deliberately does not install (ADR-0068), exactly as `tsc` and `go` do for
+borromeanRings deliberately does not install (see ADR-0068), exactly as `tsc` and `go` do for
 the TypeScript and Go lanes, which already report `noop` naming the tool. `noop` here is
 not a soft pass: it is printed on the gate line (`inspected NOTHING: N of M`), carried on
 the persisted verdict, counted by `status.sh`, and the receipt names the missing module.
 `error` would fail every CI job that has not installed Hypothesis — which is how an
-opt-in ladder becomes a mandatory one by accident. **Reversal condition:** if a real
-project is found passing CI on a `noop` it should have failed on, this becomes `error`
-and projects pin their runner.
+opt-in ladder becomes a mandatory one by accident. **Reversal condition, made
+operational:** the trigger is a governed project whose gate reported `27_properties noop`
+for a runner-absent reason on a run where a declared property suite existed — i.e. the
+project claimed properties and the gate let a green through without executing them. That
+is detectable from the evidence already on disk: a `noop` receipt whose log names a
+missing runner while `[verification].properties` resolves to a non-empty directory
+containing property files. Whoever finds one files it against this ADR; the fix is to
+make that combination `error` and require projects to pin their runner. Until then the
+combination is simply not known to have occurred, which is a weaker claim than "it does
+not happen" and is stated that way deliberately.
 
 **6. Order of evaluation is part of the contract.** Everything decidable *without* a
 runner — nothing declared, path missing, directory empty — is decided **first**, so an

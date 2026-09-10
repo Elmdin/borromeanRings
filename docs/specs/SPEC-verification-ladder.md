@@ -34,7 +34,7 @@ for one. This is the same right-sizing rule as `docs/ENFORCEMENT-COVERAGE.md` §
   Tier 1 is therefore **binary**: the declared suite passes, or it does not.
 - **Never installs anything.** If a tier's runner is not on the machine, the check says
   so by name and inspects nothing. borromeanRings does not provision a governed
-  project's toolchain (the rule the multi-language lanes established — #67 / ADR-0068).
+  project's toolchain (the rule the multi-language lanes established in ADR-0068, which lands with #198; — #67 / ADR-0068).
 - **Never contacts a network or a model.** Solvers and proof checkers must run offline.
 
 ---
@@ -54,6 +54,16 @@ project's universal statements live here.* That is what makes the empty case a f
 (below), and it is the difference from `[container].dockerfile`, which defaults to
 `"Dockerfile"` and so is never a claim — a project with no Dockerfile never said it had
 one, so `14_container` correctly reports `noop`.
+
+> An empty or whitespace-only `properties` value strips to the same empty string as an
+> absent key, so it is *not* read as a claim. Only a non-empty path is one. A project that
+> means to claim nothing should omit the key rather than set it empty.
+>
+> **Status vocabulary, tracked in #209.** "Nothing declared" reports `noop` here today.
+> #209 proposes reserving `noop` for "opted in but nothing to inspect" and giving "never
+> opted in" a plain pass logged as *rule off*, so the hollow-green count keeps its meaning.
+> This tier will follow whatever #209 settles, together with `18_api_contracts`,
+> `21_archetype` and `25_provenance`, rather than diverging from them here.
 
 **Unknown keys under `[verification]` fail closed** in `load_config`. A typo
 (`propertys = "tests/properties"`) would otherwise read as "nothing declared" and turn a
@@ -108,7 +118,7 @@ through `run_check` — tools borromeanRings itself requires (ruff, mypy, bandit
 property runner is not one of those. It belongs to the governed project's own declared
 verification stack, which borromeanRings deliberately does not install, so a machine
 without Hypothesis is a machine where this lane cannot look — the same situation the
-TypeScript and Go lanes are already in for `tsc` and `go` (#67, ADR-0068), and they
+TypeScript and Go lanes are already in for `tsc` and `go` (#67; ADR-0068), and they
 report `noop` naming the tool.
 
 `noop` is not a soft pass here: it is printed on the gate line

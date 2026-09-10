@@ -73,6 +73,9 @@ Nothing joined them.
   record, with every line traceable to a check id, a verdict run, a catalog entry, a
   matrix row or an issue.
 - Dogfooded on this repository (fast-lane verdict, matrices from `feat/governance-matrices`):
+  (one run, 2026-09-10, after a fast-lane gate, so the heavy checks had no verdict entry;
+  a run after `--heavy` classifies them and the counts move — the numbers below are a
+  dated observation, not a contract)
   20 checks practised; the 4 heavy checks `unknown`; 13 matrix rows enforced
   (S1, S3, S12, D1–D5, O1–O4, M4); 57 rows at a gap; 5 unmet (`34_api_diff`,
   `06_git_identity`, `15_a11y` not adopted — the first and last are deliberate for a CLI

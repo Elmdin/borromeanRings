@@ -136,3 +136,39 @@ and label scheme.
 **Progress metric the maintainer asked for:** built = closed issues + issues with a
 reviewed PR open, over the 59 deliverable issues in epic #69 (the epic itself excluded).
 At this writing: ~41% built, ~20% merged. Report it whenever it moves ~5 points.
+
+## 9. State as of 2026-09-10 (third autonomous session)
+
+**Reviewed, waiting on the maintainer's approval** (merge order base-first, `--squash`, never
+`--admin`): #122–#127, #129, #147–#153, #160–#171, #179, #180, #183, #184. Note on #168: its
+mutation result was vacuous (see rule 2 below); #182 carries the fix, merge them together.
+
+**In fix rounds:** #181 (predicate lint, license re-authoring verified), #182 (quote verifier,
+cross-line false-verbatim fix). **Building:** #176 (structural self-report receipt), the last 4D
+sub-issue.
+
+**The 4D merge** (epic #172): the maintainer's `/home/imaansol/Elmdin/4D` project ("The
+Fluency Compact", CC BY-NC-SA) is being folded in as capabilities, re-authored under ADR-0020's
+rule. Built: charter gate (#173/#180), predicate lint (#174/#181), quote verifier (#175/#182),
+stewardship-as-cadence (#177/#183), dry-run evidence + exclusions (#178/#184); building:
+self-report receipt (#176). The license decision is the maintainer's (recorded on #172): default
+is re-author; they may relicense their own prose instead.
+
+**Rules learned this session, each from a real failure:**
+1. **The license comparison is load-bearing.** Every review of a 4D port reads the source side
+   by side. Of five ports, two came back with copied passages (#181: a phrase and a worked
+   example; #183: a clause-for-clause paraphrase). Shingle comparison (5- and 6-word, script in
+   the scratchpad from the #184 review) is the mechanical check; zero distinctive overlaps is
+   the bar.
+2. **A test that reads outside `src/` or `tests/` makes the mutation lane vacuous.** mutmut
+   copies only those two dirs; a test reading `.claude/` or `contracts/` fails inside the sandbox
+   and the lane reports PASS on 0 mutants. Seen on #160 and #168. Read the mutant count in the
+   60_mutation log, never just the status; such tests go in the mutmut-ignored integration files.
+3. **Four parallel mutation runs starve the fast gate.** The 300 s per-check limit tripped on
+   #79's test lane under that load. Run `BORROMEANRINGS_CHECK_TIMEOUT=900 ./verify.sh` when other
+   heavy lanes are up; five concurrent agents is the ceiling.
+4. **Say "pushed" only after the push.** One verify request went out before the commit landed
+   and the reviewer correctly refused to confirm. Poll `git ls-remote` for the sha.
+
+**Progress metric** (built = closed + reviewed-PR-open, over 72 tracked issues): ~74% built,
+~20% merged.

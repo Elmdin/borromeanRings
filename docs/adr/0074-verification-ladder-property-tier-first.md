@@ -5,7 +5,7 @@
 **Issue:** #140 (epic) · follow-ups #204 (tier 2, SMT) and #205 (tier 3, formal)
 **Relates to:** ADR-0022 (why never a number), ADR-0049 (vacuity, `noop`),
 ADR-0042 (fail closed when the input is missing), ADR-0068 (never install a project's
-toolchain), #146 (self-assurance, which this feeds)
+toolchain — lands with #198, not yet on this branch), #146 (self-assurance, which this feeds)
 
 ## Context
 
@@ -72,7 +72,8 @@ narrows a previous one, so it is recorded explicitly. ADR-0049 fixed "a missing 
 `error` (exit 127), never `noop`" for tools invoked through `run_check` — tools
 borromeanRings itself requires (ruff, mypy, bandit). The property runner is not one of
 those: it belongs to the *governed project's* declared verification stack, which
-borromeanRings deliberately does not install (see ADR-0068), exactly as `tsc` and `go` do for
+borromeanRings deliberately does not install (see ADR-0068, which lands with #198),
+exactly as `tsc` and `go` do for
 the TypeScript and Go lanes, which already report `noop` naming the tool. `noop` here is
 not a soft pass: it is printed on the gate line (`inspected NOTHING: N of M`), carried on
 the persisted verdict, counted by `status.sh`, and the receipt names the missing module.

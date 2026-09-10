@@ -34,7 +34,8 @@ for one. This is the same right-sizing rule as `docs/ENFORCEMENT-COVERAGE.md` §
   Tier 1 is therefore **binary**: the declared suite passes, or it does not.
 - **Never installs anything.** If a tier's runner is not on the machine, the check says
   so by name and inspects nothing. borromeanRings does not provision a governed
-  project's toolchain (the rule the multi-language lanes established in ADR-0068, which lands with #198; — #67 / ADR-0068).
+  project's toolchain — the rule the multi-language lanes established in
+  ADR-0068 (lands with #198), #67.
 - **Never contacts a network or a model.** Solvers and proof checkers must run offline.
 
 ---
@@ -118,7 +119,8 @@ through `run_check` — tools borromeanRings itself requires (ruff, mypy, bandit
 property runner is not one of those. It belongs to the governed project's own declared
 verification stack, which borromeanRings deliberately does not install, so a machine
 without Hypothesis is a machine where this lane cannot look — the same situation the
-TypeScript and Go lanes are already in for `tsc` and `go` (#67; ADR-0068), and they
+TypeScript and Go lanes are already in for `tsc` and `go` (#67; ADR-0068, lands with
+#198), and they
 report `noop` naming the tool.
 
 `noop` is not a soft pass here: it is printed on the gate line

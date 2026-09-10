@@ -6,7 +6,8 @@
 # with no evidence behind it is exactly the vacuity ADR-0049 exists to catch, and
 # [verification] has no defaults, so writing the key is an affirmative claim. Runner
 # absent ⇒ noop NAMING it (borromeanRings never installs a project's toolchain — the
-# rule the TypeScript/Go lanes set, #67/ADR-0068, which lands with #198). A falsified property ⇒ FAIL.
+# rule the TypeScript/Go lanes set, #67 / ADR-0068, which lands with #198). A falsified
+# property ⇒ FAIL.
 #
 # The check never counts properties, never ratchets on how many exist, and never
 # targets a number of examples (ADR-0022's reasoning, one rung up): the file probe is

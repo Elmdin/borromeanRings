@@ -213,3 +213,28 @@ RECOMMENDED, README's describe block (regenerate with `./describe.sh --readme` a
 
 **Still building:** #189 provenance gate, #187 mutation-guard proof; #186 deliberately waits
 until the trunk merges (it refactors an idiom every check PR copies).
+
+## 11. Audit: checks that read a crashed tool as a clean pass (2026-09-10)
+
+The single most important finding of the third session. A read-only sweep of every check
+script found the pattern in twelve places; #186 is re-scoped to fix the nine on `dev` after
+the trunk merges, and the three on open PRs are being fixed on those PRs. Full table:
+
+## Confirmed fail-open sites (script @ branch, lines, fix shape)
+1. checks/typescript/50_security.sh @ feat/multi-language L28-53 — ast-grep $tool_code captured, never gates; empty stdout ⇒ pass. Fix: nonzero exit + empty/unparseable output ⇒ fail. (PR #198, in fix round)
+2. checks/python/32_complexity.sh @ dev L25-44 — `read -r < <(python…)` no status; empty current ⇒ pass. Fix: temp file + explicit $?; fail closed on empty/non-numeric.
+3. checks/python/33_coupling.sh @ dev L24-42 — identical.
+4. checks/python/45_docstrings.sh @ dev L25-43 — `current="$(…)"` unchecked; regressed="" ⇒ pass. Fix: check $?; fail closed on empty (go/40_test L60-66 idiom).
+5. checks/shared/15_a11y.sh @ dev, @ feat/versioning… — git ls-files returncode ignored. Fixed on fix/a11y-noop (PR #164).
+6. checks/shared/12_secrets.sh @ dev L27 — `git ls-files -z … || true` ⇒ empty list ⇒ clean pass. Fix: drop || true, check status, fail closed.
+7. checks/shared/06_git_identity.sh @ dev L28-32 — `git log … || true` ⇒ no authors ⇒ pass. Fix: keep code=$?; fail closed when the repo is real and the query failed.
+8. checks/ci/74_secret_history.sh @ dev L37-45 — python git() discards returncode; rev-list failure ⇒ "empty history" exit 0. Fix: inspect returncode; distinguish empty repo from git failure.
+9. checks/python/34_api_diff.sh @ dev L51-57 — git show returncode unused; every file "new" ⇒ no breaking changes. Fix: continue only on path-not-in-tree; other nonzero ⇒ fail.
+10. checks/shared/14_container.sh @ dev L17-31 — config read in $(… 2>/dev/null); crash ⇒ Dockerfile fallback ⇒ "not a container project" pass. Fix: `if ! x="$(…)" || [ -z "$x" ]; then fail` (17_prior_art L45-49 idiom).
+11. checks/shared/23_predicates.sh @ feat/predicate-lint L20 — `|| echo False` ⇒ noop on spine crash. Fix: same fail-closed shape. (PR #181)
+12. checks/ci/76_lockfile.sh @ feat/supply-chain L20 — `|| true` on config read ⇒ emit_noop. Fix: fail closed when the read errors; noop only for a genuinely empty value. (PR #170)
+
+Low severity (git absence is legitimate): base-resolution `|| true` in 09_commits, 11_changelog, 13_adr, 17_prior_art, 34_api_diff; `find || true` in 07_layout.
+
+## Safe idiom (no finding)
+run_check helper (00/10/20/30/50 in every lane); 60_mutation (explicit evaluated=0 fail); 70/72 (empty report ⇒ fail); 40_test in all lanes (code=$? + empty-parse fail); 16_shellcheck; 19_context_budget; 01_source_coherence, 17_prior_art, 18_api_contracts, 21_archetype, 22_charter, 24_quotes, 04_self_description, 78_pins (`borromeanrings_status_for_code "$code"`); go/10_format (&& propagation).

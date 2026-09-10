@@ -192,3 +192,21 @@ def test_git_failure_inside_a_repo_fails_closed(tmp_path: Path) -> None:
     assert code != 0, f"an undecidable git state must fail closed:\n{stdout}"
     assert statuses["76_lockfile"] == "fail"
     assert "failing closed" in (receipts / "76_lockfile.log").read_text(encoding="utf-8")
+
+
+def test_unreadable_spine_fails_closed_not_noop(tmp_path: Path) -> None:
+    """A config read that crashes must be a FAIL receipt, never an empty value ⇒ noop.
+
+    ``76_lockfile`` reads ``[supply_chain].lockfile`` through the spine; if that read
+    errors (malformed TOML), an absorbed failure would yield "" and the honest-looking
+    "no lockfile declared" noop — exactly the "cannot tell ≠ nothing to tell" inversion
+    the check's own doctrine forbids.
+    """
+    project = _project(
+        tmp_path / "brokenspine",
+        {"borromeanrings.toml": _config("uv.lock"), "uv.lock": "version = 1\n"},
+        {"borromeanrings.toml": _config("uv.lock") + "\n[supply_chain\nbroken = \n"},
+    )
+    _, _, statuses, receipts = _run_heavy(project, _stubs(tmp_path))
+    assert statuses["76_lockfile"] == "fail"
+    assert "failing closed" in (receipts / "76_lockfile.log").read_text(encoding="utf-8")

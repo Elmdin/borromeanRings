@@ -17,7 +17,15 @@ id="76_lockfile"
 log="$RECEIPT_DIR/$id.log"
 cmd="lockfile integrity (manifest change must be mirrored by [supply_chain].lockfile)"
 
-lockfile="$(borromeanrings_project_cfg supply_chain_lockfile 2>/dev/null || true)"
+# Fail closed if the spine cannot be read: an absorbed error would yield "" and the
+# honest-looking "no lockfile declared" noop — "cannot tell" masquerading as "nothing to
+# tell". Only a genuinely empty declared value is a noop.
+: >"$log"
+if ! lockfile="$(borromeanrings_project_cfg supply_chain_lockfile 2>>"$log")"; then
+  echo "cannot read [supply_chain].lockfile from borromeanrings.toml — failing closed" >>"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
 if [ -z "$lockfile" ]; then
   echo "no [supply_chain].lockfile declared — lockfile integrity is off" >"$log"
   emit_noop "$id" "$cmd" "$log"

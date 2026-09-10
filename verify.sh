@@ -77,7 +77,7 @@ import sys
 from pathlib import Path
 
 from meta_harness.change_detect import record_green
-from meta_harness.receipts import run_digest, verify_receipt
+from meta_harness.receipts import read_log_text, run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
 
@@ -102,11 +102,11 @@ for cid in expected:
     # Tamper-evidence: a required receipt must match its own content hash (fields +
     # log). A fresh run always does; a mismatch means the evidence was edited after
     # the fact — fail closed, never trust a forged/corrupt pass. See ADR-0026.
-    log_path = receipt.get("log", "")
-    log_text = ""
-    if log_path and os.path.exists(log_path):
-        with open(log_path, encoding="utf-8", errors="replace") as fh:
-            log_text = fh.read()
+    # The log is read at its recorded path, or — when that path is gone because the
+    # bundle was produced elsewhere and copied here (run-in-worktree.sh) — beside its
+    # receipt. Reader-side resolution only: the hash still covers the log's content
+    # and the recorded path string, so an edited log still fails. See ADR-0076.
+    log_text = read_log_text(receipt, receipt_dir)
     if not verify_receipt(receipt, log_text):
         ok = False
         rows.append((cid, f"{status.upper()} !TAMPERED"))

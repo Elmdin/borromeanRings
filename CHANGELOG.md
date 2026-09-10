@@ -13,6 +13,42 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- **The `worktree` executor** (`./run-in-worktree.sh`, ADR-0076) — the gate, run against a
+  *snapshot* of your project in a throwaway git worktree, with the receipts brought back.
+  Materialises HEAD + the dirty tree (tracked edits **and** untracked-not-ignored files;
+  ignored paths stay out), keeps the primary's branch identity (`git rev-parse HEAD` and
+  `--abbrev-ref HEAD` both equal the primary's — asserted at runtime, fail-closed), gives
+  the run its own working tree, index, `.meta-harness/`, `mutants/` and caches while
+  sharing only the object store, never commits, and cleans up on every exit path
+  (success, failure, interrupt) with the removal bounded to the temp dir it created.
+  A separate entry point on purpose: it *calls* `verify.sh`, so the default path cannot
+  regress. This is the isolation primitive #144 needs.
+- **Executor conformance test** (`tests/integration/test_executor_conformance.py`) — the
+  deliverable that makes "one contract, two executors" more than a claim: the whole fast
+  lane, run over one fixture project under `local` and under `worktree`, compared receipt
+  by receipt (every field, extras included, modulo `log` and `content_sha256`) and log by
+  log after canonicalisation. The fixture is built to *discriminate*: a `feat/` branch
+  touching `src/` (so `08_branch` and `13_adr` would both move on a detached checkout), a
+  dirty tracked edit and an untracked file (each with its own lint error, and the
+  untracked one moves `coverage_percent`), and an ignored forged receipt that must not be
+  materialised.
+- `meta_harness.executor` — the equivalence relation as code, not prose:
+  `receipt_differences` (field-by-field, volatile fields excluded), `canonicalise_log`
+  (run paths and durations masked, longest needle first, integer-second timeout bounds
+  preserved) and `import_shadow_violation` (the editable-install tripwire).
+- **Reader-side log resolution** (`receipts.resolve_log_path` / `read_log_text`) — a
+  receipt whose bundle was produced elsewhere and copied here now verifies: when the
+  recorded absolute `log` path is gone, the log is read beside its receipt. Tamper
+  evidence is unweakened — the hash still covers the log's content and the recorded path
+  string, so an edited log still fails `!TAMPERED`. Used by the verdict and `verify_dir`.
+
+### Fixed
+- Two corrections to `SPEC-executor.md` found by building against it (ADR-0076): its
+  materialisation (`read-tree --reset -u` alone) leaves every untracked file *tracked* in
+  the worktree, which makes `12_secrets` and `01_source_coherence` see a different project
+  than `local` does — the executor restores the primary's index; and its D2 fixture
+  expects `12_secrets` to flag an untracked credential, which it cannot, because it scans
+  tracked files only.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

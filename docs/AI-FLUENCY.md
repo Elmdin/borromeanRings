@@ -36,7 +36,7 @@ stakes tier (`low` or `high` — a binary, never a severity dial), what "done" m
 `22_charter` validates it fail-closed on every gate run, and the prompt hook reminds the
 session when the file is missing. This is Delegation made reviewable: the terms live in a
 diff, not in a conversation. See `docs/specs/SPEC-charter.md` and ADR-0063.
-The evidence that these terms cannot be left to disposition — two real tasks walked
+The evidence that these terms need a mechanism rather than good intentions — two real tasks walked
 against the bilateral contract, every AI-side obligation failing silently in the first —
 is re-authored in `docs/4D-DRY-RUNS.md`, with each finding mapped to its mechanism here.
 

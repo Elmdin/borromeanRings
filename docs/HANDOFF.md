@@ -177,3 +177,39 @@ is re-author; they may relicense their own prose instead.
 
 **Progress metric** (built = closed + reviewed-PR-open, over 72 tracked issues): ~74% built,
 ~20% merged.
+
+## 10. Merge map (2026-09-10) — the order the stacked PRs land
+
+Every open PR is reviewed and awaiting the maintainer's approval. Merge top-down within each
+tree, `--squash`, never `--admin`; after each merge the next child's base is retargeted to
+`dev` automatically by GitHub (verify with `gh pr view N --json baseRefName`). A PR whose
+parent has not merged cannot be merged first.
+
+**Independent of the trunk (base `dev`, any order):** #123, #129, #147 → #195, #149, #161
+(needs #147 and #129 first for its citations), #165.
+
+**The trunk — #122 first, then its children in any order, each child's own chain in order:**
+- #122 `feat/versioning-and-checks-catalog`
+  - #124 → #125 → #126 → #127
+  - #148 (#131 prior-art gate)
+  - #150 (#128 adopt tests)
+  - #151 (#132 self-description) → #171 (#66 README)
+  - #152 (#137 compaction brief) → #166 (#136 plugin) → #196 (#142 substrate spec)
+  - #152 → #167 (#81 rewrite contract) → #185 (#176 self-report)
+  - #152 → #180 (#173 charter) → #183 (#177 cadence), #184 (#178 dry-runs)
+  - #153 (#138 matrices)
+  - #160 (#130 api contracts) → #198 (#67 TS/Go lanes)
+  - #162 (#135 context budget) → #168 (#47 research skill) → #182 (#175 quotes)
+  - #163 (#134 verdict evidence)
+  - #164 (#154 a11y noop) → #179 (#79 archetypes) → #197 (#139 SWE state)
+  - #169 (#75 trunk policy)
+  - #170 (#58 supply chain)
+  - #181 (#174 predicate lint)
+
+**Known cross-branch touches to expect conflicts on (resolve by keeping both additions):**
+`CHANGELOG.md` (every PR adds under Unreleased), `setup.cfg` (mutmut ignore lines),
+`borromeanrings.toml` `[checks].required`, `docs/CHECKS.md` rows, `src/meta_harness/adopt.py`
+RECOMMENDED, README's describe block (regenerate with `./describe.sh --readme` after #151).
+
+**Still building:** #189 provenance gate, #187 mutation-guard proof; #186 deliberately waits
+until the trunk merges (it refactors an idiom every check PR copies).

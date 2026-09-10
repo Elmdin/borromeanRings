@@ -15,13 +15,15 @@ open the log to learn whether mutmut did any work. See issue #187.
 Cost: two heavy-gate runs on a one-function fixture, ~30 s each on a dev laptop (mutmut
 itself is ~4 s; the rest is the full check set the gate runs regardless). This file
 drives the heavy lane through bash, so it is in ``setup.cfg``'s mutmut ignore list.
+
+The second run also proves the check clears the stale ``mutants/`` copy itself (mutmut
+never deletes a file it already copied), so a removed test cannot keep failing the lane.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -127,10 +129,11 @@ def test_sandbox_only_failure_fails_closed_then_passes_with_a_real_count(tmp_pat
     # The reason is on the record too: mutmut's clean run named the test that broke it.
     assert PLANTED_TEST_PATH in log
 
-    # (b) Remove the planted test — and mutmut's copied tree, which would otherwise keep
-    # the stale copy (copy_src_dir never deletes) and reproduce the failure.
+    # (b) Remove the planted test — and NOTHING else. mutmut's copy_src_dir never deletes,
+    # so the stale copy under mutants/ would reproduce the failure unless 60_mutation
+    # clears the sandbox itself; the second run passing is the proof that it does.
     (project / PLANTED_TEST_PATH).unlink()
-    shutil.rmtree(project / "mutants", ignore_errors=True)
+    assert (project / "mutants" / PLANTED_TEST_PATH).exists(), "precondition: stale copy is there"
     subprocess.run(["git", "add", "-A"], cwd=project, capture_output=True, check=False)
 
     code, stdout, receipt, log = _run_heavy_gate(project)

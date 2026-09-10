@@ -22,6 +22,12 @@ queue is merged.
   their receipt (`meta_harness.mutation.summary_line` for 60_mutation); the gate prints it
   beside the status (`meta_harness.verdict.status_label`, validated + bounded) so the row
   reads `PASS (evaluated N, score S)` / `FAIL (evaluated 0)` — a score alone is unreadable.
+- `60_mutation` clears the stale `mutants/` copy before each run. mutmut 3.6's
+  `copy_src_dir` skips any target that already exists and never deletes, so a test removed
+  from `tests/` lingered in the sandbox and kept the lane red — the root cause of the
+  "`rm -rf mutants/` before a heavy run" rule. Bounded to `$PROJECT_ROOT/mutants`; refuses
+  a path that resolves outside the project. The integration test's second run now passes
+  without cleaning up itself, which is the regression proof.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

@@ -58,3 +58,6 @@ This **resolves DD-1**: mutation testing is adopted as a CI-tier ratchet, not an
 - (+) The evaluated-mutant count is surfaced on the gate's verdict row via the receipt's
   `summary` field (`PASS (evaluated N, score S)` / `FAIL (evaluated 0)`), and the fail-closed
   rule is pinned by `tests/integration/test_mutation_guard.py` (issue #187).
+- (+) The check clears `mutants/` before each run: mutmut's `copy_src_dir` skips existing
+  targets and never deletes, so a removed sandbox-breaking test would otherwise linger and
+  keep failing the lane (the "rm -rf mutants/ first" folklore). Bounded to that exact path.

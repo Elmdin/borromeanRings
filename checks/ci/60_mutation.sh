@@ -22,6 +22,23 @@ if ! command -v mutmut >/dev/null 2>&1; then
   exit 127
 fi
 
+# Clear the previous run's sandbox first. mutmut 3.6.0's copy_src_dir skips any
+# target that already exists and never deletes, so a test removed from tests/
+# (e.g. one that read outside src/ and broke the clean run) lingers in mutants/
+# and keeps failing the lane. Bounded to exactly $PROJECT_ROOT/mutants; refuse to
+# delete anything that resolves elsewhere (a symlink out of the project).
+mutants_dir="$PROJECT_ROOT/mutants"
+if [ -e "$mutants_dir" ]; then
+  resolved="$(cd "$mutants_dir" 2>/dev/null && pwd -P || true)"
+  if [ -n "$resolved" ] && [ "$resolved" = "$(cd "$PROJECT_ROOT" && pwd -P)/mutants" ]; then
+    rm -rf "$mutants_dir"
+  else
+    printf "refusing to clear '%s': it resolves outside the project (%s)\n" "$mutants_dir" "${resolved:-unresolvable}" >"$log"
+    emit_receipt "$id" "$cmd" 1 "$log" "fail"
+    exit 1
+  fi
+fi
+
 # mutmut's OWN exit is nonzero when mutants survive — that is NOT a check failure
 # here: the ratchet decides pass/fail on the SCORE, not on mutmut's exit. Capture
 # output (the emoji summary line) to the log regardless. Mutation over the whole

@@ -181,6 +181,16 @@ queue is merged.
     (ADR-0033).
 
 ### Changed
+- Stewardship reconciled as a **cadence over the four AI Fluency competencies**, not a fifth
+  (ADR-0020 amendment, #177): its three questions reduce to Delegation, Discernment and
+  Diligence asked mid-run, and the framework's authors never proposed a fifth. The
+  `ai-fluency-stewardship` skill is rewritten as that schedule — two speeds (fast per turn,
+  full per task), checkpoints each tied to a detector this repo has (Stop verdict flip and
+  bounded-retry escalation, `22_charter`, PreCompact/SessionStart brief, the rewrite-contract
+  record once merged), and back-edges (product failure → Description, process failure →
+  Delegation). `docs/AI-FLUENCY.md` gains a Cadence section; SPEC-ai-fluency and MANIFESTO
+  drop the "plus a 5th" wording. Docs and skill text only; skill growth paid for by trims in
+  the same file.
 - Enforcement-coverage map corrected to reality: coverage-ratchet was mis-claimed
   ✅ but no check exists (now ❌ candidate); coupling (`33_coupling`), public-API
   breaking-change (`34_api_diff`), and the adoption path (`adopt.sh`) marked ✅;

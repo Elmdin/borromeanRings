@@ -263,3 +263,57 @@ def test_typescript_security_finds_eval_and_names_the_site(tmp_path: Path) -> No
     assert code != 0
     assert statuses["50_security"] == "fail"
     assert "src/index.ts:1 [no-eval]" in _log(project, "50_security")
+
+
+# --- Stubbed ast-grep: the tool "present" path without installing anything ---------------
+
+STUB_FINDING = (
+    '[{"file": "src/index.ts", "range": {"start": {"line": 0, "column": 0}, '
+    '"end": {"line": 0, "column": 4}}, "ruleId": "no-eval", "severity": "error", '
+    '"message": "eval executes arbitrary code"}]'
+)
+
+
+def _stub_ast_grep(bin_dir: str, *, exit_code: int, stdout: str, stderr: str = "") -> None:
+    """Write a shell script named ast-grep into the sandbox PATH — a stub, not an install."""
+    stub = Path(bin_dir) / "ast-grep"
+    stub.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf '%s' {stdout!r}\n"
+        f"printf '%s' {stderr!r} >&2\n"
+        f"exit {exit_code}\n",
+        encoding="utf-8",
+    )
+    stub.chmod(0o755)
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "stdout", "stderr", "expected", "in_log"),
+    [
+        (2, "", "Error: cannot parse rule file", "fail", "exited 2"),
+        (0, "", "", "pass", "no findings"),
+        (0, "[]", "", "pass", "no findings"),
+        (0, STUB_FINDING, "", "fail", "src/index.ts:1 [no-eval]"),
+        (1, STUB_FINDING, "Error: 1 error(s) found", "fail", "src/index.ts:1 [no-eval]"),
+        (0, "garbage", "", "fail", "unreadable output"),
+    ],
+    ids=[
+        "crash-empty-stdout",
+        "clean-empty",
+        "clean-array",
+        "finding",
+        "finding-nonzero",
+        "garbage",
+    ],
+)
+def test_typescript_security_consults_the_tool_exit_code(
+    tmp_path: Path, exit_code: int, stdout: str, stderr: str, expected: str, in_log: str
+) -> None:
+    """A non-zero ast-grep exit is never a pass, whatever stdout parses to (PR #198 review)."""
+    project = _git_project(tmp_path / "ts-stub", TS_PROJECT)
+    path = _sandbox_path(tmp_path)
+    _stub_ast_grep(path, exit_code=exit_code, stdout=stdout, stderr=stderr)
+    code, out, statuses = _run_gate(project, path=path)
+    assert statuses["50_security"] == expected, out
+    assert (code == 0) == (expected == "pass")
+    assert in_log in _log(project, "50_security")

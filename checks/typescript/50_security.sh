@@ -20,7 +20,7 @@ tool="$(borromeanrings_lane_tool ast-grep)" || {
 }
 log="$RECEIPT_DIR/$id.log"
 rules="$(dirname "${BASH_SOURCE[0]}")/rules/security.yml"
-out="$RECEIPT_DIR/$id.ast-grep.json"
+out="$RECEIPT_DIR/$id.ast-grep.out"  # not .json: never mistakable for a receipt
 err="$RECEIPT_DIR/$id.ast-grep.stderr"
 # ast-grep prints its JSON on stdout and a human banner ("Error: N error(s) found") on
 # stderr when error-severity rules match; the two must not share a stream or the JSON
@@ -41,14 +41,22 @@ def read(path: str) -> str:
 
 
 text = read(sys.argv[1])
+tool_code = int(sys.argv[3])
 try:
     findings = parse_ast_grep_json(text)
 except ValueError as exc:
-    print(f"ast-grep exited {sys.argv[3]} with unreadable output ({exc}) — failing closed:")
+    print(f"ast-grep exited {tool_code} with unreadable output ({exc}) — failing closed:")
     print(text)
     print(read(sys.argv[2]))
     sys.exit(1)
 print(render_findings(findings))
+# Empty stdout parses to "no findings", which is only clean when the tool itself
+# succeeded. A crash, a rejected rules file or an unreadable src_dir exits non-zero
+# with nothing on stdout — that is not a clean scan, fail closed with its stderr.
+if tool_code != 0:
+    print(f"ast-grep exited {tool_code} — failing closed. stderr tail:")
+    print("\n".join(read(sys.argv[2]).splitlines()[-20:]))
+    sys.exit(1)
 sys.exit(1 if findings else 0)
 PY
 code=$?

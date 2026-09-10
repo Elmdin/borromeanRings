@@ -30,6 +30,8 @@ code=$?
 [ "$code" -eq 0 ] && borromeanrings_run_bounded "$funclog" "\"$tool\" tool cover -func=\"$profile\"" || true
 baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 
+# The parser's stdout is the heredoc body; `read` splits it into these variables. An
+# empty body (parser crash) leaves them empty — the guard below fails closed on that.
 read -r current regressed tested <<EOF
 $(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$log" "$funclog" "$baseline" <<'PY'
 import sys

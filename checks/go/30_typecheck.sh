@@ -17,4 +17,4 @@ tool="$(borromeanrings_lane_tool staticcheck)" || {
   borromeanrings_noop_missing_tool "$id" "staticcheck ./..." "staticcheck"
   exit 0
 }
-run_check "$id" "$tool" "staticcheck ./..."
+run_check "$id" "$tool" "\"$tool\" ./..."

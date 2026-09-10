@@ -16,4 +16,4 @@ tool="$(borromeanrings_lane_tool go)" || {
   borromeanrings_noop_missing_tool "$id" "go build ./..." "go"
   exit 0
 }
-run_check "$id" "$tool" "go build ./..."
+run_check "$id" "$tool" "\"$tool\" build ./..."

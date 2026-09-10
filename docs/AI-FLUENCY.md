@@ -92,6 +92,19 @@ tripwires into gated checks/hooks is active follow-up work, not yet shipped.
 | Transparency Diligence | `.meta-harness/receipts/`, PR descriptions |
 | Stewardship | bounded Stop-gate retry (shipped); tripwire monitoring (planned) |
 
+## SWE state — discernment from the record, not from memory
+
+Asked "what does this project practise, what does it lack, what should it adopt next?",
+an agent answers from its memory of best practice unless something better is on disk.
+`./swe-state.sh` (or `./status.sh --swe`) is that something: it joins `borromeanrings.toml`,
+the last verdict, the archetype catalog, `adopt.sh`'s recommended set and the governance
+matrices' "Enforced by" column into three categorical sections — Practises, Lacks, Adopt
+next — plus the source of every line. No score, no percentage; one fixed adoption order;
+`unknown` where it was never gated and `unreadable` where an input is malformed. It is
+the Product-Discernment counterpart of the self-status block: `status.sh` says whether
+the green is real, this says what the green does not cover. Contract:
+[`docs/specs/SPEC-swe-state.md`](specs/SPEC-swe-state.md) (ADR-0067).
+
 ## Skills
 Five skills make these disciplines actionable in a session. They install user-level via
 `install-global.sh`, so they are available in any workspace borromeanRings governs:

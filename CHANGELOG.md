@@ -12,6 +12,17 @@ queue is merged.
 
 ## [Unreleased]
 
+### Added
+- SWE-state report (ADR-0067, #139): `swe-state.sh` (and `status.sh --swe`) says what ONE
+  governed project **practises** (required checks that last passed, archetype features
+  present, matrix rows therefore enforced), **lacks** (checks that last reported `noop`/fail,
+  RECOMMENDED not adopted, ratchets without a baseline, features absent, matrix rows at a
+  gap or unmet here) and what to **adopt next** — one fixed order (gate gaps, baselines,
+  recommended, features), never a score or a percentage. Every line cites its source;
+  never gated ⇒ `unknown`, malformed input ⇒ `unreadable`, absent matrices ⇒ said so.
+  Pure core `meta_harness.swe_state` (fan-out at the coupling baseline); `--json` for
+  machines; advisory, always exits 0. Spec: `docs/specs/SPEC-swe-state.md`.
+
 ### Fixed
 - `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,

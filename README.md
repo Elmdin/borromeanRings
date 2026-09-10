@@ -80,6 +80,7 @@ keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
 - `status.sh` — **this project's** status by default: governed? enforcement actually on (hooks wired vs. disabled)? last verdict, and how many of those checks inspected **nothing** (ADR-0049). `--all` opts into the portfolio table across every governed project; `--run` re-gates, `--list` prints paths (ADR-0046)
+- `swe-state.sh` — the **SWE-state report**: what this project *practises*, *lacks* and should *adopt next*, from the spine, the last verdict, the archetype catalog, `adopt.sh`'s recommended set and the matrices' "Enforced by" column — categorical, sourced, no score; `status.sh --swe` appends it to the self-status (ADR-0067, [SPEC](docs/specs/SPEC-swe-state.md))
 - `ledger.sh` — the **effectiveness view**: per project, gate runs / failures caught / pass-fail streak from the recorded verdict history — is the gate actually catching anything (ADR-0047)
 - `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set); catalogued in `docs/CHECKS.md`
 - `VERSION` — the declared release marker; every gate run is stamped with the governing borromeanRings version (ADR-0048)

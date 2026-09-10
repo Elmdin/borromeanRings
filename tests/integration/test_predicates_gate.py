@@ -139,3 +139,20 @@ def test_spec_without_predicates_or_reference_fails_not_noop(tmp_path: Path) -> 
     code, status, log = _run_gate(project)
     assert code != 0 and status == "fail"
     assert "ORPHAN" in log and "docs/specs/SPEC-z.md" in log
+
+
+def test_unreadable_spine_fails_closed_not_noop(tmp_path: Path) -> None:
+    """A malformed borromeanrings.toml must not be reported as 'rule off' (noop)."""
+    broken = 'this is = not [valid toml\n[checks]\nrequired = ["23_predicates"\n'
+    project = _project(
+        tmp_path, {"borromeanrings.toml": broken, "docs/specs/SPEC-x.md": CLEAN_SPEC}
+    )
+    env = dict(os.environ)
+    env["BORROMEANRINGS_PROJECT"] = str(project)
+    subprocess.run(
+        ["bash", str(VERIFY)], env=env, capture_output=True, text=True, timeout=GATE_TIMEOUT_S
+    )
+    run_dir = sorted((project / ".meta-harness" / "receipts").glob("*"))[-1]
+    receipt = json.loads((run_dir / "23_predicates.json").read_text(encoding="utf-8"))
+    assert receipt["status"] == "fail"
+    assert "failing closed" in (run_dir / "23_predicates.log").read_text(encoding="utf-8")

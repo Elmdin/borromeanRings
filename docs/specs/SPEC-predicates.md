@@ -108,7 +108,9 @@ with one returning nothing and asserts the orphan assertions then fail; the heav
 | `require_reference` | `true` | run the orphan rule over SPEC documents |
 
 ### Statuses
-- `enabled = false` ⇒ **noop** ("rule off"), never pass.
+- `enabled = false` ⇒ **noop** ("rule off"), never pass. A spine that cannot be read at all
+  (malformed `borromeanrings.toml`) ⇒ **fail** — "cannot tell whether the rule is on" is
+  never reported as "off".
 - no document under `paths` yields a predicate **and no SPEC is an orphan** ⇒ **noop** (exit
   code 3 from the embedded step, per ADR-0049) — the check inspected nothing and says so. A
   SPEC with no predicate section *and* no reference is still an orphan and still fails: no

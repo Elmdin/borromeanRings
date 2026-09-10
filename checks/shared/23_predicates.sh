@@ -17,7 +17,13 @@ id="23_predicates"
 log="$RECEIPT_DIR/$id.log"
 cmd="predicate lint (hedge words + SPEC graph integrity per [predicates])"
 
-enabled="$(borromeanrings_project_cfg predicates_enabled 2>/dev/null || echo False)"
+# Fail CLOSED when the spine cannot be read (malformed toml, import error): "cannot tell
+# whether the rule is on" must never be reported as "rule off" (noop).
+if ! enabled="$(borromeanrings_project_cfg predicates_enabled 2>>"$log")"; then
+  echo "cannot read [predicates] from borromeanrings.toml — failing closed" >>"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
 if [ "$enabled" != "True" ]; then
   echo "predicate lint not enabled ([predicates].enabled=false) — rule off" >"$log"
   emit_noop "$id" "$cmd" "$log"

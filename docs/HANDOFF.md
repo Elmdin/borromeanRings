@@ -159,7 +159,8 @@ is re-author; they may relicense their own prose instead.
    by side. Of five ports, two came back with copied passages (#181: a phrase and a worked
    example; #183: a clause-for-clause paraphrase). Shingle comparison (5- and 6-word, script in
    the scratchpad from the #184 review) is the mechanical check; zero distinctive overlaps is
-   the bar.
+   the bar. The builder runs it before committing (three of six ports needed a review round
+   because they did not); the reviewer runs it again.
 2. **A test that reads outside `src/` or `tests/` makes the mutation lane vacuous.** mutmut
    copies only those two dirs; a test reading `.claude/` or `contracts/` fails inside the sandbox
    and the lane reports PASS on 0 mutants. Seen on #160 and #168. Read the mutant count in the

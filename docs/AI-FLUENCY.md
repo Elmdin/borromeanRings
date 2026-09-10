@@ -12,10 +12,10 @@ enforces. This doc makes that mapping explicit — partly because the vocabulary
 contributors, and partly because naming what the gate *is* sharpens the project's own thesis:
 **standards become gates, not suggestions.**
 
-The framework has four competencies (the "4Ds"). borromeanRings adds no fifth: governing an
-autonomous run *while it runs* — **Stewardship** — is a **cadence** on which the four are
-re-exercised, not a new kind of judgment (ADR-0020, amendment). The framework's authors
-never proposed a fifth competency; the cadence is this repo's own extension.
+The framework has four competencies (the "4Ds"). borromeanRings adds no fifth: keeping
+watch over an agent mid-run — **Stewardship** — is a **cadence** on which the four are
+re-exercised, not a further competency (ADR-0020, amendment). The framework's authors never
+proposed a fifth; the cadence is this repo's own extension.
 
 ## Delegation — deciding what the agent is authorized to do
 *Setting goals and deciding whether, when, and how to engage an agent.*

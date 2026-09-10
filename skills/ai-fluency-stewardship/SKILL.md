@@ -19,7 +19,7 @@ four applied mid-run:
 |---|---|
 | Still inside the authorized scope? | Delegation, re-checked against `CHARTER.toml` |
 | Trajectory coherent — progressing, not looping? | Discernment (process dimension) |
-| Continue, interrupt, or stop? | Diligence — owning what happens next |
+| Let it run, pause, or pull the plug? | Diligence — owning the next move |
 
 ## Two speeds
 - **Fast** (every turn, seconds): request read as intended (`Reading this as:`)? one
@@ -52,10 +52,10 @@ Re-running the step without the back-edge fixes the wrong layer.
 ## Tripwires (interrupt wherever the run is)
 Edits to gate logic (`verify.sh`, `checks/`) or the spine (`borromeanrings.toml`); any
 merge/push attempt; an irreversible action (delete, publish, deploy, force-push); a failing
-step retried instead of diagnosed; many steps with no reviewable artifact; an orphaned process.
+step retried instead of diagnosed; turn after turn with nothing reviewable; an orphaned process.
 
 ## Under borromeanRings
-Mechanized today: bounded Stop-gate retry (ADR-0016), explicit `merge.sh`, `22_charter`, the
+Mechanized today: bounded Stop-gate retry (ADR-0016), explicit `merge.sh`, `22_charter`,
 compaction brief (ADR-0053). Retry-loop and orphaned-process detectors remain Tier C
 follow-up (`docs/specs/SPEC-collaboration.md`); until then the checkpoints above are the
 human-run protocol. Trust: earned by track record, bounded by stakes, revocable.

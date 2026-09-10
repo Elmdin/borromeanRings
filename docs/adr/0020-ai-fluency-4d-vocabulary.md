@@ -58,7 +58,7 @@ the live schema; no fictional config ships.
 - (−) Five new skills are surface to maintain; kept small and consolidated (13 source files →
   5 skills + 1 doc) to limit that cost.
 
-## Amendment (2026-09-09, #177) — Stewardship is a cadence, not a fifth competency
+## Amendment (2026-09-09, #177) — the fifth D withdrawn: Stewardship is a schedule over the four
 
 **Status of the amendment:** Accepted. Supersedes every "fifth competency" / "5th D" phrasing
 in this repo's docs and skills.
@@ -87,22 +87,22 @@ of (bounded Stop-gate retry, ADR-0016) and the skill catalogue lacked a name for
 Take Stewardship's three questions apart:
 - *Is the agent still inside what it was authorized to do?* — that is Delegation, re-checked
   mid-run against the written scope (`CHARTER.toml`).
-- *Is the trajectory coherent — progressing rather than looping?* — that is the process
-  dimension of Discernment, applied before the task is finished rather than after.
-- *Continue, interrupt, or stop?* — that is Diligence: accepting responsibility for what
-  happens next.
+- *Is the trajectory coherent — progressing rather than looping?* — that is Discernment's
+  process half, brought forward from the end of the task to the middle of it.
+- *Let it run, pause it, or pull the plug?* — that is Diligence: the human owning the next
+  move and its consequences.
 
 Each of the interrupt conditions this repo already wires lands in one of the four as well.
 When the guard refuses a destructive command, the judgment being exercised is Diligence.
 When the Stop hook escalates after its bounded retries, or a turn ends with nothing a
 reviewer could inspect, the failure is one of process, which is Discernment's second half.
 When an agent reaches for the gate's own logic, it has crossed the line the delegation
-drew. No question is a new *kind* of judgment; what is new is
-*when* it is exercised. A discipline exercised only at intervals is a schedule, not a skill.
-The framework's own teaching already groups the four by tempo — a strategic pair
-(Delegation and Diligence) and a moment-to-moment pair (Description and Discernment) — so
-adding a third tempo, "during", extends an axis the framework already has rather than
-bolting a fifth column onto a model named for having four.
+drew. None of these asks for a judgment the four do not already cover; the only novelty is
+the moment at which it is made. A discipline exercised only at intervals is a schedule, not
+a skill. The framework's own teaching already sorts the four by tempo — one pair sets
+direction (Delegation, Diligence), the other runs turn by turn (Description, Discernment) —
+so a "during" tempo sits on an axis the framework already draws, and no competency need be
+added to a framework whose very name counts them.
 
 ### Decision
 **Stewardship is a cadence over the four competencies.** The four stay as they are; the
@@ -132,6 +132,6 @@ stewardship skill becomes the schedule on which they are re-run during an autono
 - The attribution defect is closed: the extension is stated as this repo's own.
 - Mechanizing the remaining tripwires (retry-loop, orphaned process) stays Tier C follow-up
   (`docs/specs/SPEC-collaboration.md`); this amendment changes docs and skill text only.
-- **Revisit if** an in-flight obligation is found that does not reduce to Delegation,
-  Discernment or Diligence. That would be evidence of a real fifth competency, and this
-  amendment should be reopened rather than argued around.
+- **Revisit if** some mid-run duty turns up that none of Delegation, Discernment or
+  Diligence can absorb. That would be the first real evidence that a fifth competency exists, and
+  the right response is to reopen this amendment, not to force the duty into the nearest D.

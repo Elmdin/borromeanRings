@@ -5,7 +5,7 @@
 
 ## 1. Purpose
 A single declarative source of the **invariants this repo must always satisfy**. Declared once in
-`borromeanrings.toml`, enforced on **every** gate run. This generalizes v0's hard-coded `manifest.json` +
+`borromeanrings.toml`, enforced on **every** gate run. This generalizes v0's hard-coded `manifest.json` check list under `checks/` +
 receipts into a real spine — the seed of the §11 self-assurance layer ("every declared requirement
 has an executed-and-passed receipt").
 

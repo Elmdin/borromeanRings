@@ -73,7 +73,16 @@ _LABEL_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Default ``[adr].dir``. Only used to recognise the globbed ADR form; the check passes
+#: the project's configured value so a differently-named record directory still works.
+DEFAULT_ADR_DIR = "docs/adr"
+
+#: How far a line must be indented past its containing block to be an indented code block
+#: (CommonMark). Four columns, a tab counting as four.
+INDENT_CODE_COLUMNS = 4
+
 _FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+_LIST_MARKER_RE = re.compile(r"^ *(?:[-*+]|\d{1,9}[.)]) +")
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
 _SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 _LINE_SUFFIX_RE = re.compile(r":\d+(?:-\d+)?$")
@@ -124,21 +133,92 @@ def code_spans(line: str) -> list[tuple[int, int]]:
     return spans
 
 
-def prose_lines(text: str) -> Iterator[tuple[int, str]]:
-    """The 1-based numbered lines of ``text`` that are not inside a fenced code block.
+def indent_width(line: str) -> int:
+    """Leading whitespace of ``line`` in columns, a tab advancing to the next multiple of
+    four."""
+    width = 0
+    for char in line:
+        if char == " ":
+            width += 1
+        elif char == "\t":
+            width += INDENT_CODE_COLUMNS - (width % INDENT_CODE_COLUMNS)
+        else:
+            break
+    return width
 
-    Everything between triple-backtick or ``~~~`` fences is example configuration, a
-    terminal transcript or a template — illustrative by construction, never a claim.
+
+def _fence_after(line: str, fence: str) -> tuple[bool, str]:
+    """Is ``line`` a fence delimiter, and what is the fence state after it?
+
+    A fence closes only on its own marker character, so a ``~~~`` line inside a
+    triple-backtick block is content, not a closer.
+    """
+    opener = _FENCE_RE.match(line)
+    if not opener:
+        return False, fence
+    marker = opener.group(1)[0]
+    return True, ("" if fence == marker else (fence or marker))
+
+
+def _list_column_after(line: str, indent: int, list_column: int) -> int:
+    """The content column of the open list item once ``line`` has been read.
+
+    A list marker opens (or re-opens) an item at its own content column; a non-blank line
+    indented less than the open item closes it. One column is tracked rather than a stack
+    of nested items — the simplification recorded in docs/specs/SPEC-citations.md.
+    """
+    marker = _LIST_MARKER_RE.match(line)
+    if marker:
+        return len(marker.group(0))
+    if indent < list_column:
+        return 0
+    return list_column
+
+
+def prose_lines(text: str) -> Iterator[tuple[int, str]]:
+    """The 1-based numbered lines of ``text`` that are prose — not code.
+
+    Two Markdown code forms are skipped, because both are illustrative by construction
+    and a path inside either is an example, not a claim:
+
+    * **fenced blocks** — everything between triple-backtick or ``~~~`` fences;
+    * **indented code blocks** — a run of lines indented four columns past the block that
+      contains them, begun after a blank line (CommonMark: indented code cannot interrupt
+      a paragraph).
+
+    The second needs list context, because four spaces inside a list is *continuation*
+    text, not code — in this repository alone, thirteen live citations sit at that
+    indent. So the open list item's content column is tracked and the code threshold is
+    measured from it. That tracking is a deliberate simplification of CommonMark: one
+    column is remembered rather than a stack of nested items, and a list is considered
+    closed by the first non-blank line indented less than it. The failure mode of the
+    simplification is under-scanning a rare deeply-nested shape, never inventing a
+    citation. See docs/specs/SPEC-citations.md.
     """
     fence = ""
+    list_column = 0
+    in_indented_code = False
+    after_blank = True
     for number, line in enumerate(text.splitlines(), start=1):
-        opener = _FENCE_RE.match(line)
-        if opener:
-            marker = opener.group(1)[0]
-            fence = "" if fence == marker else (fence or marker)
+        is_fence, fence = _fence_after(line, fence)
+        if is_fence:
+            in_indented_code = False
             continue
-        if not fence:
-            yield number, line
+        if fence:
+            continue
+        if not line.strip():
+            after_blank = True
+            continue
+        indent = indent_width(line)
+        threshold = list_column + INDENT_CODE_COLUMNS
+        if in_indented_code and indent >= threshold:
+            continue
+        in_indented_code = after_blank and indent >= threshold
+        after_blank = False
+        if in_indented_code:
+            continue
+        list_column = _list_column_after(line, indent, list_column)
+        yield number, line
 
 
 def slugify(heading: str) -> str:
@@ -154,12 +234,29 @@ def slugify(heading: str) -> str:
 
 
 def heading_slugs(text: str) -> tuple[str, ...]:
-    """Every anchor a reader could link to in ``text``, in document order."""
-    return tuple(
-        slugify(match.group(1))
-        for _, line in prose_lines(text)
-        if (match := _HEADING_RE.match(line))
-    )
+    """Every anchor a reader could link to in ``text``, in document order.
+
+    Repeated headings are disambiguated the way GitHub does it: the first occurrence keeps
+    the bare slug and each later one gains a ``-1``, ``-2``, … suffix, retried until the
+    result is unused — so a document with two "Setup" sections really does answer to
+    ``#setup`` and ``#setup-1``. Without this, the *correct* anchor for the second section
+    reads as unresolved, which is the worst failure this check can have: a false positive
+    on a good citation.
+    """
+    occurrences: dict[str, int] = {}
+    slugs: list[str] = []
+    for _, line in prose_lines(text):
+        heading = _HEADING_RE.match(line)
+        if heading is None:
+            continue
+        base = slugify(heading.group(1))
+        slug = base
+        while slug in occurrences:
+            occurrences[base] += 1
+            slug = f"{base}-{occurrences[base]}"
+        occurrences[slug] = 0
+        slugs.append(slug)
+    return tuple(slugs)
 
 
 def _split_suffix(raw: str) -> tuple[str, str]:
@@ -168,27 +265,29 @@ def _split_suffix(raw: str) -> tuple[str, str]:
     return _LINE_SUFFIX_RE.sub("", path), fragment
 
 
-def _adr_from_glob(segments: Sequence[str]) -> tuple[str, str] | None:
+def _adr_from_glob(path: str, adr_dir: str) -> tuple[str, str] | None:
     """A globbed ADR path (`docs/adr/0043-*.md`) as a reference to the record number.
 
     The single exception to "a glob is illustrative": the number is the citation, and the
     filename after it is decoration. Any other globbed path is not a claim about a file
-    that exists, so it is not a citation at all.
+    that exists, so it is not a citation at all. ``adr_dir`` is the project's configured
+    ``[adr].dir``, matched the same way the check's own resolver matches it — a hardcoded
+    ``adr`` here would silently stop recognising the form in a project that spells the
+    directory differently.
     """
-    number = _ADR_FILE_RE.match(segments[-1])
-    if number is None or segments[-2] != "adr":
+    number = _ADR_FILE_RE.match(posixpath.basename(path))
+    if number is None or posixpath.dirname(path) != adr_dir.rstrip("/"):
         return None
     return "adr", f"ADR-{number.group(1)}"
 
 
-def _classify_token(raw: str) -> tuple[str, str] | None:
+def _classify_token(raw: str, adr_dir: str) -> tuple[str, str] | None:
     """Classify a bare or backticked path token; ``None`` when it is not a citation."""
     path, fragment = _split_suffix(raw)
-    segments = path.split("/")
-    if segments[0] not in REPO_ROOTS:
+    if path.split("/")[0] not in REPO_ROOTS:
         return None
     if "*" in path:
-        return _adr_from_glob(segments)
+        return _adr_from_glob(path, adr_dir)
     normal = posixpath.normpath(path)
     if fragment:
         return "anchor", f"{normal}#{fragment}"
@@ -216,44 +315,46 @@ def _classify_link(raw: str, base: str) -> tuple[str, str] | None:
     return "path", normal
 
 
-def _classify(match: re.Match[str], base: str) -> tuple[str, str] | None:
+def _classify(match: re.Match[str], base: str, adr_dir: str) -> tuple[str, str] | None:
     """Route one token match to the rule for its shape."""
     if (link := match.group("link")) is not None:
         return _classify_link(link, base)
     if (path := match.group("path")) is not None:
-        return _classify_token(path)
+        return _classify_token(path, adr_dir)
     if (adr := match.group("adr")) is not None:
         return "adr", f"ADR-{adr}"
     return "check", match.group("check")
 
 
-def _line_citations(line: str, number: int, base: str) -> Iterator[Citation]:
-    """Every citation on one non-fenced line."""
+def _line_citations(line: str, number: int, base: str, adr_dir: str) -> Iterator[Citation]:
+    """Every citation on one prose line."""
     spans = code_spans(line)
     for match in _TOKEN_RE.finditer(line):
         if match.group("link") is not None and any(
             start <= match.start() < end for start, end in spans
         ):
             continue
-        classified = _classify(match, base)
+        classified = _classify(match, base, adr_dir)
         if classified is None:
             continue
         kind, target = classified
         yield Citation(kind, target, number, _LABEL_RE.match(line, match.end()) is not None)
 
 
-def citations(text: str, *, base: str = "") -> tuple[Citation, ...]:
+def citations(text: str, *, base: str = "", adr_dir: str = DEFAULT_ADR_DIR) -> tuple[Citation, ...]:
     """Every citation ``text`` makes, in source order.
 
     Args:
         text: the Markdown document.
         base: the citing document's directory, used to resolve file-relative link
             targets. Path tokens in prose are repo-relative and ignore it.
+        adr_dir: the project's ``[adr].dir``, used only to recognise the globbed ADR
+            form (`docs/adr/0043-*.md`).
     """
     return tuple(
         citation
         for number, line in prose_lines(text)
-        for citation in _line_citations(line, number, base)
+        for citation in _line_citations(line, number, base, adr_dir)
     )
 
 

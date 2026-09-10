@@ -15,6 +15,7 @@ from meta_harness.citations import (
     citations,
     code_spans,
     heading_slugs,
+    indent_width,
     prose_lines,
     render,
     slugify,
@@ -156,6 +157,16 @@ def test_globbed_adr_path_cites_the_record_number() -> None:
     )
 
 
+def test_the_globbed_adr_form_follows_the_configured_adr_dir() -> None:
+    """The shell resolver reads `[adr].dir`; the extractor must recognise the same place,
+    or a project that spells the directory differently silently loses the form."""
+    assert citations("Rationale in `docs/decisions/0043-*.md`.\n") == ()
+    assert citations("Rationale in `docs/decisions/0043-*.md`.\n", adr_dir="docs/decisions/") == (
+        Citation("adr", "ADR-0043", 1, False),
+    )
+    assert citations("Rationale in `docs/adr/0043-*.md`.\n", adr_dir="docs/decisions") == ()
+
+
 def test_a_check_id_inside_a_path_is_read_as_the_path_only() -> None:
     assert citations("`checks/shared/13_adr.sh`\n") == (
         Citation("path", "checks/shared/13_adr.sh", 1, False),
@@ -221,6 +232,66 @@ def test_fenced_blocks_are_never_scanned() -> None:
         Citation("path", "docs/CHECKS.md", 1, False),
         Citation("adr", "ADR-0043", 8, False),
     )
+
+
+def test_indented_code_blocks_are_never_scanned() -> None:
+    """Markdown's other code form: four columns after a blank line, no fence in sight."""
+    text = (
+        "Real: `docs/CHECKS.md`.\n"
+        "\n"
+        "    An indented example citing `docs/NOWHERE.md`.\n"
+        "    Still code: `docs/ALSO-NOWHERE.md`.\n"
+        "\n"
+        "Back in prose: ADR-0043.\n"
+    )
+    assert citations(text) == (
+        Citation("path", "docs/CHECKS.md", 1, False),
+        Citation("adr", "ADR-0043", 6, False),
+    )
+
+
+def test_a_tab_indented_code_block_is_also_skipped() -> None:
+    text = "Real: `docs/CHECKS.md`.\n\n\tTabbed example: `docs/NOWHERE.md`.\n"
+    assert citations(text) == (Citation("path", "docs/CHECKS.md", 1, False),)
+
+
+def test_indented_code_cannot_interrupt_a_paragraph() -> None:
+    """CommonMark: with no blank line before it, an indented line is paragraph
+    continuation — and this repository writes real citations that way."""
+    text = "A sentence that runs on\n    and cites `docs/CHECKS.md` on the wrapped line.\n"
+    assert citations(text) == (Citation("path", "docs/CHECKS.md", 2, False),)
+
+
+def test_four_spaces_inside_a_list_is_continuation_not_code() -> None:
+    """The live case: thirteen citations in this repo's own CHANGELOG sit at this indent
+    under a nested bullet. Blanket-skipping four-space lines would drop every one."""
+    text = (
+        "- **Enforcement-coverage program** — turning the matrix into real gates:\n"
+        "  - Adversarial self-test corpus: the gate must reject known-bad and accept\n"
+        "    known-good (ADR-0025).\n"
+        "\n"
+        "    A second paragraph of the same bullet, citing `docs/CHECKS.md`.\n"
+    )
+    assert citations(text) == (
+        Citation("adr", "ADR-0025", 3, False),
+        Citation("path", "docs/CHECKS.md", 5, False),
+    )
+
+
+def test_code_indented_four_columns_past_a_list_item_is_still_code() -> None:
+    """Inside a list, the code threshold is measured from the item's content column."""
+    text = "- Item\n\n      indented code citing `docs/NOWHERE.md`\n\n- Next `docs/CHECKS.md`\n"
+    assert citations(text) == (Citation("path", "docs/CHECKS.md", 5, False),)
+
+
+def test_indent_width_counts_a_tab_to_the_next_multiple_of_four() -> None:
+    assert indent_width("no indent") == 0
+    assert indent_width("    four") == 4
+    assert indent_width("\ttab") == 4
+    assert indent_width(" \tspace then tab") == 4
+    assert indent_width("\t\ttwo tabs") == 8
+    # A line that is nothing but whitespace: the scan runs off the end, never breaking.
+    assert indent_width("   ") == 3
 
 
 def test_a_tilde_fence_does_not_close_a_backtick_fence() -> None:
@@ -320,6 +391,39 @@ def test_heading_slugs_follow_the_github_shape_and_skip_fences() -> None:
         "1-what-counts-as-a-citation-and-nothing-else-does",
         "closed-heading",
     )
+
+
+def test_duplicate_headings_get_githubs_numeric_suffixes() -> None:
+    """Two "Setup" sections really do answer to `#setup` and `#setup-1` on GitHub.
+
+    Without the suffix rule the *correct* anchor for the second one reads as unresolved —
+    a false positive on a good citation, the worst failure this check can have.
+    """
+    assert heading_slugs("# Setup\n## Setup\n") == ("setup", "setup-1")
+    assert heading_slugs("# Setup\n## Setup\n### Setup\n") == ("setup", "setup-1", "setup-2")
+
+
+def test_a_heading_whose_slug_already_ends_in_a_suffix_does_not_collide() -> None:
+    """`# Setup 1` slugs to `setup-1`, which the second `# Setup` has already taken; the
+    retry loop moves it on rather than handing out the same anchor twice."""
+    assert heading_slugs("# Setup\n# Setup\n# Setup 1\n") == (
+        "setup",
+        "setup-1",
+        "setup-1-1",
+    )
+    assert heading_slugs("# Setup 1\n# Setup\n# Setup\n") == (
+        "setup-1",
+        "setup",
+        "setup-2",
+    )
+
+
+def test_a_citation_to_a_duplicate_heading_anchor_resolves() -> None:
+    """End of the false positive, stated as the resolution it enables."""
+    document = "# Setup\n## Setup\n"
+    found = citations("See `docs/GUIDE.md#setup-1`.\n")
+    assert found == (Citation("anchor", "docs/GUIDE.md#setup-1", 1, False),)
+    assert found[0].target.partition("#")[2] in heading_slugs(document)
 
 
 def test_slugify_exact_values() -> None:

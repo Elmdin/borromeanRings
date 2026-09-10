@@ -39,7 +39,10 @@ queue is merged.
   whose number was already taken, and several historical paths written in citation shape.
   Every one was fixed in the document; none suppressed. Not added to `adopt.py`'s
   `RECOMMENDED` set: going red on accumulated dead references should be a maintainer's
-  choice, not a surprise from `adopt.sh`. See `docs/specs/SPEC-citations.md`.
+  choice, not a surprise from `adopt.sh`. Anchor slugs reproduce GitHub's **duplicate
+  disambiguation** (two "Setup" sections answer to `#setup` and `#setup-1`), and
+  **indented code blocks** are skipped alongside fenced ones — list-aware, because four
+  spaces inside a list is continuation, not code. See `docs/specs/SPEC-citations.md`.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

@@ -33,8 +33,10 @@ branch and fails if any citation in them does not resolve against this branch.
 
 ### 1. What counts as a citation (and nothing else does)
 
-Extraction is `citations(text, base=...)` in `src/meta_harness/citations.py`. It is pure:
-it never touches the filesystem, so what it recognises is decided by *shape alone*.
+Extraction is `citations(text, base=..., adr_dir=...)` in `src/meta_harness/citations.py`.
+It is pure: it never touches the filesystem, so what it recognises is decided by *shape
+alone*. `adr_dir` is the project's `[adr].dir`, so the extractor recognises the globbed
+ADR form in exactly the directory the resolver looks it up in.
 
 | Kind | Written as | Target recorded |
 |---|---|---|
@@ -53,8 +55,8 @@ keep an illustrative fragment from being read as a claim:
    `tests`, `tools`). `origin/docs/handoff` and `learn.chatgpt.com/docs/hooks` are
    therefore not citations.
 3. It contains no glob or placeholder character (`*`, `?`, `<`, `>`, `{`, `}`). The one
-   exception is the ADR form in the table above: a final segment `NNNN-*` under a
-   directory named `adr` is a citation *to the record number*, not to a filename.
+   exception is the ADR form in the table above: a final segment `NNNN-*` directly under
+   the configured `[adr].dir` is a citation *to the record number*, not to a filename.
 
 A **Markdown link target** (`[text](target)`) is a citation whenever it is repo-relative
 — no `scheme:` prefix, no leading `/`, not a bare `#fragment`. Link targets are
@@ -76,9 +78,23 @@ check exists to prevent:
   defect (PR #196) is therefore *out of scope for this gate* and stays a human-review
   concern — it is included in this SPEC's problem statement to mark the boundary, not to
   claim coverage.
-- **Fenced code blocks are never scanned.** Everything between triple-backtick or `~~~`
-  fences is example configuration, terminal transcript, or template — illustrative by
-  construction. A path inside a fence is ignored even if it looks perfect.
+- **Code blocks are never scanned — both Markdown spellings.** Everything between
+  triple-backtick or `~~~` **fences**, and every **indented code block** (a run of lines
+  indented four columns past the block containing them, begun after a blank line, per
+  CommonMark — a tab counts as four). Both are example configuration, terminal
+  transcript, or template: illustrative by construction. A path inside either is ignored
+  even if it looks perfect.
+
+  Indented code needs list context, and this is where the implementation is deliberately
+  simpler than CommonMark. Four spaces *inside a list item* is continuation text, not
+  code — in this repository alone thirteen live citations sit at that indent under a
+  nested bullet — so the open list item's content column is tracked and the four-column
+  threshold is measured from it. **The stated limit:** one column is remembered rather
+  than a stack of nested items, and a list is treated as closed by the first non-blank
+  line indented less than that column. A deeply nested shape that defeats this is
+  under-scanned, never over-scanned: the simplification can hide a citation, it cannot
+  invent one. An indented line that merely continues a paragraph (no blank line before
+  it) is prose, as CommonMark says — this repository wraps real citations that way.
 - **Illustrative fragments in prose or inline code are excluded by shape**, per the three
   conditions above — globs, placeholders, non-repo roots and bare directories. An
   inline-code span is otherwise scanned exactly like prose: backticks are how this
@@ -124,9 +140,19 @@ to satisfy a citation:
 | Kind | Resolves when |
 |---|---|
 | `path` | the path is tracked on this branch |
-| `anchor` | the file part is tracked **and** the fragment matches one of its heading slugs (`heading_slugs`: GitHub-style — lowercased, non-alphanumerics dropped, spaces to `-`) |
+| `anchor` | the file part is tracked **and** the fragment matches one of its heading slugs (`heading_slugs`) |
 | `adr` | some tracked path under `[adr].dir` has a basename beginning with the four-digit number |
 | `check` | some tracked `checks/*/<id>.sh` exists |
+
+`heading_slugs` reproduces GitHub's anchor generation, including the part that is easy to
+miss: lowercase, drop every character that is not a letter/digit/underscore/space/hyphen,
+then replace **each remaining space** with one hyphen (not each run — a heading with an em
+dash really does render as `a--b`); and **repeated headings are disambiguated**, the first
+occurrence keeping the bare slug and each later one gaining `-1`, `-2`, … retried until
+the result is unused. A document with two "Setup" sections answers to both `#setup` and
+`#setup-1`. Getting that wrong would report the *correct* anchor for the second section as
+unresolved — a false positive on a good citation, which is the worst failure this check
+can have.
 
 ### 5. Reporting
 
@@ -141,6 +167,8 @@ docs/EXAMPLE.md:12 — docs/HANDOFF.md — does not exist on this branch
 | Situation | Behaviour |
 |---|---|
 | A path inside a fenced block | Ignored. |
+| A path inside a four-column indented code block | Ignored. |
+| A path on a four-space line that is list continuation, or a wrapped paragraph line | Scanned — it is prose. |
 | A citation in a file being **deleted** on this branch | Ignored — the file is not read; the branch is removing the claim, not making it. |
 | No changed Markdown under `[citations].paths` | `noop` (ran, inspected nothing) — never a `pass`. |
 | No merge base to diff against | `noop`. |

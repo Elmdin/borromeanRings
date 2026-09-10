@@ -133,5 +133,14 @@ with a non-deterministic verdict. The judgement half of doc overclaim already ha
   document; none was suppressed.
 - One recognition rule earned its place from a false positive found during that sweep: a
   file extension must start with a letter, or the prose `checks/00..50` reads as a file.
+- Two rules came from adversarial review of the PR, both in the same direction — a false
+  positive on a *good* citation is the worst failure this check can have. Anchor slugs
+  now reproduce GitHub's duplicate-heading disambiguation, so the real anchor for a second
+  "Setup" section (`#setup-1`) resolves instead of reading as dead. And indented code
+  blocks are skipped alongside fenced ones, list-aware: four spaces inside a list is
+  continuation text, and thirteen live citations in this repository's own changelog sit
+  at exactly that indent, so a blanket rule would have silently dropped every one. The
+  list tracking is a stated simplification of CommonMark whose only failure mode is
+  under-scanning, recorded in the SPEC rather than left for a reader to discover.
 - The gate now says something new about a document: not that it is right, but that
   everything it points at is here.

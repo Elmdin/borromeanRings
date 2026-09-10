@@ -57,8 +57,13 @@ def _project(
     *,
     config: str = CONFIG,
     removed: tuple[str, ...] = (),
+    untracked: dict[str, str] | None = None,
 ) -> Path:
-    """A repo with a `main` baseline and a feature branch that changes documentation."""
+    """A repo with a `main` baseline and a feature branch that changes documentation.
+
+    ``untracked`` files are written **after** the commit and never added, so they exist on
+    disk but not on the branch — the distinction the resolver is built on.
+    """
     root.mkdir(parents=True)
     _write(root, {"borromeanrings.toml": config, **BASELINE})
     _git(root, "init", "-q")
@@ -71,6 +76,8 @@ def _project(
         (root / rel).unlink()
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "docs: change")
+    if untracked:
+        _write(root, untracked)
     return root
 
 
@@ -189,6 +196,34 @@ def test_a_citation_in_a_deleted_document_is_ignored(tmp_path: Path) -> None:
     code, stdout, status, log = _run_gate(project)
     assert code == 0, f"a deleted document's citations must not gate:\n{stdout}\n{log}"
     assert status == "pass"
+
+
+def test_a_file_present_but_untracked_does_not_satisfy_a_citation(tmp_path: Path) -> None:
+    """Resolution is against the BRANCH, not the working directory.
+
+    The file is right there on disk, so a filesystem-based resolver would pass this. It is
+    not on the branch, so a reader who checks the branch out finds nothing — and neither
+    does anyone reading the PR. Untracked scratch must never be able to satisfy a claim.
+    """
+    project = _project(
+        tmp_path / "untracked",
+        {"docs/NEW.md": "# New\n\nSee `docs/SCRATCH.md`.\n"},
+        untracked={"docs/SCRATCH.md": "# Scratch\n\nPresent on disk, absent from git.\n"},
+    )
+    assert (project / "docs" / "SCRATCH.md").exists(), "fixture must leave the file present"
+    listed = subprocess.run(
+        ["git", "ls-files", "docs/SCRATCH.md"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert listed.stdout.strip() == "", "fixture must leave the file untracked"
+
+    code, stdout, status, log = _run_gate(project)
+    assert code != 0, f"an untracked file must not satisfy a citation:\n{stdout}"
+    assert status == "fail"
+    assert "docs/NEW.md:3 — docs/SCRATCH.md — does not exist on this branch" in log
 
 
 def test_an_unreadable_citations_config_fails_closed(tmp_path: Path) -> None:

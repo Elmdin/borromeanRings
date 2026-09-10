@@ -163,7 +163,8 @@ for doc in docs:
         sys.exit(1)
     parent = str(PurePosixPath(doc).parent)
     base = "" if parent == "." else parent
-    findings += [(doc, item) for item in unresolved(citations(text, base=base), resolve)]
+    found = citations(text, base=base, adr_dir=cfg.adr_dir)
+    findings += [(doc, item) for item in unresolved(found, resolve)]
 
 if findings:
     print(render(findings))

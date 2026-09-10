@@ -202,7 +202,7 @@ it and author-written summaries well below. It earned its keep in 4D: a measurem
 exactly this kind is what was missing when dry run 1's second false claim went out.
 
 It is excluded here because it is an **arbitrary numeric target**. This repository's standing
-rule (docs/HANDOFF.md §3; `CHARTER.toml` `may_not`) is that a signal is either a binary fact
+rule (`CHARTER.toml` `may_not`; restated in the handoff contract that lands with #147) is that a signal is either a binary fact
 or a non-regression ratchet — never a number a person picked. A picked number invites gaming,
 needs re-tuning for every corpus, and has nothing to say about a capture sitting at 99.
 
@@ -216,7 +216,7 @@ accepted capture — which is the exact moment dry run 1 went wrong. A ratchet c
 *first* summary-masquerading-as-transcript; it can only stop a later one from being worse. So
 the ratchet form answers a different question from the one 4D's threshold answers, and no
 project this repository governs captures transcripts at all. Building it here would be
-speculative (docs/HANDOFF.md §3, "justified building"). Should a governed project ever need
+speculative (`CHARTER.toml` `may_not`; the handoff contract arriving with #147 calls this "justified building"). Should a governed project ever need
 it, the right home is that project's own check with its own baseline, not this harness.
 
 ### 2. The whisper / prompt / block severity ladder (a dial)

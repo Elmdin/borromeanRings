@@ -51,7 +51,7 @@ ADR-0020) chose to **port the mechanism, never copy files**.
 
 ## Alternatives considered
 - **Fuzzy / similarity-threshold matching** — rejected: a threshold is a number to game and
-  a paraphrase is exactly the drift the check exists to catch.
+  a paraphrase that reads as verbatim is the one outcome this check is built to refuse.
 - **Substring search over the whole source file, no span** — rejected: a short quote can
   match by accident anywhere, and there is no diff to show on failure.
 - **Verifying against the URL** — rejected: network, non-determinism, and the passage may

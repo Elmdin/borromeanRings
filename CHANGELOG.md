@@ -13,6 +13,7 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Multi-harness substrate research and spec (#142, ADR-0069): `docs/research/HARNESS-SUBSTRATES.md` surveys Codex CLI, Gemini CLI, OpenCode, Hermes, Aider, Cline and Roo Code from their public docs (dated, URL per cell, "not documented" never guessed); `docs/specs/SPEC-substrate-adapter.md` writes down the stdin/stdout/exit contract the six hooks already implement, the `adapters/<name>/` wiring-only shape, the capability matrix, degraded modes and the conformance test. Decision: one gate and one hook set with per-substrate wiring adapters; phase-1 target Codex CLI filed as #194. Docs only — nothing built.
 - Claude Code plugin distribution: `.claude-plugin/plugin.json`, a self-hosted single-plugin marketplace, `hooks/hooks.json` wiring the six hooks through `${CLAUDE_PLUGIN_ROOT}` (scripts unchanged), project skills exposed by symlink; one-line install from a checkout or the GitHub URL, per-project opt-in untouched. `docs/PLUGIN.md` (ADR-0057, #136).
 - PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
 

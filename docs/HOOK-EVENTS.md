@@ -28,3 +28,13 @@ Rules that held while deciding: a hook that fires where borromeanRings owns no s
 noise; every wired hook is inert outside a governed project; nothing here adds a model
 call or an API key; the self-status view reports partial wiring when any of the six is
 missing (`meta_harness.status_assess.HOOK_SCRIPTS` is the single source of that list).
+
+## Other substrates
+
+The six events above are the contract any other harness must carry. Which harnesses can
+(Codex CLI, Gemini CLI, OpenCode, Hermes, Aider, Cline, Roo Code), on what stdin/stdout/exit
+contract, and what degrades where they cannot: `docs/research/HARNESS-SUBSTRATES.md` (survey,
+dated, every cell cites its doc URL) and `docs/specs/SPEC-substrate-adapter.md` (the
+substrate-neutral contract the scripts implement, the `adapters/<name>/` wiring shape, the
+capability matrix, degraded modes and the conformance test). Decision: ADR-0069; phase-1
+target (Codex CLI): #194.

@@ -2,7 +2,9 @@
 
 **Status:** Specified, not built (research epic #142; build only on an explicit go) ·
 **Decision:** ADR-0069 · **Survey:** `docs/research/HARNESS-SUBSTRATES.md` ·
-**Hooks:** `.claude/hooks/*.sh` · **Gate:** `verify.sh` (unchanged by this spec)
+**Hooks:** `.claude/hooks/*.sh` · **Gate:** `verify.sh` (unchanged by this spec) ·
+**Siblings:** `SPEC-executor.md` (where the checks run), `SPEC-generator.md` (who produces the
+change) — substrate, executor and generator are three separate axes (ADR-0071)
 
 ## User story
 

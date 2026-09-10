@@ -38,3 +38,9 @@ dated, every cell cites its doc URL) and `docs/specs/SPEC-substrate-adapter.md` 
 substrate-neutral contract the scripts implement, the `adapters/<name>/` wiring shape, the
 capability matrix, degraded modes and the conformance test). Decision: ADR-0069; phase-1
 target (Codex CLI): #194.
+
+The substrate is one of three swappable axes. Where the *checks* run (`local` today;
+`worktree`, `sandbox` specified) is `docs/specs/SPEC-executor.md`; who produces the *next
+change* (the agent behind the Stop hook today; a `headless` scripted generator specified) is
+`docs/specs/SPEC-generator.md`. Decision: ADR-0071; build phases #201 (worktree executor)
+and #202 (headless generator).

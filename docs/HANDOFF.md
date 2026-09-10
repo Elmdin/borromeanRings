@@ -161,10 +161,14 @@ is re-author; they may relicense their own prose instead.
    the scratchpad from the #184 review) is the mechanical check; zero distinctive overlaps is
    the bar. The builder runs it before committing (three of six ports needed a review round
    because they did not); the reviewer runs it again.
-2. **A test that reads outside `src/` or `tests/` makes the mutation lane vacuous.** mutmut
-   copies only those two dirs; a test reading `.claude/` or `contracts/` fails inside the sandbox
-   and the lane reports PASS on 0 mutants. Seen on #160 and #168. Read the mutant count in the
-   60_mutation log, never just the status; such tests go in the mutmut-ignored integration files.
+2. **A test that reads outside `src/` or `tests/` breaks the mutation lane.** mutmut copies
+   only those two dirs; a test reading `.claude/` or `contracts/` fails inside the sandbox,
+   mutmut evaluates 0 mutants, and `60_mutation.sh` **fails closed** ("MUTATION CHECK DID NOT
+   RUN"), as designed since ADR-0022. Seen on #160 and #168; each was fixed by moving the
+   test into the mutmut-ignored integration files, after which the lane ran for real. An
+   earlier version of this note called it a vacuous pass; that was wrong, and #187 is
+   re-scoped to proving the guard with a regression test and printing the mutant count in
+   the gate output.
 3. **Four parallel mutation runs starve the fast gate.** The 300 s per-check limit tripped on
    #79's test lane under that load. Run `BORROMEANRINGS_CHECK_TIMEOUT=900 ./verify.sh` when other
    heavy lanes are up; five concurrent agents is the ceiling.

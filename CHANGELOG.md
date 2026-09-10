@@ -26,6 +26,10 @@ queue is merged.
   no research document has a saved source yet), catalogued in `docs/CHECKS.md`;
   `docs/specs/SPEC-quotes.md`. Unit- (100% line+branch) and integration-tested. The research
   skill's §5 now requires the convention for verbatim quotes in `report.md` (still ≤ 3692 B).
+  PR #182 review: matching is line-for-line at word boundaries (a one-line quote inside one
+  source line, a multi-line quote over a contiguous run of source lines) — joining the span
+  hid a word dropped at a line boundary; and the check resolves symlinks, refusing (never
+  reading or printing) any source or walked file whose real path leaves the project.
 
 ### Changed
 - The research skill's ≤ 3692 B pin test moved from `tests/unit/test_context_budget.py` to

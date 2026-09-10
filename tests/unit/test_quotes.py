@@ -9,11 +9,13 @@ import pytest
 from meta_harness.quotes import (
     STATUSES,
     Marker,
+    OutsideProject,
     Quotation,
     QuoteReport,
     QuoteResult,
     extract,
     normalise,
+    normalise_lines,
     parse_marker,
     render,
     verify,
@@ -54,6 +56,24 @@ def _sources(**files: str):  # type: ignore[no-untyped-def]
 )
 def test_normalise_rules(raw: str, expected: str) -> None:
     assert normalise(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("a\nb", ("a", "b")),
+        ("  a  b \n\n\t c \n", ("a b", "c")),
+        ("“a\nb.”", ("a", "b")),
+        ('"a\nb".', ("a", "b")),
+        ("a:\nb", ("a:", "b")),
+        ("", ()),
+        (">\n", (">",)),
+    ],
+)
+def test_normalise_lines_applies_the_whole_text_rules_then_per_line_whitespace(
+    raw: str, expected: tuple[str, ...]
+) -> None:
+    assert normalise_lines(raw) == expected
 
 
 # --- parse_marker ----------------------------------------------------------------------
@@ -150,10 +170,10 @@ def test_verify_no_markers_is_empty_and_ok() -> None:
     assert report.counts == {status: 0 for status in STATUSES}
 
 
-def test_verify_verbatim_across_line_break_curly_quotes_and_punctuation() -> None:
+def test_verify_verbatim_multi_line_with_curly_quotes_and_punctuation() -> None:
     doc = (
-        "> “Recall is the unsolved problem: the best agent\n"
-        "> misses most sources.”\n\n"
+        "> “Recall is the unsolved problem:\n"
+        "> the best agent misses most sources.”\n\n"
         "— source: src.md#L3-L4\n"
     )
     report = verify(doc, _sources(**{"src.md": SOURCE}), document="d.md")
@@ -165,10 +185,140 @@ def test_verify_verbatim_across_line_break_curly_quotes_and_punctuation() -> Non
     assert report.counts["verbatim"] == 1
 
 
-def test_verify_quote_may_be_a_substring_of_the_span() -> None:
+def test_verify_multi_line_quote_wrapped_differently_from_the_source_is_drifted() -> None:
+    doc = (
+        "> Recall is the unsolved problem: the best agent\n"
+        "> misses most sources.\n\n"
+        "— source: src.md#L3-L4\n"
+    )
+    (result,) = verify(doc, _sources(**{"src.md": SOURCE})).results
+    assert result.status == "drifted"
+
+
+def test_verify_single_line_quote_may_be_a_substring_of_one_span_line() -> None:
     doc = "> the best agent misses most sources\n— source: src.md#L1-L5\n"
     report = verify(doc, _sources(**{"src.md": SOURCE}))
     assert report.results[0].status == "verbatim"
+
+
+REVIEW_SOURCE = "The result is not conclusive.\nThe result is conclusive in later trials.\n"
+
+
+def test_verify_a_word_dropped_at_a_line_boundary_is_drifted_not_verbatim() -> None:
+    """PR #182 review: joining the span hid a dropped "not" — line-for-line is required."""
+    doc = "> The result is\n> conclusive\n— source: r.md#L1-L2\n"
+    (result,) = verify(doc, _sources(**{"r.md": REVIEW_SOURCE}), document="d.md").results
+    assert result.status == "drifted"
+    assert result.detail == (
+        "--- quote (d.md:1)\n"
+        "+++ r.md#L1-L2\n"
+        "@@ -1,2 +1,2 @@\n"
+        "-The result is\n"
+        "-conclusive\n"
+        "+The result is not conclusive.\n"
+        "+The result is conclusive in later trials.\n"
+    )
+
+
+def test_verify_single_line_quote_spanning_a_line_break_is_drifted() -> None:
+    source = "The trials were not conclusive; the result is\nconclusive in later trials.\n"
+    (result,) = verify(
+        "> the result is conclusive\n— source: r.md#L1-L2\n", _sources(**{"r.md": source})
+    ).results
+    assert result.status == "drifted"
+
+
+def test_verify_single_line_quote_inside_one_line_is_verbatim() -> None:
+    doc = "> The result is conclusive\n— source: r.md#L1-L2\n"
+    (result,) = verify(doc, _sources(**{"r.md": REVIEW_SOURCE})).results
+    assert result.status == "verbatim"
+
+
+def test_verify_multi_line_quote_may_start_and_end_mid_line_at_word_boundaries() -> None:
+    source = (
+        "The trials were not conclusive; the result is\nconclusive in later trials, they said.\n"
+    )
+    doc = "> the result is\n> conclusive in later trials\n— source: r.md#L1-L2\n"
+    (result,) = verify(doc, _sources(**{"r.md": source})).results
+    assert result.status == "verbatim"
+
+
+def test_verify_multi_line_quote_equal_to_a_run_inside_a_longer_span() -> None:
+    source = "zero\none\ntwo\nthree\nfour\n"
+    doc = "> one\n> two\n> three\n— source: r.md#L1-L5\n"
+    (result,) = verify(doc, _sources(**{"r.md": source})).results
+    assert result.status == "verbatim"
+    doc = "> one\n> three\n— source: r.md#L1-L5\n"
+    (result,) = verify(doc, _sources(**{"r.md": source})).results
+    assert result.status == "drifted"
+
+
+@pytest.mark.parametrize(
+    ("quote", "status"),
+    [
+        ("conclusive in later", "verbatim"),
+        ("sult is conclusive", "drifted"),
+        ("The result is con", "drifted"),
+        ("conclusive", "verbatim"),
+        ("(in later trials)", "drifted"),
+    ],
+)
+def test_verify_single_line_match_must_not_start_or_end_inside_a_word(
+    quote: str, status: str
+) -> None:
+    (result,) = verify(
+        f"> {quote}\n— source: r.md#L2\n", _sources(**{"r.md": REVIEW_SOURCE})
+    ).results
+    assert result.status == status
+
+
+def test_verify_inconclusive_does_not_contain_conclusive() -> None:
+    (result,) = verify(
+        "> conclusive\n— source: r.md#L1\n", _sources(**{"r.md": "inconclusive\n"})
+    ).results
+    assert result.status == "drifted"
+
+
+def test_verify_boundary_next_to_punctuation_counts_as_a_word_boundary() -> None:
+    (result,) = verify("> result\n— source: r.md#L1\n", _sources(**{"r.md": "(result).\n"})).results
+    assert result.status == "verbatim"
+
+
+def test_verify_empty_blockquote_is_drifted() -> None:
+    (result,) = verify(">\n— source: r.md#L1\n", _sources(**{"r.md": REVIEW_SOURCE})).results
+    assert result.status == "drifted"
+
+
+def test_verify_multi_line_quote_longer_than_the_span_is_drifted() -> None:
+    doc = (
+        "> The result is not conclusive.\n> The result is conclusive in later trials.\n"
+        "> more\n— source: r.md#L1-L2\n"
+    )
+    (result,) = verify(doc, _sources(**{"r.md": REVIEW_SOURCE})).results
+    assert result.status == "drifted"
+
+
+def test_verify_blank_blockquote_lines_are_ignored_when_matching() -> None:
+    doc = (
+        "> The result is not conclusive.\n>\n> The result is conclusive in later trials.\n"
+        "— source: r.md#L1-L2\n"
+    )
+    (result,) = verify(doc, _sources(**{"r.md": REVIEW_SOURCE})).results
+    assert result.status == "verbatim"
+
+
+def test_verify_resolver_may_refuse_a_path_outside_the_project() -> None:
+    def resolve(_: str) -> str | None:
+        raise OutsideProject("docs/link.md")
+
+    (result,) = verify("> a\n— source: docs/link.md#L1\n", resolve, document="d.md").results
+    assert result == QuoteResult(
+        document="d.md",
+        line=1,
+        marker=Marker("docs/link.md", 1, 1),
+        status="missing",
+        detail="outside the project",
+    )
 
 
 def test_verify_drifted_carries_a_unified_diff() -> None:

@@ -27,13 +27,19 @@ ADR-0020) chose to **port the mechanism, never copy files**.
    drift is meaningful.
 3. **Normalisation is stated exactly** — curly → straight quotes, whitespace collapsed, one
    wrapping `"` pair and trailing sentence punctuation removed — and nothing else. Wording,
-   casing and internal punctuation must match. A quote is verbatim if its normalised text
-   occurs in the normalised span.
+   casing and internal punctuation must match. Matching is **line-for-line at word
+   boundaries** (PR #182 review): a one-line quote must sit inside one source line; a
+   multi-line quote must cover a contiguous run of source lines; a match may not start or
+   end inside a word. Joining the span into one string was rejected because it hid a word
+   dropped at a line boundary (`… is not\nconclusive` quoted as `… is\nconclusive`).
 4. **Five outcomes, all named**: verbatim, drifted (unified diff), missing, out-of-range,
    orphan (a marker with no blockquote — never ignored). Any non-verbatim result fails.
 5. **Opt-in, honest, closed.** `[quotes].enabled` (default off) with `paths`; no marked
    quotation ⇒ `noop` (ADR-0049), an unreadable document or source ⇒ fail closed; the
-   module is pure and does no I/O; the check does no network and no model call.
+   module is pure and does no I/O; the check does no network and no model call. The
+   check resolves symlinks: a source or walked file whose real location is outside the
+   project root is refused (`missing`, "outside the project"), never read, never printed;
+   symlinked directories are never followed.
 6. **Registered here now**, with `enabled = true` and `paths = ["docs"]`. Neither
    `docs/research/*.md` document has a saved source directory: `deep-research-landscape.md`
    quotes short phrases (e.g. "RAG cannot retrieve what isn't there") against URLs only, and

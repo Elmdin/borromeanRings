@@ -16,13 +16,15 @@ cmd="quote fidelity (marked quotations verbatim vs saved sources)"
 # Exit 3 ⇒ nothing to inspect (BORROMEANRINGS_NOOP_EXIT); 0 ⇒ all verbatim; 1 ⇒ a
 # non-verbatim quotation, or a file that exists but cannot be read (fail closed).
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$BORROMEANRINGS_NOOP_EXIT" >"$log" 2>&1 <<'PY'
+import os
 import sys
 from pathlib import Path
 
-from meta_harness.quotes import QuoteReport, QuoteResult, render, verify
+from meta_harness.quotes import OutsideProject, QuoteReport, QuoteResult, render, verify
 from meta_harness.spine import load_config
 
 root = Path(sys.argv[1])
+real_root = root.resolve()
 noop_exit = int(sys.argv[2])
 config = load_config(root / "borromeanrings.toml")
 
@@ -31,21 +33,53 @@ if not config.quotes_enabled:
     sys.exit(0)
 
 
+def inside(path: Path) -> bool:
+    """True when the path's REAL location (symlinks resolved) is under the project root."""
+    return path.resolve(strict=False).is_relative_to(real_root)
+
+
 def resolve(rel: str) -> str | None:
-    """The saved source's text, None when absent; a present-but-unreadable file raises."""
+    """The saved source's text; None when absent; refused (never read) when a symlink
+    leads outside the project; a present-but-unreadable file raises."""
     file = root / rel
+    if not inside(file):
+        raise OutsideProject(rel)
     if not file.is_file():
         return None
     return file.read_text(encoding="utf-8")
 
 
+def markdown_under(target: Path) -> list[Path]:
+    """Every *.md under target, in a stable order. Symlinked directories are never followed
+    (logged), and a file whose real location is outside the project is skipped (logged)."""
+    found: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(target, followlinks=False):
+        here = Path(dirpath)
+        for name in sorted(dirnames):
+            if (here / name).is_symlink():
+                rel = (here / name).relative_to(root).as_posix()
+                where = "inside" if inside(here / name) else "outside"
+                print(f"skipped {rel}: symlinked directory, {where} the project (not followed)")
+        for name in sorted(filenames):
+            file = here / name
+            if not name.endswith(".md") or not file.is_file():
+                continue
+            if inside(file):
+                found.append(file)
+            else:
+                print(f"skipped {file.relative_to(root).as_posix()}: outside the project (not read)")
+    return found
+
+
 documents: list[Path] = []
 for declared in config.quotes_paths:
     target = root / declared
-    if target.is_file():
+    if not inside(target):
+        print(f"skipped [quotes].paths entry {declared!r}: outside the project (not read)")
+    elif target.is_file():
         documents.append(target)
     elif target.is_dir():
-        documents.extend(sorted(p for p in target.rglob("*.md") if p.is_file()))
+        documents.extend(markdown_under(target))
 if not documents:
     print(f"no Markdown under [quotes].paths {list(config.quotes_paths)} — nothing to inspect")
     sys.exit(noop_exit)

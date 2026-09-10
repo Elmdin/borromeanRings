@@ -52,14 +52,31 @@ Equivalent HTML-comment form (invisible when rendered):
 ### Normalisation (applied identically to the quote and the source span)
 
 1. Curly quotation marks become straight: `‘` `’` → `'`; `“` `”` → `"`.
-2. Every run of whitespace (spaces, tabs, newlines) collapses to one space; leading and
-   trailing whitespace is removed.
-3. One pair of wrapping straight double quotes is removed when the text both starts and
-   ends with `"`.
-4. Trailing sentence punctuation — any run of `.` `,` `;` `:` `!` `?` `…` — is removed,
-   then trailing whitespace again.
+2. Leading and trailing whitespace of the whole text is removed.
+3. Trailing sentence punctuation — any run of `.` `,` `;` `:` `!` `?` `…` — is removed
+   from the end of the whole text.
+4. One pair of wrapping straight double quotes is removed when the whole text both
+   starts and ends with `"`; then rule 3 is applied again.
+5. Within each line, every run of whitespace (spaces, tabs) collapses to one space and
+   the line is stripped; blank lines are dropped. Line breaks are **kept**.
 
 Nothing else: wording, casing, internal punctuation, apostrophes and hyphens must match.
+
+### Matching (line-for-line, at word boundaries)
+
+Let `Q` be the quote's normalised lines and `S` the span's normalised lines.
+
+- `Q` is empty ⇒ never verbatim.
+- One line: `Q[0]` must occur **inside a single line** of `S`, and the occurrence may not
+  start or end inside a word (the character before the match and the first matched
+  character are not both alphanumeric; likewise the last matched character and the
+  character after).
+- Several lines: `Q` must cover a **contiguous run** of `S` — `Q[0]` is the end of the
+  run's first line (at a word boundary), `Q[-1]` is the start of its last line (at a
+  word boundary), and every line between is equal. Line structure is never joined
+  away: a word dropped at a line boundary (`… is not\nconclusive` quoted as
+  `… is\nconclusive`) is `drifted`, and a single-line quote that would only match by
+  spanning two source lines is `drifted`.
 
 ### Outcomes (per marked quotation)
 
@@ -67,7 +84,7 @@ Nothing else: wording, casing, internal punctuation, apostrophes and hyphens mus
 |---|---|
 | `verbatim` | the normalised quote occurs in the normalised source span |
 | `drifted` | the source span exists but does not contain the quote; the report carries a unified diff of the raw quote lines vs the raw span lines |
-| `missing` | the resolver has no such file (or the path is absolute / escapes the root) |
+| `missing` | the resolver has no such file, the path is absolute / contains `..`, or the resolved real path (symlinks followed) is outside the project root (`outside the project`) |
 | `out_of_range` | the file exists but `start < 1`, `end < start`, or `end` exceeds its line count |
 | `orphan` | a marker with no blockquote in front of it |
 
@@ -96,7 +113,13 @@ paths = ["docs"]        # files / directories (relative to the root) scanned for
 
 ## Edge cases
 
-- Multi-line quote whose line breaks differ from the source's: verbatim (rule 2).
+- Multi-line quote re-wrapped at different points than the source: `drifted` (matching
+  is line-for-line); a quote may start mid-line and end mid-line at word boundaries.
+- Single-line quote whose only occurrence straddles two source lines: `drifted`.
+- Quote `conclusive` against source `inconclusive`: `drifted` (word boundary).
+- Symlinked source (or a symlinked directory under `paths`) whose real location is
+  outside the project: `missing` with reason `outside the project` — never read, never
+  printed; a walked file that resolves outside the root is skipped and logged.
 - Quote wrapped in `“ ”` in the document, unwrapped in the source: verbatim (rules 1, 3).
 - Quote ends with `.` where the source line ends with `,`: verbatim (rule 4).
 - Quote drops a word: drifted, with the diff.
@@ -117,6 +140,8 @@ paths = ["docs"]        # files / directories (relative to the root) scanned for
 (`Quotation`: line, text, source path, span) and orphan markers; `normalise(text)` applies
 the four rules; `verify(document_text, resolve_source, document="")` returns a frozen
 `QuoteReport` of `QuoteResult`s, where `resolve_source(path) -> str | None` is injected
-(`None` ⇒ missing; an `OSError` propagates so the caller fails closed); `render(report)`
+(`None` ⇒ missing; raising `OutsideProject` ⇒ missing, "outside the project"; an
+`OSError` propagates so the caller fails closed); `matches(quote, span)` is the
+line-for-line rule above; `render(report)`
 formats the log. The check is thin bash mirroring `19_context_budget`: it composes the
 module with `spine.load_config`, walks `[quotes].paths`, and maps exit codes to receipts.

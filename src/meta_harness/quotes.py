@@ -12,7 +12,10 @@ the quotation as ``verbatim``, ``drifted`` (with a unified diff), ``missing`` (n
 file), ``out_of_range`` (the span is not in the file) or ``orphan`` (a marker with no
 blockquote). Both sides are normalised the same way — curly quotes straightened,
 whitespace collapsed, one wrapping pair of double quotes and trailing sentence
-punctuation dropped — and nothing else: wording must match.
+punctuation dropped — and nothing else: wording must match. Matching is
+**line-for-line**: a single-line quote must sit inside one source line, a multi-line
+quote must cover a contiguous run of source lines, and a match may not start or end
+inside a word — so a word dropped at a line boundary can never hide (PR #182 review).
 
 Pure: no I/O. The caller injects ``resolve_source(path) -> str | None`` (``None`` ⇒
 missing) and lets an ``OSError`` propagate so it can fail closed. See
@@ -43,6 +46,11 @@ _FENCES = ("```", "~~~")
 _NOT_REPO_RELATIVE = "path must be repo-relative (no leading '/', no '..')"
 _ORPHAN_DETAIL = "marker has no blockquote in front of it"
 _NO_SUCH_FILE = "no such file"
+_OUTSIDE_PROJECT = "outside the project"
+
+
+class OutsideProject(Exception):
+    """Raised by a resolver that refuses a source whose real location is outside the root."""
 
 
 @dataclass(frozen=True)
@@ -104,18 +112,77 @@ class QuoteReport:
         }
 
 
-def normalise(text: str) -> str:
-    """Apply the SPEC's normalisation rules; the same function serves both sides.
-
-    Curly quotes → straight; whitespace runs → one space; trailing sentence
-    punctuation stripped; one wrapping pair of ``"`` stripped; punctuation stripped
-    again (so ``"wrapped".`` and ``"wrapped."`` both become ``wrapped``).
-    """
-    text = " ".join(text.translate(_CURLY).split())
+def _strip_ends(text: str) -> str:
+    """Trailing sentence punctuation, one wrapping ``"`` pair, trailing punctuation again."""
     text = text.rstrip(_TRAILING_PUNCTUATION).rstrip()
     if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
         text = text[1:-1]
     return text.rstrip(_TRAILING_PUNCTUATION).strip()
+
+
+def normalise(text: str) -> str:
+    """Apply the SPEC's normalisation rules to a text as one line.
+
+    Curly quotes → straight; whitespace runs (newlines included) → one space; trailing
+    sentence punctuation stripped; one wrapping pair of ``"`` stripped; punctuation
+    stripped again (so ``"wrapped".`` and ``"wrapped."`` both become ``wrapped``).
+    """
+    return _strip_ends(" ".join(text.translate(_CURLY).split()))
+
+
+def normalise_lines(text: str) -> tuple[str, ...]:
+    """The same rules, keeping line structure: whole-text ends first, then each line's
+    whitespace collapsed; blank lines dropped. This is what matching compares."""
+    text = _strip_ends(text.translate(_CURLY).strip())
+    return tuple(line for line in (" ".join(raw.split()) for raw in text.splitlines()) if line)
+
+
+def _at_word_boundary(hay: str, start: int, end: int) -> bool:
+    """True when hay[start:end] neither starts nor ends in the middle of a word."""
+    before = start == 0 or not (hay[start - 1].isalnum() and hay[start].isalnum())
+    after = end == len(hay) or not (hay[end - 1].isalnum() and hay[end].isalnum())
+    return before and after
+
+
+def _within_line(needle: str, hay: str) -> bool:
+    """``needle`` occurs in ``hay`` at word boundaries (any occurrence)."""
+    at = hay.find(needle)
+    while at != -1:
+        if _at_word_boundary(hay, at, at + len(needle)):
+            return True
+        at = hay.find(needle, at + 1)
+    return False
+
+
+def _ends_line(needle: str, hay: str) -> bool:
+    return hay.endswith(needle) and _at_word_boundary(hay, len(hay) - len(needle), len(hay))
+
+
+def _starts_line(needle: str, hay: str) -> bool:
+    return hay.startswith(needle) and _at_word_boundary(hay, 0, len(needle))
+
+
+def matches(quote: str, span: str) -> bool:
+    """Is ``quote`` verbatim in ``span``, line-for-line and at word boundaries?
+
+    One normalised quote line must occur inside one span line; several must cover a
+    contiguous run of span lines — the first as the end of its line, the last as the
+    start of its line, every line between equal. An empty quote matches nothing.
+    """
+    needle, hay = normalise_lines(quote), normalise_lines(span)
+    if not needle:
+        return False
+    if len(needle) == 1:
+        return any(_within_line(needle[0], line) for line in hay)
+    for offset in range(len(hay) - len(needle) + 1):
+        window = hay[offset : offset + len(needle)]
+        if (
+            _ends_line(needle[0], window[0])
+            and window[1:-1] == needle[1:-1]
+            and _starts_line(needle[-1], window[-1])
+        ):
+            return True
+    return False
 
 
 def parse_marker(line: str) -> Marker | None:
@@ -213,9 +280,24 @@ def _judge(
     if marker.start < 1 or marker.end < marker.start or marker.end > len(lines):
         return "out_of_range", f"span L{marker.start}-L{marker.end} is outside 1-{len(lines)}"
     span = lines[marker.start - 1 : marker.end]
-    if normalise(text) in normalise("\n".join(span)):
+    if matches(text, "\n".join(span)):
         return "verbatim", ""
     return "drifted", _diff(text, line, marker, span, document)
+
+
+def _load(
+    resolve_source: Callable[[str], str | None],
+    cache: dict[str, str | None],
+    outside: set[str],
+    path: str,
+) -> str | None:
+    """Resolve ``path`` once; remember a refusal in ``outside`` instead of a text."""
+    if path not in cache and path not in outside:
+        try:
+            cache[path] = resolve_source(path)
+        except OutsideProject:
+            outside.add(path)
+    return cache.get(path)
 
 
 def verify(
@@ -227,10 +309,12 @@ def verify(
 
     ``resolve_source(path)`` returns the source file's text or ``None`` when there is no
     such file; it is called at most once per distinct path. A path that is absolute or
-    contains a ``..`` segment is never resolved — it is reported ``missing``. Any
-    exception the resolver raises propagates (the caller fails closed).
+    contains a ``..`` segment is never resolved — it is reported ``missing``; so is one
+    the resolver refuses with :class:`OutsideProject` (a symlink that leaves the root).
+    Any other exception the resolver raises propagates (the caller fails closed).
     """
     cache: dict[str, str | None] = {}
+    outside: set[str] = set()
     results: list[QuoteResult] = []
     for quotation in extract(document_text):
         marker = quotation.marker
@@ -239,11 +323,11 @@ def verify(
         elif _escapes_root(marker.path):
             status, detail = "missing", _NOT_REPO_RELATIVE
         else:
-            if marker.path not in cache:
-                cache[marker.path] = resolve_source(marker.path)
-            status, detail = _judge(
-                quotation.text, quotation.line, marker, cache[marker.path], document
-            )
+            source = _load(resolve_source, cache, outside, marker.path)
+            if marker.path in outside:
+                status, detail = "missing", _OUTSIDE_PROJECT
+            else:
+                status, detail = _judge(quotation.text, quotation.line, marker, source, document)
         results.append(
             QuoteResult(
                 document=document, line=quotation.line, marker=marker, status=status, detail=detail

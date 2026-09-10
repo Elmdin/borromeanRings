@@ -123,3 +123,52 @@ def test_unreadable_source_fails_closed(tmp_path: Path) -> None:
     assert code != 0, stdout
     assert status == "fail"
     assert "UNREADABLE" in log or "codec" in log
+
+
+SECRET = "SECRET-CONTENT-MUST-NOT-APPEAR-IN-LOG"
+
+
+def test_symlinked_source_outside_the_project_is_missing_and_never_read(tmp_path: Path) -> None:
+    outside = tmp_path / "elsewhere" / "1.md"
+    outside.parent.mkdir(parents=True)
+    outside.write_text(f"url: x\n\n{SECRET}\nsaid the paper.\n", encoding="utf-8")
+    project = _project(tmp_path / "symlink_file", {"docs/notes.md": VERBATIM})
+    (project / "docs/research/r/sources").mkdir(parents=True)
+    (project / "docs/research/r/sources/1.md").symlink_to(outside)
+    code, stdout, status, log = _run_gate(project)
+    assert code != 0, stdout
+    assert status == "fail"
+    assert (
+        "docs/notes.md:3: MISSING docs/research/r/sources/1.md#L3-L3 (outside the project)" in log
+    )
+    assert SECRET not in log
+
+
+def test_symlinked_directory_outside_the_project_is_skipped_not_read(tmp_path: Path) -> None:
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (outside / "evil.md").write_text(f"> {SECRET}\n— source: docs/research/r/sources/1.md#L3\n")
+    project = _project(
+        tmp_path / "symlink_dir",
+        {"docs/notes.md": VERBATIM, "docs/research/r/sources/1.md": SOURCE},
+    )
+    (project / "docs" / "linked").symlink_to(outside, target_is_directory=True)
+    code, stdout, status, log = _run_gate(project)
+    assert code == 0, stdout
+    assert status == "pass"
+    assert "skipped docs/linked: symlinked directory, outside the project (not followed)" in log
+    assert SECRET not in log
+    assert "quotes: 1 verbatim, 0 drifted, 0 missing, 0 out of range, 0 orphan" in log
+
+
+def test_symlinked_file_inside_the_project_is_read_normally(tmp_path: Path) -> None:
+    project = _project(
+        tmp_path / "symlink_inside",
+        {"docs/notes.md": VERBATIM, "docs/research/r/saved.md": SOURCE},
+    )
+    (project / "docs/research/r/sources").mkdir()
+    (project / "docs/research/r/sources/1.md").symlink_to(project / "docs/research/r/saved.md")
+    code, stdout, status, log = _run_gate(project)
+    assert code == 0, stdout
+    assert status == "pass"
+    assert "docs/notes.md:3: VERBATIM docs/research/r/sources/1.md#L3-L3" in log

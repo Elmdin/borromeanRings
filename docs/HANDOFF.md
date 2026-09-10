@@ -238,3 +238,7 @@ Low severity (git absence is legitimate): base-resolution `|| true` in 09_commit
 
 ## Safe idiom (no finding)
 run_check helper (00/10/20/30/50 in every lane); 60_mutation (explicit evaluated=0 fail); 70/72 (empty report ⇒ fail); 40_test in all lanes (code=$? + empty-parse fail); 16_shellcheck; 19_context_budget; 01_source_coherence, 17_prior_art, 18_api_contracts, 21_archetype, 22_charter, 24_quotes, 04_self_description, 78_pins (`borromeanrings_status_for_code "$code"`); go/10_format (&& propagation).
+
+**Receipt-dir rule (from PR #198):** never write a non-receipt file named `*.json` into
+`$RECEIPT_DIR`; every `*.json` glob over the run dir treats it as a receipt. Scratch output
+takes a non-`.json` suffix. #186 adds the reader-side guard.

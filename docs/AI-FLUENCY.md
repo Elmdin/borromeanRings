@@ -105,6 +105,21 @@ the Product-Discernment counterpart of the self-status block: `status.sh` says w
 the green is real, this says what the green does not cover. Contract:
 [`docs/specs/SPEC-swe-state.md`](specs/SPEC-swe-state.md) (ADR-0067).
 
+## Approach advice — the right questions before generating
+
+Description is not only "tell the agent what you want"; it is the agent asking what it
+needs to know *before* it acts. `./advise.sh` (or `./status.sh --advise`) is that
+competency made concrete from the record: given the declared archetypes, the last
+verdict's failing and hollow checks, the SWE-state lacks, the branch's diff and whether
+enforcement is on, it lists the **questions** the agent should put to the human before
+proceeding ("the last verdict is hollow on 15_a11y for a web-app — is there really no
+HTML?") and the **approaches** the record says fit this change ("a ratchet is failing ⇒
+fix the design, never the baseline"). Every line is a deterministic rule citing its
+check, SPEC or ADR; no model, no score, no ranking beyond one fixed order — questions
+first, because an approach chosen before the question is answered is the scope drift
+Discernment later has to catch. Advisory, never a gate. Contract:
+[`docs/specs/SPEC-approach-advisor.md`](specs/SPEC-approach-advisor.md) (ADR-0072).
+
 ## Skills
 Five skills make these disciplines actionable in a session. They install user-level via
 `install-global.sh`, so they are available in any workspace borromeanRings governs:

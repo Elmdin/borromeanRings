@@ -35,6 +35,9 @@ That prints the whole report. It is **read-only** — it reports the last known
 state and changes nothing. Asked what the project **practises, lacks, or should
 adopt next**, run `"$BORROMEANRINGS_HOME/status.sh" --swe` and answer from its
 Practises / Lacks / Adopt next sections, not from memory (SPEC-swe-state.md).
+**When starting a task in a governed project**, run `"$BORROMEANRINGS_HOME/status.sh" --advise`
+and ask the human its *Questions* before generating anything; its *Approaches* are the
+ones the record says fit this change (advisory, never a gate — SPEC-approach-advisor.md).
 
 ## 2. Read the report honestly
 

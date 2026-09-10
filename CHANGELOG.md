@@ -13,6 +13,21 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Approach advisor (ADR-0072, #32): `advise.sh` (and `status.sh --advise`) turns the facts
+  already on disk — declared archetypes, the last verdict's failing and hollow checks, the
+  SWE-state lacks (ratchets without a baseline, RECOMMENDED not adopted, archetype features
+  absent), the branch and its diff, whether enforcement is on, and `[charter]` stakes when
+  present — into two lists: the **questions** the agent should ask the human before
+  proceeding and the **approaches** that fit this change. Rules are data (a frozen
+  catalog of 19, each a predicate over the facts with its text and the check/SPEC/ADR it
+  comes from; a test proves every source exists). A rule that says a check will fail
+  fires only where that check is adopted **and** its own opt-in rule is on, so the advice
+  never claims a mechanism that is switched off here. No model, no score, no ranking beyond
+  one fixed order (questions, then approaches, each in catalog order); no facts ⇒ "no
+  advice", never something generic. Advisory, never a gate; always exits 0; `--json`.
+  Pure core `meta_harness.advisor` (fan-out at the coupling baseline, the same two seams
+  as the SWE-state report). The `borromeanrings-status` skill now says to run it when
+  starting a task. Spec: `docs/specs/SPEC-approach-advisor.md`.
 - SWE-state report (ADR-0067, #139): `swe-state.sh` (and `status.sh --swe`) says what ONE
   governed project **practises** (required checks that last passed, archetype features
   present, matrix rows therefore enforced), **lacks** (checks that last reported `noop`/fail,

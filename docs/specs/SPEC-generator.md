@@ -62,7 +62,7 @@ digest* — the *what*, not the *who*.
 | **N3 "I have written a change"** | the signal that the tree is ready to gate | generator → gate | the Stop event | process exit 0 **with the tree changed** (the gate compares the dirty-tree OID before and after, `SPEC-executor.md` §2.2) |
 | **N4 "I cannot / will not"** | the generator gives up | generator → gate | none — the agent can only stop; the cap does the giving up | exit 0 with the tree **unchanged** ⇒ escalate now (retrying an idempotent generator is wasted attempts); non-zero exit ⇒ `generator-failed`, escalate now |
 | **N5 Bounded retry, then a human** | at most CAP attempts per attempt key, then escalation | gate-owned | `CAP=3`, counter in `.meta-harness/stop_attempts/<session_id>`, reset on green or at escalation | same CAP, same counter directory keyed by the driver's run key; the driver's exit is one of `green` / `escalated` / `generator-failed` |
-| **N6 Identity in the verdict** | which generator produced the judged change | generator → verdict | `stop_gate.sh` exports `BORROMEANRINGS_GENERATOR=claude-code:<session_id>` before running the gate | the driver exports `headless:<basename of command>` |
+| **N6 Identity in the verdict** | which generator produced the judged change | generator → verdict | `stop_gate.sh` would export `BORROMEANRINGS_GENERATOR=claude-code:<session_id>` before running the gate — **not built; an acceptance criterion of #202** | the driver exports `headless:<basename of command>` |
 
 **N6 is provenance, not evidence.** `intent.generator` (extends ADR-0056's `Intent`; default
 `""` with the same fail-soft parsing, so old verdicts read unchanged) is self-declared by

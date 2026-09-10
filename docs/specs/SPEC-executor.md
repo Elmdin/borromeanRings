@@ -156,8 +156,10 @@ toolchain; G4 only with coreutils `timeout` present.
    by pointing the worktree's `HEAD` symbolic ref at `refs/heads/<branch>` — the builder's
    choice; the **contract** is that `git rev-parse HEAD` and `git rev-parse --abbrev-ref
    HEAD` inside the worktree equal the primary's (G8). A detached worktree would report
-   `HEAD` as its branch and change the receipts of `08_branch`, `09_commits`,
-   `06_git_identity`, `11_changelog`, `13_adr`, `17_prior_art`.
+   `HEAD` as its branch and change the receipts of the two checks that read the branch
+   *name* on this base — `08_branch` and `13_adr`. `06_git_identity`, `09_commits` and
+   `11_changelog` resolve `base..HEAD` by commit SHA alone and are unaffected;
+   `17_prior_art` also reads the name but lands with #131, so the set grows to three then.
 2. `git read-tree --reset -u <tree>` in the worktree — the dirty tree, including untracked
    files, is now present; ignored paths are not.
 3. Run the checks with `PROJECT_ROOT=<dir>` and `RECEIPT_DIR=<dir>/.meta-harness/receipts/<run_id>`.
@@ -274,8 +276,10 @@ even `local`-vs-`local`: `log` and `run_id` differ per run and test logs carry t
   `TIMED OUT` line, and the executor returns within bound + 10 s (measured).
 - **G2 order:** run the candidate with the check order reversed; bundle equivalent under
   §5.2.
-- **G8 branch:** `08_branch` and `09_commits` receipts equal `local`'s (the fixture is on a
-  `feat/` branch with a commit to inspect, so a detached checkout would show).
+- **G8 branch:** `08_branch` and `13_adr` receipts equal `local`'s — the two checks that
+  read the branch name, so a detached checkout shows in both. (`09_commits` would *not*
+  discriminate here: it resolves `base..HEAD` by SHA and is identical either way.) The
+  fixture is on a `feat/` branch that touches `src/`, so both checks have something to say.
 - **Reader-side log resolution (§2.3):** move bundle B to a fresh directory; the verdict
   still verifies every receipt; edit one log; that receipt is `!TAMPERED`.
 

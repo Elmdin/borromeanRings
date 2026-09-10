@@ -136,7 +136,8 @@ actually a property of the system.
 - (+) A verdict will say who generated the change it judged — attribution the ledger and
   #144's per-worktree bookkeeping need, honestly labelled as self-declared.
 - (+) Three real hazards are on the record before anyone builds into them: a detached
-  worktree changes six checks' receipts (branch identity is a guarantee, G8); an editable
+  worktree changes the receipts of every check that reads the branch name — two on this
+  base, `08_branch` and `13_adr` (branch identity is a guarantee, G8); an editable
   Python install makes a worktree run test the *primary's* code (discriminating fixture
   D4); a transported bundle reads `!TAMPERED` without the reader-side log resolution.
 - (−) `local` stays the only executor and concurrent `local` runs stay unsupported until

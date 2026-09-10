@@ -91,6 +91,17 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[charter]
+# Session-charter gate (ADR-0063; SPEC-charter.md): the committed CHARTER.toml at the
+# repo root names the goal, the stakes tier (low | high — two opt-in tiers, never a
+# dial), done_when / stop_when / may_not predicates and the owner. At "high" the
+# high_stakes_fields are required too. Enforced fail-closed by 22_charter; a
+# UserPromptSubmit reminder fires when enabled and the file is missing. Opt-in —
+# other projects declare it only once they have a charter to keep.
+enabled = true
+path = "CHARTER.toml"
+high_stakes_fields = ["rollback", "reviewer", "blast_radius"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -104,6 +115,7 @@ required = [
   "09_commits",
   "13_adr",
   "14_container",
+  "22_charter",
   "12_secrets",
   "11_changelog",
   "10_format",

@@ -13,6 +13,7 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Session charter gate (ADR-0063, #173): a committed `CHARTER.toml` (goal, stakes `low`|`high` — two opt-in tiers, never a dial — done_when/stop_when/may_not, owner; `high` also requires rollback/reviewer/blast_radius) validated fail-closed by `22_charter` via the pure `meta_harness.charter` (every violation as `field — reason`, hedged `done_when` items rejected, unknown keys/stakes rejected, never `noop`); `[charter]` spine block; a sub-120-byte UserPromptSubmit reminder when enabled and the file is missing; this repo declares its own high-stakes charter. Mechanism re-authored from a CC BY-NC-SA source — no text or code copied.
 - PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
 
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a

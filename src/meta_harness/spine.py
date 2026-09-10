@@ -84,6 +84,11 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [charter] — session-charter gate (ADR-0063): a committed CHARTER.toml naming goal,
+    # stakes (low|high), done_when, stop_when, may_not, owner. Opt-in; off by default.
+    charter_enabled: bool = False
+    charter_path: str = "CHARTER.toml"
+    charter_high_stakes_fields: tuple[str, ...] = ("rollback", "reviewer", "blast_radius")
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -120,6 +125,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    charter = raw.get("charter", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -171,5 +177,10 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         ),
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
+        ),
+        charter_enabled=bool(charter.get("enabled", False)),
+        charter_path=str(charter.get("path", "CHARTER.toml")),
+        charter_high_stakes_fields=tuple(
+            charter.get("high_stakes_fields", ["rollback", "reviewer", "blast_radius"])
         ),
     )

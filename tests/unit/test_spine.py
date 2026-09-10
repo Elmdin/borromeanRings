@@ -241,3 +241,25 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_charter_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["22_charter"]\n[charter]\nenabled = true\n'
+        'path = "docs/charter.toml"\nhigh_stakes_fields = ["approver"]\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.charter_enabled is True
+    assert cfg.charter_path == "docs/charter.toml"
+    assert cfg.charter_high_stakes_fields == ("approver",)
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.charter_enabled is False
+    assert off.charter_path == "CHARTER.toml"
+    assert off.charter_high_stakes_fields == ("rollback", "reviewer", "blast_radius")
+
+    # [charter] present but `enabled` absent ⇒ still off (opt-in).
+    dormant = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n[charter]\npath = "C.toml"\n')
+    assert load_config(dormant).charter_enabled is False

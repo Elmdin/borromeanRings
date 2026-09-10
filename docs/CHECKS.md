@@ -77,6 +77,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
+| `22_charter` | The committed session charter (`CHARTER.toml`: goal, stakes `low`\|`high`, done_when/stop_when/may_not, owner; `high` also needs rollback/reviewer/blast_radius) exists and validates fail-closed — hedged predicates, unknown keys and unknown stakes are violations; never `noop` | `[charter].enabled`, `path`, `high_stakes_fields` | 0063 |
 
 ## Fast lane — Python checks
 

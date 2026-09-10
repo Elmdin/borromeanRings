@@ -28,6 +28,15 @@ In borromeanRings the delegation boundary is **declared, not improvised**:
 The one thing a human must **not** delegate is the definition of "passing." If the spine is
 wrong, everything that passes it is worthless.
 
+### Charter — the delegation, written down
+A project that opts in (`[charter].enabled`) commits a `CHARTER.toml` naming the goal, the
+stakes tier (`low` or `high` — a binary, never a severity dial), what "done" means
+(`done_when`, real predicates — a hedge like "it works" is rejected), when the agent must stop
+(`stop_when`), what it may never do (`may_not`), and who owns the delegation. Check
+`22_charter` validates it fail-closed on every gate run, and the prompt hook reminds the
+session when the file is missing. This is Delegation made reviewable: the terms live in a
+diff, not in a conversation. See `docs/specs/SPEC-charter.md` and ADR-0063.
+
 ## Description — communicating intent well enough to act on
 *Telling the agent what you want, how to approach it, and how to behave.*
 
@@ -83,6 +92,7 @@ tripwires into gated checks/hooks is active follow-up work, not yet shipped.
 | AI Fluency concept | borromeanRings mechanism |
 |---|---|
 | Delegation boundary | `borromeanrings.toml` + explicit `merge.sh` invocation |
+| Delegation terms | `CHARTER.toml`, gated by `22_charter` |
 | Description (process/behavior) | `borromeanrings.toml`, `AGENTS.md` |
 | Description (in-the-moment) | `prompt_rewrite.sh` `UserPromptSubmit` hook |
 | Automated Process Discernment | `verify.sh` (the 8 required checks) |

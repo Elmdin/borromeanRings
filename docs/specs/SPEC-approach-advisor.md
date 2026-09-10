@@ -57,7 +57,8 @@ checks, the branch and its diff, whether enforcement is on. Nothing turns them i
 | enforcement mode (`auto` / `partial` / `manual`) | `.claude/settings.json` | `status_assess.classify_enforcement` |
 | branch name | `git rev-parse --abbrev-ref HEAD` | the entry point (`""` when not a repo) |
 | changed paths | `git diff --name-only <merge-base>` ∪ untracked, base as `13_adr` (`origin/dev` → `dev` → `origin/main` → `main`) | the entry point (`()` when none / no base) |
-| stakes, reviewer — **when present** | `[charter].stakes`, `[charter].reviewer` in `borromeanrings.toml` | the entry point (raw TOML; `""` when absent — `[charter]` is not on this base) |
+| stakes, reviewer — **when present** | `[charter].stakes`, `[charter].reviewer` in `borromeanrings.toml` | the entry point (raw TOML; `""` when absent — `[charter]` is not on this base; any shape that is not a table of strings ⇒ `charter` in `unreadable`, never a crash) |
+| the declared heavy lane | `[checks].heavy` | `spine.load_config` |
 | whether a cited check's own rule is on | `[collaboration].branch_patterns`, `[changelog].enabled` + `require_entry_on_src_change`, `[adr].require_prefixes` | `spine.load_config` |
 
 The pure core `meta_harness.advisor` never touches the filesystem or a process.
@@ -72,7 +73,7 @@ seam as plain values (`FeatureGap`, strings).
 `Facts` fields: `project`, `gated`, `archetypes`, `failing` (`(check, status)` pairs for
 required checks whose last status `is_failing`), `noop` (required checks last `noop`),
 `ratchets_without_baseline`, `recommended` (RECOMMENDED not required), `features_absent`
-(`FeatureGap(id, title, why)`), `required` (required ∪ heavy), `live`, `adr_prefixes`,
+(`FeatureGap(id, title, why)`), `required` (required ∪ heavy), `heavy`, `live`, `adr_prefixes`,
 `branch`, `changed` (root-relative paths), `changed_src`, `changed_tests`, `changed_adr`,
 `changed_changelog`, `enforcement`, `stakes`, `reviewer`, `unreadable`
 (`config` / `verdict` / `archetypes`).
@@ -86,6 +87,20 @@ the checks whose own opt-in rule is also on: `08_branch` needs declared
 asserts that a check fails closed **must** key on `live` — telling a project that
 `13_adr` will fail it when `13_adr` is not adopted is precisely the over-claim the gate
 exists to prevent, and the safe direction is to say nothing (SPEC-swe-state §4.4).
+
+The test a rule must pass, applied to **every** entry in the catalog:
+
+1. Does the text assert what a named mechanism *will do* ("fails closed", "requires",
+   "ratchets", "turns X into Y")? If so the predicate must first establish that the
+   mechanism is in force — `in f.live` for a check, a non-empty `f.heavy` for the heavy
+   lane — or the text must be reworded to a statement true whether or not it is adopted.
+2. A rule that keys on the **verdict** (`failing`, `noop`) needs no gate: a check can only
+   appear there by having run, which means it is adopted.
+3. A rule that keys on harness-side facts always available to any governed project
+   (`adopt.sh`, `merge.sh`, `verify.sh`, the archetype playbooks) needs no gate.
+4. A **question** whose substance is independent of the mechanism (e.g. "what kind of
+   application is this?") may always be asked, but its text still may not promise gate
+   behaviour — it names what the declaration is *read by*, not what will happen.
 
 ### 4.2 Rules
 
@@ -109,7 +124,7 @@ produced it.
 | `q_never_gated` | question | not gated, archetypes declared | SPEC-self-status.md |
 | `q_unreadable` | question | any input unreadable | SPEC-swe-state.md |
 | `q_enforcement_off` | question | gated, enforcement `manual` / `partial` | SPEC-self-status.md |
-| `q_no_archetype` | question | gated, no archetypes | 21_archetype |
+| `q_no_archetype` | question | gated, no archetypes (text asserts no gate behaviour — rule 4 above) | 21_archetype |
 | `q_a11y_hollow_web_app` | question | `web-app` declared, `15_a11y` noop | 15_a11y |
 | `q_hollow_checks` | question | any noop (other than the rule above's) | ADR-0049 |
 | `q_reviewer` | question | stakes present, reviewer empty | ADR-0007 |
@@ -120,17 +135,20 @@ produced it.
 | `a_spec_and_adr_first` | approach | branch starts with a declared `adr_prefixes` entry, `src/` changed, no `docs/adr/` change, `13_adr` live | 13_adr |
 | `a_test_first` | approach | `src/` changed, no `tests/` change, `40_test` live | 40_test |
 | `a_changelog_with_change` | approach | `src/` changed, `CHANGELOG.md` unchanged, `11_changelog` live | 11_changelog |
-| `a_web_api_health` | approach | `web-api` declared, `health_endpoint_declared` absent | SPEC-archetypes.md |
-| `a_archetype_features` | approach | any other archetype feature absent | 21_archetype |
+| `a_web_api_health` | approach | `web-api` declared, `health_endpoint_declared` absent, `21_archetype` live | SPEC-archetypes.md |
+| `a_archetype_features` | approach | any other archetype feature absent, `21_archetype` live | 21_archetype |
 | `a_playbook` | approach | archetypes declared | ADR-0062 |
 | `a_recommended` | approach | RECOMMENDED not adopted | ADR-0041 |
-| `a_heavy_lane_high_stakes` | approach | stakes present and not `low` | ADR-0033 |
+| `a_heavy_lane_high_stakes` | approach | stakes present and not `low`, and `[checks].heavy` is non-empty (an undeclared lane adds nothing) | ADR-0033 |
 
 Predicates are pure functions of `Facts` only. Text templates may reference exactly this
 vocabulary (a key outside it raises, so it is the contract a new rule is written against):
 `{archetypes}`, `{failing_ratchets}`, `{failing_other}`, `{noop_other}`, `{ratchets}`,
 `{recommended}`, `{features_other}`, `{branch}`, `{changed_src}`, `{enforcement_upper}`,
-`{stakes}`, `{unreadable}` — each the comma-joined list (or the scalar) from `Facts`. The
+`{stakes}`, `{unreadable}`, `{unreadable_where}`, `{heavy}` — each the comma-joined list (or
+the scalar) from `Facts`. `{unreadable_where}` maps each bucket to where its fact lives
+(`UNREADABLE_SOURCES`), so a question names what actually broke rather than a fixed pair of
+files. The
 `_other` keys carry what the narrower rule above them did not take, so no fact is reported
 twice.
 
@@ -141,7 +159,8 @@ twice.
 - `questions` = every `question` rule whose `when(facts)` holds, **in catalog order**;
 - `approaches` = every `approach` rule whose `when(facts)` holds, in catalog order;
 - each item is `Line(rule_id, text, source)` with the template formatted;
-- **no facts** — not gated, no archetypes, nothing unreadable, no changed paths — ⇒ both
+- **no facts** — not gated, no archetypes, nothing unreadable, no changed paths, no declared
+  stakes — ⇒ both
   lists empty and `note = "no advice: never gated, no archetypes"` (the record says
   nothing, so the advisor says nothing rather than something generic);
 - otherwise `note = ""`. Unknown archetypes never reach here: `spine.load_config` fails
@@ -187,6 +206,10 @@ The "no facts" case prints the header, the note line, and the Facts line. `--jso
 | `borromeanrings.toml` unreadable (incl. unknown archetype) | `q_unreadable`; nothing else derived from config fires |
 | verdict malformed | `q_unreadable`; `failing`/`noop` empty |
 | `[charter]` absent (this base) | `stakes == ""` ⇒ `q_reviewer` and `a_heavy_lane_high_stakes` never fire |
+| `[charter]` present but not a table of strings (`charter = "high"`, `stakes = [...]`) | `charter` in `unreadable` ⇒ `q_unreadable` names it; stakes stay `""`; exit 0 and valid `--json`, never a traceback |
+| `borromeanrings.toml` not valid TOML | `config` in `unreadable`; the charter read returns empty rather than raising |
+| archetypes declared but `21_archetype` not required | the two archetype-feature rules stay silent; only `a_playbook` (harness prose) and `a_recommended` (which offers the adoption) speak |
+| stakes declared but `[checks].heavy` empty | `a_heavy_lane_high_stakes` silent — `verify.sh --heavy` would add nothing here |
 | not a git repo | `branch == ""`, `changed == ()` ⇒ branch/diff rules never fire |
 | a cited check not required, or its own rule off | that rule stays silent — no claim about a check that is not in force here |
 | heavy check absent from a fast verdict | `unknown`, never failing or noop |

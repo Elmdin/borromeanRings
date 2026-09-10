@@ -47,6 +47,7 @@ def _facts(**overrides: object) -> Facts:
         "recommended": (),
         "features_absent": (),
         "required": (),
+        "heavy": (),
         "live": (),
         "adr_prefixes": (),
         "branch": "",
@@ -73,7 +74,7 @@ def _rule(rule_id: str) -> Rule:
 
 
 #: A project that has adopted every check the catalog cites, with each opt-in rule on.
-LIVE = ("08_branch", "13_adr", "40_test", "11_changelog")
+LIVE = ("08_branch", "13_adr", "40_test", "11_changelog", "21_archetype")
 
 
 # --- catalog integrity ---------------------------------------------------------------------
@@ -129,6 +130,7 @@ def test_gather_facts_classifies_failing_noop_ratchets_recommended_and_diff() ->
         features_absent=(HEALTH,),
         has_changelog=False,
         baseline_files_present=(),
+        heavy=("70_pip_audit",),
         branch="feat/x",
         changed=("src/pkg/a.py", "src_generated/b.py", "docs/adr/0072-x.md", "README.md"),
         adr_prefixes=("feat/",),
@@ -153,6 +155,7 @@ def test_gather_facts_classifies_failing_noop_ratchets_recommended_and_diff() ->
         ),
         features_absent=(HEALTH,),
         required=("00_build", "14_container", "21_archetype", "33_coupling", "70_pip_audit"),
+        heavy=("70_pip_audit",),
         live=("00_build", "14_container", "21_archetype", "33_coupling", "70_pip_audit"),
         adr_prefixes=("feat/",),
         branch="feat/x",
@@ -261,6 +264,14 @@ def test_never_gated_with_archetype_asks_and_points_at_the_playbook() -> None:
     )
 
 
+def test_declared_stakes_alone_are_facts_enough_to_advise() -> None:
+    """A charter with stakes is something the record says, so it is never "no advice"."""
+    advice = advise(_facts(gated=False, enforcement="", stakes="high", heavy=("60_mutation",)))
+    assert advice.note == ""
+    assert _ids(advice.questions) == ["q_reviewer"]
+    assert _ids(advice.approaches) == ["a_heavy_lane_high_stakes"]
+
+
 def test_never_gated_with_only_a_diff_is_not_the_no_facts_case() -> None:
     facts = _facts(gated=False, enforcement="", changed=("x",), changed_src=("x",), live=LIVE)
     advice = advise(facts)
@@ -273,11 +284,33 @@ def test_unreadable_inputs_become_a_question_not_a_guess() -> None:
     advice = advise(_facts(gated=False, enforcement="", unreadable=("config", "verdict")))
     assert _ids(advice.questions) == ["q_unreadable"]
     assert advice.questions[0].text == (
-        "config, verdict could not be read — fix the record (borromeanrings.toml /"
+        "config, verdict could not be read — fix the record (borromeanrings.toml,"
         " .meta-harness/last_verdict.json) before building on it?"
     )
     assert advice.questions[0].source == "SPEC-swe-state.md"
     assert advice.approaches == ()
+
+
+def test_unreadable_question_names_what_actually_broke_not_a_fixed_pair_of_files() -> None:
+    def text(*buckets: str) -> str:
+        return advise(_facts(gated=False, enforcement="", unreadable=buckets)).questions[0].text
+
+    assert text("archetypes") == (
+        "archetypes could not be read — fix the record (the working tree the archetype"
+        " evaluation walked) before building on it?"
+    )
+    assert text("charter") == (
+        "charter could not be read — fix the record (borromeanrings.toml [charter]) before"
+        " building on it?"
+    )
+    assert text("verdict") == (
+        "verdict could not be read — fix the record (.meta-harness/last_verdict.json) before"
+        " building on it?"
+    )
+    # an unknown bucket names itself rather than being dropped or mislabelled
+    assert text("something_new").startswith(
+        "something_new could not be read — fix the record (something_new)"
+    )
 
 
 def test_enforcement_off_asks_before_rewiring() -> None:
@@ -300,8 +333,8 @@ def test_no_archetype_on_a_gated_project_asks_what_kind_of_app() -> None:
         Line(
             "q_no_archetype",
             "no archetype is declared — what kind of application is this (cli, library,"
-            " web-api, web-app, ml, embedded, data-pipeline)? Declaring it in"
-            " [project].archetypes turns hollow greens into failures",
+            " web-api, web-app, ml, embedded, data-pipeline)? [project].archetypes is the"
+            " declaration 21_archetype reads; while it is empty that dimension is off",
             "21_archetype",
         ),
     )
@@ -513,7 +546,7 @@ def test_src_change_without_changelog_says_write_the_entry_with_the_change() -> 
 
 
 def test_web_api_without_a_health_route_adds_it_before_the_feature() -> None:
-    advice = advise(_facts(archetypes=("web-api",), features_absent=(HEALTH,)))
+    advice = advise(_facts(archetypes=("web-api",), features_absent=(HEALTH,), live=LIVE))
     assert _ids(advice.approaches) == ["a_web_api_health", "a_playbook"]
     assert advice.approaches[0] == Line(
         "a_web_api_health",
@@ -522,12 +555,14 @@ def test_web_api_without_a_health_route_adds_it_before_the_feature() -> None:
         "SPEC-archetypes.md",
     )
     # the same feature absent on a non-web-api project is the general rule instead
-    other = advise(_facts(archetypes=("cli",), features_absent=(HEALTH,)))
+    other = advise(_facts(archetypes=("cli",), features_absent=(HEALTH,), live=LIVE))
     assert _ids(other.approaches) == ["a_archetype_features", "a_playbook"]
 
 
 def test_other_absent_features_are_listed_with_their_why() -> None:
-    advice = advise(_facts(archetypes=("web-api", "cli"), features_absent=(HEALTH, USAGE)))
+    advice = advise(
+        _facts(archetypes=("web-api", "cli"), features_absent=(HEALTH, USAGE), live=LIVE)
+    )
     assert _ids(advice.approaches) == ["a_web_api_health", "a_archetype_features", "a_playbook"]
     assert advice.approaches[1] == Line(
         "a_archetype_features",
@@ -536,7 +571,7 @@ def test_other_absent_features_are_listed_with_their_why() -> None:
         " fails closed until they exist",
         "21_archetype",
     )
-    only_health = advise(_facts(archetypes=("web-api",), features_absent=(HEALTH,)))
+    only_health = advise(_facts(archetypes=("web-api",), features_absent=(HEALTH,), live=LIVE))
     assert "a_archetype_features" not in _ids(only_health.approaches)
 
 
@@ -552,19 +587,26 @@ def test_recommended_not_adopted_points_at_adopt_sh() -> None:
 
 
 def test_high_stakes_prefers_the_heavy_lane() -> None:
+    heavy = ("60_mutation", "74_secret_history")
     for stakes in ("high", "critical", "medium"):
-        advice = advise(_facts(archetypes=("cli",), stakes=stakes, reviewer="ana"))
+        advice = advise(_facts(archetypes=("cli",), stakes=stakes, reviewer="ana", heavy=heavy))
         assert _ids(advice.approaches) == ["a_playbook", "a_heavy_lane_high_stakes"], stakes
         assert advice.approaches[1] == Line(
             "a_heavy_lane_high_stakes",
-            f"stakes are {stakes} ⇒ run the heavy lane (verify.sh --heavy: mutation, CVE audit,"
-            " licences, secret history) before the PR, not just the fast gate",
+            f"stakes are {stakes} ⇒ run the heavy lane (verify.sh --heavy: 60_mutation,"
+            " 74_secret_history) before the PR, not just the fast gate",
             "ADR-0033",
         )
     for stakes in ("low", "LOW", ""):
         assert "a_heavy_lane_high_stakes" not in _ids(
-            advise(_facts(archetypes=("cli",), stakes=stakes, reviewer="ana")).approaches
+            advise(
+                _facts(archetypes=("cli",), stakes=stakes, reviewer="ana", heavy=heavy)
+            ).approaches
         )
+    # no heavy lane declared ⇒ `verify.sh --heavy` would add nothing, so nothing is promised
+    assert "a_heavy_lane_high_stakes" not in _ids(
+        advise(_facts(archetypes=("cli",), stakes="high", reviewer="ana")).approaches
+    )
 
 
 def test_order_is_questions_then_approaches_each_in_catalog_order() -> None:
@@ -579,6 +621,7 @@ def test_order_is_questions_then_approaches_each_in_catalog_order() -> None:
         changed=("src/a.py",),
         changed_src=("src/a.py",),
         live=LIVE,
+        heavy=("60_mutation",),
         adr_prefixes=("feat/",),
         enforcement="partial",
         stakes="high",
@@ -625,6 +668,7 @@ def test_every_rule_fires_somewhere() -> None:
             changed=("src/a.py",),
             changed_src=("src/a.py",),
             live=LIVE,
+            heavy=("60_mutation",),
             enforcement="manual",
             stakes="high",
         ),
@@ -749,7 +793,7 @@ def test_rule_lookup_helper_finds_catalog_entries() -> None:
 
 def test_feature_gap_without_a_why_renders_without_empty_parentheses() -> None:
     gap = FeatureGap("watchdog_configured", "a watchdog is configured", "")
-    advice = advise(_facts(archetypes=("embedded",), features_absent=(gap,)))
+    advice = advise(_facts(archetypes=("embedded",), features_absent=(gap,), live=LIVE))
     assert advice.approaches[0].text == (
         "archetype(s) embedded lack required feature(s) watchdog_configured — a watchdog is"
         " configured ⇒ add them before the feature; 21_archetype fails closed until they exist"
@@ -796,3 +840,81 @@ def test_required_is_recorded_verbatim_so_a_rule_can_see_adoption() -> None:
     assert facts.required == ("00_build", "40_test")
     assert facts.live == ("00_build", "40_test")
     assert facts.adr_prefixes == ("feat/", "story/")
+
+
+def test_archetype_rules_stay_silent_when_21_archetype_is_not_adopted() -> None:
+    """A missing archetype feature only "fails closed" where 21_archetype actually runs.
+
+    Reproduces PR #207's blocker: with archetypes declared but 21_archetype absent from
+    [checks].required, the advisor used to claim the gate would catch a missing feature in
+    the same breath as reporting 21_archetype was not required.
+    """
+    facts = _facts(
+        archetypes=("web-api",),
+        features_absent=(HEALTH, USAGE),
+        recommended=("21_archetype",),
+    )
+    advice = advise(facts)
+    assert _ids(advice.approaches) == ["a_playbook", "a_recommended"]
+    rendered = render(advice)
+    assert "21_archetype fails closed" not in rendered
+    assert "21_archetype are not required here" in rendered
+
+    # adopted ⇒ both rules speak again
+    adopted = advise(
+        _facts(archetypes=("web-api",), features_absent=(HEALTH, USAGE), live=("21_archetype",))
+    )
+    assert _ids(adopted.approaches) == [
+        "a_web_api_health",
+        "a_archetype_features",
+        "a_playbook",
+    ]
+
+
+def test_no_rule_claims_a_check_fails_closed_unless_that_check_is_live() -> None:
+    """The sweep, as an executable invariant: a rule whose text says a named check "fails
+    closed" / "requires" / "ratchets" may not fire when that check is absent from ``live``."""
+    nothing_adopted = _facts(
+        archetypes=("web-api", "web-app"),
+        features_absent=(HEALTH, USAGE),
+        noop=("15_a11y",),
+        failing=(("50_security", "fail"),),
+        ratchets_without_baseline=(),
+        recommended=("21_archetype", "12_secrets"),
+        branch="main",
+        changed=("src/a.py",),
+        changed_src=("src/a.py",),
+        enforcement="manual",
+        stakes="high",
+    )
+    advice = advise(nothing_adopted)
+    fired = advice.questions + advice.approaches
+    for check in ("08_branch", "11_changelog", "13_adr", "21_archetype", "40_test"):
+        for line in fired:
+            assert f"{check} fails closed" not in line.text, line.rule
+            assert f"{check} requires" not in line.text, line.rule
+            assert f"{check} ratchets" not in line.text, line.rule
+    # what remains is grounded: the verdict's own failure, the hollow check that really ran,
+    # the playbook (harness prose, always available) and the adoption offer
+    assert _ids(advice.questions) == ["q_enforcement_off", "q_a11y_hollow_web_app", "q_reviewer"]
+    assert _ids(advice.approaches) == ["a_failing_gate", "a_playbook", "a_recommended"]
+
+
+def test_heavy_field_is_recorded_and_only_the_declared_lane_is_promised() -> None:
+    facts = gather_facts(
+        project="p",
+        required=("00_build", "60_mutation"),
+        verdict=None,
+        heavy=("60_mutation",),
+        archetypes=(),
+        features_absent=(),
+        has_changelog=True,
+        baseline_files_present=(),
+        stakes="high",
+        reviewer="ana",
+    )
+    assert facts.heavy == ("60_mutation",)
+    assert advise(facts).approaches[-1].text == (
+        "stakes are high ⇒ run the heavy lane (verify.sh --heavy: 60_mutation) before the PR,"
+        " not just the fast gate"
+    )

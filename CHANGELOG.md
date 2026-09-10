@@ -22,7 +22,10 @@ queue is merged.
   catalog of 19, each a predicate over the facts with its text and the check/SPEC/ADR it
   comes from; a test proves every source exists). A rule that says a check will fail
   fires only where that check is adopted **and** its own opt-in rule is on, so the advice
-  never claims a mechanism that is switched off here. No model, no score, no ranking beyond
+  never claims a mechanism that is switched off here — including the archetype-feature
+  rules (`21_archetype` is opt-in too) and the heavy-lane rule (which names the project's
+  declared `[checks].heavy`, and says nothing when that is empty). A malformed `[charter]`
+  (a scalar, or a non-string field) degrades to a question rather than a traceback. No model, no score, no ranking beyond
   one fixed order (questions, then approaches, each in catalog order); no facts ⇒ "no
   advice", never something generic. Advisory, never a gate; always exits 0; `--json`.
   Pure core `meta_harness.advisor` (fan-out at the coupling baseline, the same two seams

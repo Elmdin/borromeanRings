@@ -43,14 +43,24 @@ its own questions, from memory.
    the baseline" only change *how*. No score, no weight, no count: more advice is not a
    worse project.
 
-4. **Honest where the record is silent.** Never gated, no archetypes, nothing unreadable
-   and nothing changed ⇒ `no advice: never gated, no archetypes`, not generic guidance.
+4. **Never crash where the record is malformed.** `[charter]` is read raw (the spine does
+   not model it on this base), so every shape that is not "absent, or a table of strings" —
+   a top-level `charter = "high"` scalar, a list-valued `stakes` — degrades to `charter` in
+   `unreadable`, which surfaces as the `q_unreadable` question. The first cut caught only
+   `OSError`/`ValueError`, so a scalar raised `AttributeError`: a traceback on stderr, empty
+   stdout, exit 0, and `--json` emitting nothing parseable — strictly worse than the
+   documented "no advice" path, and a violation of the advisory contract this ADR asserts
+   (found by the PR #207 review). Total reads, or the contract is a claim the code does not
+   keep.
+
+5. **Honest where the record is silent.** Never gated, no archetypes, nothing unreadable,
+   nothing changed and no declared stakes ⇒ `no advice: never gated, no archetypes`, not generic guidance.
    An unreadable input (including an unknown archetype, which `spine.load_config` rejects
    fail-closed upstream) is itself a question. `[charter]` stakes are consumed *when
    present* — the section is not on this base — so the reviewer and heavy-lane rules
    simply never fire without it.
 
-5. **A rule may only cite a mechanism that is in force here.** `Facts.live` is the
+6. **A rule may only cite a mechanism that is in force here.** `Facts.live` is the
    project's required ∪ heavy set narrowed to the checks whose own opt-in rule is also on
    (`08_branch` needs declared branch patterns; `11_changelog` needs the
    entry-on-source-change rule), and the four diff-keyed rules key on it. Telling a project
@@ -60,7 +70,24 @@ its own questions, from memory.
    hardcoded `feat/`. (An independent review of this change found the first cut asserting
    all four unconditionally; it is fixed here and pinned by not-adopted tests.)
 
-6. **Fan-out held at the coupling baseline (2).** `advisor` imports `adopt` and `verdict`
+   A second review (PR #207) found the same defect surviving in two more rules —
+   `a_web_api_health` and `a_archetype_features` claimed `21_archetype fails closed` while
+   keying only on the declared archetypes, so a project with `archetypes = ["web-api"]` and
+   `21_archetype` unadopted was told in one breath that the gate would catch a missing
+   health route *and* that `21_archetype` is not required here. Both now key on `live`. A
+   sweep of all 19 rules for the same class then found two further cases, fixed here:
+   `q_no_archetype` claimed that declaring an archetype "turns hollow greens into failures"
+   (true only where `21_archetype` runs — reworded to what the declaration *is read by*),
+   and `a_heavy_lane_high_stakes` enumerated the four heavy checks as though `--heavy` would
+   run them anywhere (it now names `[checks].heavy` and stays silent when that is empty).
+   §4.2 of the SPEC records the four-part test each rule must now pass, and
+   `test_no_rule_claims_a_check_fails_closed_unless_that_check_is_live` enforces it.
+
+   The lesson is recorded rather than hidden: fixing four instances of a defect class is not
+   the same as eliminating the class, and only the written-down test plus an executable
+   invariant caught the rest.
+
+7. **Fan-out held at the coupling baseline (2).** `advisor` imports `adopt` and `verdict`
    — the same two seams `swe_state` uses — so "failing", "noop", "ratchet without a
    baseline" and "RECOMMENDED not adopted" are classified identically by the advisor, the
    SWE-state report and `adopt.sh`. Archetype gaps, enforcement mode, branch and diff cross

@@ -58,8 +58,17 @@ WORK_BRANCH_PREFIXES: tuple[str, ...] = (
     "ci/",
     "hotfix/",
 )
+#: Where each ``unreadable`` bucket's fact lives, so a question names what actually broke
+#: rather than a fixed pair of files.
+UNREADABLE_SOURCES: Mapping[str, str] = {
+    "config": "borromeanrings.toml",
+    "charter": "borromeanrings.toml [charter]",
+    "verdict": ".meta-harness/last_verdict.json",
+    "archetypes": "the working tree the archetype evaluation walked",
+}
 _NOOP = "noop"
 _A11Y = "15_a11y"
+_ARCHETYPE = "21_archetype"
 _HEALTH = "health_endpoint_declared"
 _ADR_DIR = "docs/adr"
 _CHANGELOG = "CHANGELOG.md"
@@ -94,6 +103,7 @@ class Facts:
     recommended: tuple[str, ...]
     features_absent: tuple[FeatureGap, ...]
     required: tuple[str, ...]
+    heavy: tuple[str, ...]
     live: tuple[str, ...]
     adr_prefixes: tuple[str, ...]
     branch: str
@@ -201,6 +211,7 @@ def gather_facts(
     project: str,
     required: Sequence[str],
     verdict: Verdict | None,
+    heavy: Sequence[str] = (),
     archetypes: Sequence[str],
     features_absent: Sequence[FeatureGap],
     has_changelog: bool,
@@ -249,6 +260,7 @@ def gather_facts(
         recommended=recommended,
         features_absent=tuple(features_absent),
         required=tuple(required),
+        heavy=tuple(heavy),
         live=live,
         adr_prefixes=tuple(adr_prefixes),
         branch=branch,
@@ -275,8 +287,18 @@ def _noop_other(f: Facts) -> tuple[str, ...]:
     return tuple(c for c in f.noop if not (c == _A11Y and _a11y_hollow_web_app(f)))
 
 
+def _archetype_gate_on(f: Facts) -> bool:
+    """Is ``21_archetype`` actually in force here? It is opt-in like every other check, so a
+    rule may not say a missing feature "fails closed" unless this project runs it."""
+    return _ARCHETYPE in f.live
+
+
 def _web_api_health(f: Facts) -> bool:
-    return "web-api" in f.archetypes and any(g.feature_id == _HEALTH for g in f.features_absent)
+    return (
+        _archetype_gate_on(f)
+        and "web-api" in f.archetypes
+        and any(g.feature_id == _HEALTH for g in f.features_absent)
+    )
 
 
 def _features_other(f: Facts) -> tuple[FeatureGap, ...]:
@@ -314,8 +336,8 @@ CATALOG: tuple[Rule, ...] = (
         "q_unreadable",
         QUESTION,
         lambda f: bool(f.unreadable),
-        "{unreadable} could not be read — fix the record (borromeanrings.toml /"
-        " .meta-harness/last_verdict.json) before building on it?",
+        "{unreadable} could not be read — fix the record ({unreadable_where}) before"
+        " building on it?",
         "SPEC-swe-state.md",
     ),
     Rule(
@@ -331,8 +353,8 @@ CATALOG: tuple[Rule, ...] = (
         QUESTION,
         lambda f: f.gated and not f.archetypes,
         "no archetype is declared — what kind of application is this (cli, library,"
-        " web-api, web-app, ml, embedded, data-pipeline)? Declaring it in"
-        " [project].archetypes turns hollow greens into failures",
+        " web-api, web-app, ml, embedded, data-pipeline)? [project].archetypes is the"
+        " declaration 21_archetype reads; while it is empty that dimension is off",
         "21_archetype",
     ),
     Rule(
@@ -433,7 +455,7 @@ CATALOG: tuple[Rule, ...] = (
     Rule(
         "a_archetype_features",
         APPROACH,
-        lambda f: bool(_features_other(f)),
+        lambda f: _archetype_gate_on(f) and bool(_features_other(f)),
         "archetype(s) {archetypes} lack required feature(s) {features_other} ⇒ add them"
         " before the feature; 21_archetype fails closed until they exist",
         "21_archetype",
@@ -457,9 +479,9 @@ CATALOG: tuple[Rule, ...] = (
     Rule(
         "a_heavy_lane_high_stakes",
         APPROACH,
-        lambda f: bool(f.stakes) and f.stakes.lower() != "low",
-        "stakes are {stakes} ⇒ run the heavy lane (verify.sh --heavy: mutation, CVE audit,"
-        " licences, secret history) before the PR, not just the fast gate",
+        lambda f: bool(f.stakes) and f.stakes.lower() != "low" and bool(f.heavy),
+        "stakes are {stakes} ⇒ run the heavy lane (verify.sh --heavy: {heavy}) before the PR,"
+        " not just the fast gate",
         "ADR-0033",
     ),
 )
@@ -485,6 +507,10 @@ def _fields(f: Facts) -> Mapping[str, str]:
         "features_other": pairs(_gap_text(g) for g in _features_other(f)),
         "branch": f.branch,
         "changed_src": pairs(f.changed_src),
+        "heavy": pairs(f.heavy),
+        "unreadable_where": pairs(
+            dict.fromkeys(UNREADABLE_SOURCES.get(name, name) for name in f.unreadable)
+        ),
         "enforcement_upper": f.enforcement.upper(),
         "stakes": f.stakes,
         "unreadable": pairs(f.unreadable),
@@ -492,7 +518,8 @@ def _fields(f: Facts) -> Mapping[str, str]:
 
 
 def _no_facts(f: Facts) -> bool:
-    return not f.gated and not f.archetypes and not f.unreadable and not f.changed
+    """Does the record say nothing at all? Declared stakes count as something to say."""
+    return not f.gated and not f.archetypes and not f.unreadable and not f.changed and not f.stakes
 
 
 def advise(facts: Facts) -> Advice:

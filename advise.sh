@@ -96,6 +96,7 @@ if project is None:
 
 unreadable: list[str] = []
 required: tuple[str, ...] = ()
+heavy: tuple[str, ...] = ()
 archetypes: tuple[str, ...] = ()
 src_dir, tests_dir = "src", "tests"
 branch_patterns_declared = changelog_entry_on_src = False
@@ -103,6 +104,7 @@ adr_prefixes: tuple[str, ...] = ()
 try:
     cfg = load_config(project / "borromeanrings.toml")
     required, archetypes = cfg.required_checks + cfg.heavy_checks, cfg.archetypes
+    heavy = cfg.heavy_checks
     src_dir, tests_dir = cfg.src_dir, cfg.tests_dir
     # What is actually in force here, from the same spine the checks themselves read: a
     # rule may only claim a check will fail when that check's own rule is switched on.
@@ -113,14 +115,29 @@ except (OSError, ValueError):
     unreadable.append("config")
 
 # [charter] is read raw because the spine does not model it on this base ("when present").
-stakes = reviewer = ""
-try:
-    charter = tomllib.loads((project / "borromeanrings.toml").read_text(encoding="utf-8")).get(
-        "charter", {}
-    )
-    stakes, reviewer = str(charter.get("stakes", "")), str(charter.get("reviewer", ""))
-except (OSError, ValueError):
-    pass
+# Every shape that is not "absent, or a table of strings" degrades to unknown-and-said-so:
+# a scalar `charter = "high"` (a plausible typo for `[charter]`) or a non-string field must
+# never crash a component contracted to always exit 0 with usable output.
+def read_charter(project):
+    """``(stakes, reviewer, malformed)`` from ``[charter]``; never raises."""
+    try:
+        raw = tomllib.loads((project / "borromeanrings.toml").read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return "", "", False  # unreadable as a whole — load_config already said so
+    charter = raw.get("charter")
+    if charter is None:
+        return "", "", False  # simply absent: the documented "when present" case
+    if not isinstance(charter, dict):
+        return "", "", True
+    stakes, reviewer = charter.get("stakes", ""), charter.get("reviewer", "")
+    if not isinstance(stakes, str) or not isinstance(reviewer, str):
+        return "", "", True
+    return stakes, reviewer, False
+
+
+stakes, reviewer, charter_malformed = read_charter(project)
+if charter_malformed:
+    unreadable.append("charter")
 
 verdict = read_last_verdict(project)
 if verdict is None and (project / LAST_VERDICT_FILE).exists():
@@ -160,6 +177,7 @@ facts = gather_facts(
     changed=changed,
     src_dir=src_dir,
     tests_dir=tests_dir,
+    heavy=heavy,
     branch_patterns_declared=branch_patterns_declared,
     changelog_entry_on_src=changelog_entry_on_src,
     adr_prefixes=adr_prefixes,

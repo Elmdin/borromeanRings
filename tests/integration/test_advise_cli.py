@@ -247,7 +247,7 @@ def test_malformed_and_unknown_archetype_become_a_question(tmp_path: Path) -> No
     (project / ".meta-harness" / "last_verdict.json").write_text("{not json", encoding="utf-8")
     out = _run("advise.sh", project).stdout
     assert (
-        "  1. config, verdict could not be read — fix the record (borromeanrings.toml /"
+        "  1. config, verdict could not be read — fix the record (borromeanrings.toml,"
         " .meta-harness/last_verdict.json) before building on it?  [SPEC-swe-state.md]\n"
     ) in out
     assert "Approaches that fit this change\n  (none)\n" in out
@@ -259,7 +259,11 @@ def test_charter_when_present_asks_for_a_reviewer_and_prefers_the_heavy_lane(
     project = tmp_path / "charter"
     project.mkdir()
     (project / "borromeanrings.toml").write_text(
-        CONFIG + '\n[charter]\nstakes = "high"\n', encoding="utf-8"
+        # heavy declared inside the existing [checks] table (a second one would be a
+        # duplicate-table TOML error), plus the charter this rule pair keys on
+        CONFIG.replace("[collaboration]", 'heavy = ["60_mutation"]\n\n[collaboration]')
+        + '\n[charter]\nstakes = "high"\n',
+        encoding="utf-8",
     )
     out = _run("advise.sh", project).stdout
     assert (
@@ -267,7 +271,85 @@ def test_charter_when_present_asks_for_a_reviewer_and_prefers_the_heavy_lane(
         " (merge.sh is explicit and human)?  [ADR-0007]\n"
     ) in out
     assert (
-        ". stakes are high ⇒ run the heavy lane (verify.sh --heavy: mutation, CVE audit,"
-        " licences, secret history) before the PR, not just the fast gate  [ADR-0033]\n"
+        ". stakes are high ⇒ run the heavy lane (verify.sh --heavy: 60_mutation) before the"
+        " PR, not just the fast gate  [ADR-0033]\n"
     ) in out
     assert "· stakes: high\n" in out
+
+
+ARCHETYPE_NOT_REQUIRED = (
+    '[project]\nlanguage = "c"\nsrc_dir = "src"\narchetypes = ["web-api"]\n\n'
+    '[checks]\nrequired = ["00_build"]\n\n[hygiene]\nrequires = []\n'
+)
+
+
+def test_a_declared_archetype_without_21_archetype_never_claims_the_gate_will_catch_it(
+    tmp_path: Path,
+) -> None:
+    """PR #207 blocker, end to end: the advisor must not say "21_archetype fails closed" in
+    the same run in which it reports 21_archetype is not required here."""
+    project = tmp_path / "unadopted"
+    project.mkdir()
+    (project / "borromeanrings.toml").write_text(ARCHETYPE_NOT_REQUIRED, encoding="utf-8")
+    out = _run("advise.sh", project).stdout
+    assert "21_archetype fails closed" not in out
+    assert "21_archetype are not required here ⇒ adopt.sh adds them" in out
+    assert "archetype web-api with no health route" not in out
+    as_json = json.loads(_run("advise.sh", project, "--json").stdout)
+    assert [a["rule"] for a in as_json["approaches"]] == ["a_playbook", "a_recommended"]
+
+    # adopt 21_archetype and the same tree now earns the gate-backed advice
+    (project / "borromeanrings.toml").write_text(
+        ARCHETYPE_NOT_REQUIRED.replace('["00_build"]', '["00_build", "21_archetype"]'),
+        encoding="utf-8",
+    )
+    adopted = _run("advise.sh", project).stdout
+    assert "archetype web-api with no health route ⇒ add /livez and /readyz" in adopted
+    assert "21_archetype fails closed on health_endpoint_declared" in adopted
+
+
+MALFORMED_CHARTERS = {
+    # a plausible typo for [charter]\nstakes = "high": a top-level scalar, not a table
+    "scalar": 'charter = "high"\n\n' + ARCHETYPE_NOT_REQUIRED,
+    # right shape, wrong type for the field
+    "listy": ARCHETYPE_NOT_REQUIRED + '\n[charter]\nstakes = ["high", "low"]\n',
+}
+
+
+def test_a_malformed_charter_degrades_to_a_question_instead_of_crashing(tmp_path: Path) -> None:
+    """PR #207 blocker: `charter.get(...)` on a non-table raised AttributeError — a traceback
+    on stderr, EMPTY stdout and exit 0, with `--json` emitting nothing parseable."""
+    for name, config in MALFORMED_CHARTERS.items():
+        project = tmp_path / name
+        project.mkdir()
+        (project / "borromeanrings.toml").write_text(config, encoding="utf-8")
+        proc = _run("advise.sh", project)
+        assert proc.returncode == 0, proc.stderr
+        assert "Traceback" not in proc.stderr, proc.stderr
+        assert (
+            "  2. charter could not be read — fix the record (borromeanrings.toml [charter])"
+            " before building on it?  [SPEC-swe-state.md]\n"
+        ) in proc.stdout, name
+        # stakes are unknown, so nothing is said about reviewers or the heavy lane
+        assert "stakes are" not in proc.stdout, name
+        assert "· stakes: (no charter)\n" in proc.stdout, name
+        as_json = json.loads(_run("advise.sh", project, "--json").stdout)  # parses ⇒ not empty
+        assert as_json["facts"]["unreadable"] == ["charter"]
+        assert as_json["facts"]["stakes"] == ""
+
+
+def test_a_file_that_is_not_toml_at_all_is_reported_unreadable_not_crashed(tmp_path: Path) -> None:
+    project = tmp_path / "nottoml"
+    project.mkdir()
+    (project / "borromeanrings.toml").write_text("this is not toml [[[\n", encoding="utf-8")
+    proc = _run("advise.sh", project)
+    assert proc.returncode == 0
+    assert "Traceback" not in proc.stderr, proc.stderr
+    assert (
+        "  1. config could not be read — fix the record (borromeanrings.toml) before"
+        " building on it?  [SPEC-swe-state.md]\n"
+    ) in proc.stdout
+    assert "Approaches that fit this change\n  (none)\n" in proc.stdout
+    assert json.loads(_run("advise.sh", project, "--json").stdout)["facts"]["unreadable"] == [
+        "config"
+    ]

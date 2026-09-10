@@ -77,6 +77,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
+| `26_citations` | Citations in changed Markdown (repo paths, heading anchors, `ADR-NNNN`, check ids) resolve on this branch; URLs and issue numbers deliberately excluded | `[citations].enabled`, `paths` | 0073 |
 
 ## Fast lane — Python checks
 

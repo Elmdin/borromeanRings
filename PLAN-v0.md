@@ -95,7 +95,7 @@ borromeanrings/
 **Contract:** `verify.sh` runs every check in `checks/` in filename order, captures each result as a receipt, and exits `0` only if **every declared check produced a receipt with exit code 0**. Any failing check, any missing receipt, or any missing required tool ⇒ non-zero exit. This is **fail-closed** (Brief §11): absence of proof = failure, never pass-on-trust.
 
 **Per-check contract (uniform, so the registry can grow):**
-- Each `checks/NN_name.sh` runs one tool, writes its raw stdout+stderr to `.meta-harness/receipts/<run-id>/NN_name.log`, and writes a receipt `NN_name.json`:
+- Each `checks/<NN_name>.sh` runs one tool, writes its raw stdout+stderr to `.meta-harness/receipts/<run-id>/NN_name.log`, and writes a receipt `NN_name.json`:
   ```json
   {
     "check": "test",

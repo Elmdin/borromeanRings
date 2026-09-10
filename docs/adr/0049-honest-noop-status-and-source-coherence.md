@@ -91,7 +91,7 @@ scripts-only project.
 ### Where the guard deliberately stops (PR #122 review)
 
 Excluding tests/shims/docs still leaves a judgement call: a project with an empty
-`src_dir` and a single tracked `scripts/deploy.py` is flagged. Separating "one utility
+`src_dir` and a single tracked `deploy.py` under `scripts/` is flagged. Separating "one utility
 script" from "a whole second source tree" would need a **file-count threshold**, and
 threshold-free, non-regression signals are a standing constraint here — an arbitrary
 number is exactly what this project refuses to add. Nor can `scripts/` and `tools/` be

@@ -91,6 +91,15 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[citations]
+# Citation resolution (check 26_citations, ADR-0073): a repo-relative path, heading
+# anchor, ADR number or check id cited in changed Markdown must resolve on THIS branch.
+# Offline by construction — external URLs and issue/PR numbers are deliberately out of
+# scope (no network, no GitHub state). A deliberate forward reference is written
+# `docs/THING.md` (lands with #NNN). Off unless enabled. See SPEC-citations.md.
+enabled = true
+paths = ["docs/", "README.md", "CHANGELOG.md", "skills/", "AGENTS.md", "PLAN-v0.md"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -104,6 +113,7 @@ required = [
   "09_commits",
   "13_adr",
   "14_container",
+  "26_citations",
   "12_secrets",
   "11_changelog",
   "10_format",

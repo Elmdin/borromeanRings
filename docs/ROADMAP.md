@@ -13,7 +13,7 @@
 | Verifier/check registry (uniform contract, `manifest.json`) | ✅ | `checks/` |
 | Outer gate, fail-closed (`verify.sh`) | ✅ | `verify.sh` |
 | Six checks: build · format · lint · typecheck · test · security | ✅ | `checks/00..50` |
-| Coverage **ratchet** (no absolute % target) | ✅ | `checks/40_test.sh` |
+| Coverage **ratchet** (no absolute % target) | ✅ | `checks/python/40_test.sh` |
 | Receipts / audit plumbing (minimal) | ✅ | `.meta-harness/receipts/` |
 | Stop-hook generate→verify→retry loop (bounded + escalation) | ✅ | `.claude/hooks/stop_gate.sh` |
 | No-op Stop guard: skip the gate when the governed state is unchanged (content-hash cache, fail-closed) | ✅ | `.claude/hooks/stop_gate.sh`, `meta_harness/change_detect.py`, ADR-0016 |

@@ -80,6 +80,10 @@ class Config:
     # rules apply is per-project (a run-and-exit gate-runner omits `healthcheck`).
     container_dockerfile: str = "Dockerfile"
     container_require: tuple[str, ...] = ("non_root", "pinned_base", "healthcheck")
+    # [citations] — citation-resolution gate (ADR-0073); off unless enabled. paths are
+    # the repo-relative prefixes whose changed *.md files are scanned.
+    citations_enabled: bool = False
+    citations_paths: tuple[str, ...] = ("docs/", "README.md", "CHANGELOG.md", "skills/")
     # [a11y] — static accessibility invariants for HTML (ADR-0045); the Product/UX
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
@@ -165,6 +169,10 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         container_dockerfile=str(raw.get("container", {}).get("dockerfile", "Dockerfile")),
         container_require=tuple(
             raw.get("container", {}).get("require", ["non_root", "pinned_base", "healthcheck"])
+        ),
+        citations_enabled=bool(raw.get("citations", {}).get("enabled", False)),
+        citations_paths=tuple(
+            raw.get("citations", {}).get("paths", ["docs/", "README.md", "CHANGELOG.md", "skills/"])
         ),
         a11y_require=tuple(
             raw.get("a11y", {}).get("require", ["html_lang", "img_alt", "page_title"])

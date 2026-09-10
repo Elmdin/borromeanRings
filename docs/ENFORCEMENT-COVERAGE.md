@@ -121,7 +121,7 @@ harder to game.
 | AI-code security-review-by-default | T2 | ⚠️ | bandit (`50_security`) + `56_critics` rubric `security` — advisory semantic review (ADR-0036) |
 
 ### K. Meta — is the enforcement itself real? — CS130 §15
-| **Adversarial self-test** (gate must catch known-bad) | T0 | ✅ | `tests/test_gate_adversarial.py` — known-bad corpus, permanent (ADR-0025) |
+| **Adversarial self-test** (gate must catch known-bad) | T0 | ✅ | `tests/integration/test_gate_adversarial.py` — known-bad corpus, permanent (ADR-0025) |
 | Tamper-evident receipts | T0 | ✅ | content-digest receipts + fail-closed verdict + run-digest anchor (ADR-0026) |
 | Mutation-test the gate's own checks | meta | ✅ | the checks' logic lives in `meta_harness/*` which `60_mutation` mutates (ADR-0022) |
 

@@ -13,6 +13,33 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Citation-resolution gate `26_citations` (ADR-0073) — the deterministic half of the
+  largest defect class this repo's review cycle found: **doc overclaim**, 13 findings
+  across 11 PRs. Most instances were not judgements but path-resolution facts (a doc
+  citing `docs/HANDOFF.md` (lands with #147) on a base that lacks it; `ADR-0057` (lands with #166)
+  cited bare where the records stop at 0047; `docs/CHECKS.md` described as being "on this
+  base" when it is not). On a branch that changed Markdown under
+  `[citations].paths`, every repo-relative path, heading anchor, `ADR-NNNN` reference and
+  check id it cites must resolve against **git-tracked** paths on this branch, reported as
+  `file:line — citation — does not exist on this branch`. The decision core
+  (`src/meta_harness/citations.py`) is pure with an **injected** resolver — no filesystem,
+  no network, 100% line+branch coverage, with every real review instance as a fixture.
+  Deliberately and permanently out of scope, stated in the SPEC and the check header
+  rather than implied away: **external URLs** (needs a network; this runs on every gate)
+  and **issue/PR numbers** (GitHub state, off-machine and mutable) — a real `#53`-for-`#82`
+  defect stays a review concern, as does whether prose *describes* the code correctly
+  (`55_doc_drift`, ADR-0030). A deliberate forward reference is written in one narrow
+  recognised form immediately after the citation: `docs/PLUGIN.md` (lands with #166), or
+  `docs/PLUGIN.md` (on `feat/claude-plugin`) — `(on line 5)` is not a marker, because a hatch ordinary prose could
+  open by accident is a hole. Off unless `[citations].enabled`; `noop` when a branch
+  changed no documentation; fails closed on an unreadable config, an unreadable document,
+  or a git error inside a repository. Turned on for this repo, which surfaced **24**
+  unresolved citations in the existing tree — moved test paths after the `unit/` +
+  `integration/` regrouping, two broken relative links in one spec, a planned check id
+  whose number was already taken, and several historical paths written in citation shape.
+  Every one was fixed in the document; none suppressed. Not added to `adopt.py`'s
+  `RECOMMENDED` set: going red on accumulated dead references should be a maintainer's
+  choice, not a surprise from `adopt.sh`. See `docs/specs/SPEC-citations.md`.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

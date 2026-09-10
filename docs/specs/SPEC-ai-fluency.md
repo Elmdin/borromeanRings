@@ -76,5 +76,5 @@ so this spec stays docs-and-skills only.
 ## 8. Out of scope / dropped
 The source's `policy`, `plan`, and `review`-baseline skills (personal); the
 `ai-fluency-borromeanrings` context skill (its value is folded into `docs/AI-FLUENCY.md`);
-and all personal statements / exercise provenance. A `11_skill_anatomy` validator check for
+and all personal statements / exercise provenance. A `skill_anatomy` validator check for
 skills is a separate, agent-skills-derived item — not part of this spec.

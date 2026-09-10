@@ -85,3 +85,22 @@ def test_rewrite_required_raises_without_checks_table() -> None:
 def test_rewrite_required_raises_without_required_array() -> None:
     with pytest.raises(ValueError, match="no required array"):
         rewrite_required('[checks]\nheavy = ["60_mutation"]\n', ("40_test",))
+
+
+def test_coverage_seed_takes_the_latest_receipt_with_a_number() -> None:
+    from meta_harness.adopt import coverage_seed
+
+    receipts = (
+        {"check": "40_test", "coverage_percent": 71.5},
+        {"check": "40_test", "status": "noop"},  # a hollow run carries no number
+        {"check": "40_test", "coverage_percent": 80.25},
+    )
+    assert coverage_seed(receipts) == "80.25"
+
+
+def test_coverage_seed_is_none_without_a_measured_run() -> None:
+    from meta_harness.adopt import coverage_seed
+
+    assert coverage_seed(()) is None
+    assert coverage_seed(({"check": "40_test", "status": "noop"},)) is None
+    assert coverage_seed(({"check": "40_test", "coverage_percent": "n/a"},)) is None

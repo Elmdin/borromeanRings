@@ -257,3 +257,23 @@ def test_api_contracts_section_is_parsed_and_defaults_empty(tmp_path: Path) -> N
     c = load_config(cfg)
     assert c.api_contracts_packs == ("python-asyncio",)
     assert c.api_contracts_rules == ({"kind": "banned", "symbol": "malloc", "message": "no heap"},)
+
+
+def test_language_vocabulary_is_closed(tmp_path: Path) -> None:
+    """Only languages with a shipped lane are accepted; anything else fails closed.
+
+    A typo ("pyhton") or a language with no `checks/<lang>/` set must not fall
+    through to Python's checks or to an empty set that passes vacuously.
+    """
+    from meta_harness.spine import SUPPORTED_LANGUAGES
+
+    # "none" = shared checks only (no language lane), used by shared-check-only fixtures.
+    assert SUPPORTED_LANGUAGES == ("python", "typescript", "go", "none")
+    for lang in SUPPORTED_LANGUAGES:
+        declared = _write(
+            tmp_path, f'[checks]\nrequired = ["00_build"]\n[project]\nlanguage = "{lang}"\n'
+        )
+        assert load_config(declared).language == lang
+    unknown = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n[project]\nlanguage = "rust"\n')
+    with pytest.raises(ValueError, match="rust"):
+        load_config(unknown)

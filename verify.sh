@@ -40,8 +40,17 @@ fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
+# Fail closed if the spine rejects the config (an unknown language, no required set):
+# silently defaulting to Python here would run the wrong lane and report a green.
+config_err="$(mktemp)"
 language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
-  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
+  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>"$config_err")" || {
+  echo "borromeanRings: cannot load $CONFIG:" >&2
+  tail -n 1 "$config_err" >&2
+  rm -f "$config_err"
+  exit 1
+}
+rm -f "$config_err"
 case "$language" in
   "" | *[!a-z0-9_-]*)
     echo "borromeanRings: invalid [project].language: '$language' (use [a-z0-9_-])." >&2

@@ -98,6 +98,33 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `55_doc_drift` | *(Advisory)* an external model judge checks docstrings against code | `[critic].judge_command` (dormant if empty) | 0030 |
 | `56_critics` | *(Advisory)* model judge applies Wave-2 rubrics (error-handling, naming, security, boundary-value, test-smell) | `[critic].rubrics`, `judge_command` | 0036 |
 
+## Fast lane — TypeScript checks (`[project].language = "typescript"`)
+
+Same ids and guarantees as the Python lane (SPEC-multi-language.md, ADR-0068). A lane tool
+that is **not installed** ⇒ `noop` naming it (`tsc not installed`, …) — never installed,
+never a failed project. Tools resolve from `node_modules/.bin` first, then `PATH`. Nothing
+on this lane touches the network (`npm audit` is excluded; #193 tracks it for the heavy lane).
+
+| Check | Enforces | Tool / notes | ADR |
+|-------|----------|--------------|-----|
+| `00_build` | Source compiles under the project's `tsconfig.json`; source with no `tsconfig.json` ⇒ fail | `tsc -p tsconfig.json --noEmit` | 0068 |
+| `10_format` | No unformatted files | `prettier --check .` | 0068 |
+| `20_lint` | No lint violations (ESLint 9 with no config errors ⇒ fail) | `eslint .` | 0068 |
+| `30_typecheck` | Source holds under `--strict` | `tsc -p tsconfig.json --noEmit --strict` | 0068 |
+| `40_test` | Tests pass **and** line coverage doesn't regress (**ratchet**) | `vitest run --coverage` (json-summary) or `jest --coverage`; `.borromeanrings-coverage-baseline` | 0068 |
+| `50_security` | No high-confidence dangerous sink (`eval`, `new Function`, `document.write`) | `ast-grep scan --json` with `checks/typescript/rules/security.yml` | 0068 |
+
+## Fast lane — Go checks (`[project].language = "go"`)
+
+| Check | Enforces | Tool / notes | ADR |
+|-------|----------|--------------|-----|
+| `00_build` | Every package compiles | `go build ./...` | 0068 |
+| `10_format` | `gofmt -l` lists nothing (verdict on the list, not gofmt's exit code) | `gofmt -l <src_dir>` | 0068 |
+| `20_lint` | `go vet` reports nothing | `go vet ./...` | 0068 |
+| `30_typecheck` | Type-aware static analysis beyond the compiler | `staticcheck ./...` (`noop` when absent) | 0068 |
+| `40_test` | Tests pass, at least one package has tests, statement coverage doesn't regress (**ratchet**) | `go test -coverprofile ./...` + `go tool cover -func`; `.borromeanrings-coverage-baseline` | 0068 |
+| `50_security` | `gosec` reports nothing (`govulncheck` is network — excluded, #193) | `gosec ./...` | 0068 |
+
 ## Heavy (CI-tier) lane — run under `./verify.sh --heavy` or CI only
 
 | Check | Enforces | Config / notes | ADR |
@@ -110,7 +137,8 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 ## Notes
 
 - **Ratchets are threshold-free.** `32/33/40/45/60` enforce *non-regression* against a seeded
-  baseline, never an arbitrary target number — you can only improve or hold, never silently
+  baseline (`40_test`'s `.borromeanrings-coverage-baseline` is one file for every language lane;
+  `adopt.sh` seeds it from the latest measured run), never an arbitrary target number — you can only improve or hold, never silently
   slip. Move a baseline deliberately (a reviewed commit), never as a side effect.
 - **Advisory checks** (`55_doc_drift`, `56_critics`) require a wired model judge
   (`[critic].judge_command`, e.g. the local `claude` CLI — no API keys). Empty ⇒ dormant; they

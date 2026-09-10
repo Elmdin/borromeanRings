@@ -31,6 +31,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0019](0019-git-identity-local-guard-only-public-repo.md) | Git identity: local-guard-only for the public repo (amends 0017) | Accepted |
 | [0020](0020-ai-fluency-4d-vocabulary.md) | Adopt AI Fluency 4D as collaboration vocabulary (re-authored, Apache-2.0) | Accepted |
 | [0021](0021-gitflow-lite-branching.md) | Gitflow-lite branching: feature → `dev` (default) → `main` | Accepted |
+| [0068](0068-multi-language-lanes.md) | TypeScript and Go check lanes: honest about absent tools, never networked (supersedes the Python-only part of 0015) | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

@@ -13,6 +13,7 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- TypeScript and Go check lanes (`checks/typescript/`, `checks/go/`; phase 1 of #67, ADR-0068, SPEC-multi-language.md): the six fast-lane checks behind the same ids and semantics as Python's. A lane tool that is not installed ⇒ `noop` naming it (`tsc not installed`, `go not installed`, `ast-grep not installed`, …) — never installed, never a failed project; a tool that runs and fails ⇒ fail closed. Nothing on the fast lane touches the network (`npm audit`, `govulncheck` excluded → #193). `[project].language` is now a closed vocabulary (`spine.SUPPORTED_LANGUAGES`) and `verify.sh` refuses an unknown language instead of silently falling back to Python. One coverage ratchet file for every lane, parsed by the new pure `lang_coverage` (istanbul json-summary, `go tool cover -func`) and `lang_security` (`ast-grep --json`) modules; `adopt.sh` seeds `.borromeanrings-coverage-baseline` from the latest measured `40_test` receipt. `vendor/` joins `SKIP_DIRS`. Phase 2 filed: #190 #191 #192 #193.
 - `18_api_contracts` + `[api_contracts]`: a project's own API-usage rules (banned / forbidden_in / must_check / required_arg / paired / requires_before) enforced as deterministic AST checks, `noop` when they match nothing, with a PostToolUse preventive layer and a cited `python-asyncio` rule pack (ADR-0054, #130).
 
 ### Added

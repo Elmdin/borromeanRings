@@ -13,7 +13,11 @@ effects. See docs/specs/SPEC-adopt.md and ADR-0041.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+
+#: The coverage ratchet's baseline file — one file for every language lane (ADR-0068).
+COVERAGE_BASELINE = ".borromeanrings-coverage-baseline"
 
 # Curated, safe-after-seeding quality set — correctness/security/maintainability
 # first. Deliberately excludes: collaboration gates (workflow; riskier on an
@@ -99,3 +103,19 @@ def rewrite_required(toml_text: str, new_required: tuple[str, ...]) -> str:
     )
     section = section[: array.start()] + rendered + section[array.end() :]
     return toml_text[:start] + section + toml_text[end:]
+
+
+def coverage_seed(receipts: Sequence[Mapping[str, object]]) -> str | None:
+    """The value to seed :data:`COVERAGE_BASELINE` with, from past ``40_test`` receipts.
+
+    Adoption never runs a language's test tool itself (no installs, no surprises), so the
+    only honest source for a coverage baseline is a coverage number the gate already
+    measured. ``receipts`` is oldest-first; the LATEST receipt that carries a numeric
+    ``coverage_percent`` wins (a ``noop`` run carries none). ``None`` when no run has
+    measured coverage yet — the caller says to run the gate first rather than seeding 0.
+    """
+    for receipt in reversed(receipts):
+        value = receipt.get("coverage_percent")
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            return f"{float(value):g}"
+    return None

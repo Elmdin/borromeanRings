@@ -26,10 +26,17 @@ if [ ! -f "$PROJECT_DIR/borromeanrings.toml" ]; then
 fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" "$BORROMEANRINGS_HOME" <<'PY'
+import json
 import sys
 from pathlib import Path
 
-from meta_harness.adopt import RATCHET_BASELINES, plan_adoption, rewrite_required
+from meta_harness.adopt import (
+    COVERAGE_BASELINE,
+    RATCHET_BASELINES,
+    coverage_seed,
+    plan_adoption,
+    rewrite_required,
+)
 from meta_harness.complexity import worst_complexity
 from meta_harness.coupling import worst_fan_out
 from meta_harness.docstrings import measure_package
@@ -55,6 +62,26 @@ config = load_config(toml_path)
 
 changelog = project / (config.changelog_path or "CHANGELOG.md")
 plan = plan_adoption(tuple(config.required_checks), has_changelog=changelog.exists())
+
+# The coverage ratchet (40_test) is one file for every language lane (ADR-0068). Adoption
+# never runs a language's test tool, so the baseline is seeded from the latest gate run
+# that measured coverage; without one, say what to do instead of seeding a vacuous 0.
+coverage_file = project / COVERAGE_BASELINE
+if "40_test" in config.required_checks and not coverage_file.exists():
+    receipt_paths = sorted((project / ".meta-harness" / "receipts").glob("*/40_test.json"))
+    receipts = []
+    for path in receipt_paths:
+        try:
+            receipts.append(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError):
+            continue
+    seed = coverage_seed(receipts)
+    if seed is None:
+        print(f"adopt: {COVERAGE_BASELINE} not seeded — no gate run has measured coverage yet;")
+        print("       run verify.sh once, then re-run adopt.sh to seed from that run.")
+    else:
+        coverage_file.write_text(seed + "\n", encoding="utf-8")
+        print(f"adopt: seeded {COVERAGE_BASELINE} = {seed} (from the latest 40_test receipt)")
 
 if not plan.add_checks:
     print(f"adopt: {project.name} already has all recommended checks — nothing to do.")

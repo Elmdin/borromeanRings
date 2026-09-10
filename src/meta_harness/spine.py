@@ -14,6 +14,12 @@ from typing import Any
 
 import tomllib
 
+#: Languages with a shipped `checks/<language>/` lane (ADR-0015, ADR-0068), plus ``none``
+#: for a project governed by the shared (language-agnostic) checks only. Closed vocabulary:
+#: an unknown value fails closed in :func:`load_config` rather than falling through to
+#: Python's checks or to an empty set that would pass vacuously.
+SUPPORTED_LANGUAGES: tuple[str, ...] = ("python", "typescript", "go", "none")
+
 
 @dataclass(frozen=True)
 class Config:
@@ -103,7 +109,8 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         The validated :class:`Config`.
 
     Raises:
-        ValueError: if no required checks are declared.
+        ValueError: if no required checks are declared, or ``[project].language`` is
+            not one of :data:`SUPPORTED_LANGUAGES`.
     """
     raw: dict[str, Any] = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     required = list(raw.get("checks", {}).get("required", []))
@@ -116,6 +123,12 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
     project = raw.get("project", {})
+    language = str(project.get("language", "python"))
+    if language not in SUPPORTED_LANGUAGES:
+        raise ValueError(
+            f"borromeanrings.toml [project].language = '{language}' has no check lane; "
+            f"supported: {', '.join(SUPPORTED_LANGUAGES)} (fail-closed)."
+        )
     git = raw.get("git", {})
     layout = raw.get("layout", {})
     collaboration = raw.get("collaboration", {})
@@ -134,7 +147,7 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         package=str(project.get("package", "")),
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
-        language=str(project.get("language", "python")),
+        language=language,
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),
         specs_dir=str(layout.get("specs_dir", "")),

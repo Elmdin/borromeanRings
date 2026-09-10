@@ -113,6 +113,55 @@ borromeanrings_run_bounded() {
   return "$code"
 }
 
+# --- Language-lane helpers (checks/typescript, checks/go; SPEC-multi-language.md, ADR-0068)
+
+# borromeanrings_source_count <src_dir> <suffix>... — how many source files of the lane's
+# language sit under <src_dir>, counted by meta_harness.source_coherence.walk_sources so
+# vendored trees (node_modules, vendor, dist, ...) never count as the project's own code.
+borromeanrings_source_count() {
+  local src_dir="$1"; shift
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/$src_dir" "$@" <<'PY'
+import sys
+from pathlib import Path
+
+from meta_harness.source_coherence import walk_sources
+
+root = Path(sys.argv[1])
+total = sum(len(walk_sources(root, suffix)) for suffix in sys.argv[2:]) if root.is_dir() else 0
+print(total)
+PY
+}
+
+# borromeanrings_lane_tool <name> — resolve a lane tool: the project's node_modules/.bin
+# first (JavaScript tools are project-local by convention), then PATH. Prints the path
+# and returns 0, or prints nothing and returns 1. Never installs anything.
+borromeanrings_lane_tool() {
+  local local_bin="$PROJECT_ROOT/node_modules/.bin/$1"
+  if [ -x "$local_bin" ]; then
+    echo "$local_bin"
+    return 0
+  fi
+  command -v "$1" 2>/dev/null
+}
+
+# borromeanrings_noop_missing_tool <id> <command> <tool-label>
+# A language lane's tool is the GOVERNED project's to provide (unlike Python's, which is
+# borromeanRings's own dev dependency), so its absence is an honest "inspected nothing",
+# reported as `noop` with the tool named — never an install, never a failed project.
+borromeanrings_noop_missing_tool() {
+  local log="$RECEIPT_DIR/$1.log"
+  printf '%s not installed\n' "$3" >"$log"
+  emit_noop "$1" "$2" "$log"
+}
+
+# borromeanrings_noop_greenfield <id> <command> <language> <src_dir>
+# No source of the lane's language yet: nothing to inspect, say so (ADR-0049).
+borromeanrings_noop_greenfield() {
+  local log="$RECEIPT_DIR/$1.log"
+  printf "no %s source in '%s' yet (greenfield) — nothing to inspect\n" "$3" "$4" >"$log"
+  emit_noop "$1" "$2" "$log"
+}
+
 # run_check <id> <tool> <command>
 # A missing required tool is a HARD failure (status "error"), never a silent skip.
 run_check() {

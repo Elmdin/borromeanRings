@@ -62,7 +62,7 @@ Each is a future self-extension (build → gate → human-approved adopt).
 | **Preserve wrapped-agent autonomy** | Enforce invariants on *outcomes*, never dictate the agent's planning/decisions (red line, VISION §6) | ✅ principle locked |
 | **Tools + MCP + plug-and-play** | External/internal tools, MCP servers, plug in any skill/tool, compose with other harnesses | ⏳ |
 | **Multi-harness substrate** | Adapters for OpenCode / Hermes / others (the Adapter seam already exists) | ⏳ |
-| **Multi-language stacks** | TS, Go, etc. behind the same uniform check contract | ⏳ |
+| **Multi-language stacks** | TS and Go fast lanes shipped (ADR-0068, phase 1 of #67); per-language ratchets/mutation/contracts/audits are #190–#193 | 🔶 |
 | **Generator adapter + Executor interface** | Make the agent and run-environment swappable | ⏳ |
 | **Orchestration / parallelism / worktrees** | Run agents in parallel in isolated worktrees | ⏳ |
 | **Instrumentation + A/B loop** | Measure whether the harness actually improves outcomes | ⏳ |

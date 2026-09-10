@@ -57,7 +57,8 @@ hook is inert outside a directory holding `borromeanrings.toml`.
 `BORROMEANRINGS_HOME`; `adopt.sh` upgrades an already-governed project and seeds ratchet
 baselines from its current state (ADR-0013, ADR-0041). Governance is per-project opt-in;
 there is no global enforcement (ADR-0013, `docs/HANDOFF.md` §3). The plugin packaging
-(ADR-0057, #166) keeps the same six scripts and the same inertness rule.
+(ADR-0057 on `feat/claude-plugin`, lands with #166) keeps the same six scripts and the same
+inertness rule.
 
 **Ratchets.** Continuous metrics are non-regression ratchets against a seeded baseline,
 never a threshold: coverage (`40_test`), cyclomatic complexity (`32_complexity`, ADR-0031),
@@ -79,8 +80,13 @@ this way. §2 below is the record of the cycle that followed.
 
 ## 2. What the evidence says
 
-The rows are the sub-agent reviews of this cycle (PRs #148–#184, findings files
-`review148.md`…`review184.md` in the session scratchpad, each linked to its PR review URL).
+The rows are the sub-agent reviews of this cycle (PRs #148–#185, findings files
+`review148.md`…`review185.md` in the session scratchpad, each linked to its PR review URL),
+plus one second pass: after the per-PR reviews, a full-source shingle sweep
+(`sweep-4d-license.md`, script `sweep_shingles2.py`) compared every added line of the five
+4D ports #180–#184 against the *whole* 4D source set rather than the files each narrow review
+had opened. Rows marked "sweep" record what that second pass found in PRs the first pass had
+already cleared.
 Severity is the reviewer's. "Mechanism" says whether a deterministic check now catches the
 class, or whether catching it still depends on review.
 
@@ -100,27 +106,28 @@ class, or whether catching it still depends on review.
 | #165 rename tail | should-fix: the `DeprecationWarning` never reached stderr in any real call path; docs promised a visible signal. nit: false "config uncommitted" from a stray legacy file | doc overclaim; false positive | fixed in-PR (`FutureWarning`) |
 | #166 plugin packaging | should-fix: committed symlinks break on a Windows checkout without `core.symlinks`; undocumented | sandbox trap | review |
 | #167 rewrite contract | should-fix: no time bound on the transcript-reading subprocess in the Stop hook. should-fix: `transcript_path` accepted without a boundary check — the tail of any local `.jsonl` could be copied into this project's record | sandbox trap; security bypass | review |
-| #168 research skill tokens | should-fix ×2: a skill cited catalog entries that do not exist; an audit cited a research file absent on the branch. Recorded separately: the heavy lane on this PR was vacuous because a test read outside the mutmut sandbox (`docs/HANDOFF.md` §9 rule 2) | doc overclaim (dead citation); sandbox trap → vacuous evidence | review (#188); fixed in #182 by relocating the test, not by a guard (#187) |
+| #168 research skill tokens | should-fix ×2: a skill cited catalog entries that do not exist; an audit cited a research file absent on the branch. Recorded separately: a test that read outside `src/`/`tests/` failed inside the mutmut sandbox, mutmut evaluated 0 mutants, and `60_mutation` **failed closed** ("MUTATION CHECK DID NOT RUN", `checks/ci/60_mutation.sh` lines 53–58, ADR-0022); the test was relocated in #182 and the lane then ran for real. An earlier `docs/HANDOFF.md` §9 note called this a vacuous PASS; commit `3cbacaf` on `docs/handoff` corrected it | doc overclaim (dead citation); sandbox trap | review (#188); the guard held — it is the *documentation* of the guard that was wrong |
 | #169 trunk policy | blocker: `git config alias.p push; git p origin main` bypassed the guard entirely. should-fix: `cd ../worktree && git commit` on a protected branch bypassed HEAD resolution. nit: non-shell wrappers bypass any text guard | security bypass ×2 | review; the server-side backstop is #60 |
 | #170 supply chain | should-fix: `ENFORCEMENT-COVERAGE.md` said ❌ in the table and ✅ in the summary for the same row | doc overclaim (self-contradiction) | review (#188) |
 | #171 README quickstart | none (every verifiable claim verified) | — | — |
 | #179 archetypes | should-fix: SPEC calls presence-regex predicates "deterministic" without saying they prove presence, not correctness. should-fix: the #164 fix not carried; merge order could reopen the fail-open path | doc overclaim; fail-open path | review; #186 |
-| #180 charter gate | nits ×2: an ADR overstated field-name overlap with the source; a docstring paraphrased the source's sentence | license copy (nit) | review |
+| #180 charter gate | nits ×2: an ADR overstated field-name overlap with the source; a docstring paraphrased the source's sentence. **sweep**: 2 distinctive overlaps the narrow review missed (the source's three-part "never repaired, defaulted, or partially accepted" list; the "is exactly the drift the X exists to catch" construction), since re-authored | license copy (nit → blocker on the sweep) | review; the narrow review had read the source files it was pointed at and passed the PR |
 | #181 predicate lint | blocker: a phrase and a worked example from a CC BY-NC-SA source reused near-verbatim in four files. should-fix: a "wording only" ADR edit added a new factual claim | license copy; doc overclaim (ADR substance) | review (#189); review |
-| #182 quote verifier | blocker: substring match over a whitespace-joined multi-line span read a quote with a dropped "not" as `verbatim`. should-fix ×2: symlinked file or directory under a declared path escapes the project root and its diff is echoed into the log | fail-open path (false negative); security bypass ×2 | review; review |
-| #183 stewardship cadence | blocker: a clause-for-clause paraphrase of a source sentence | license copy | review (#189) |
-| #184 dry-run evidence | should-fix: `docs/HANDOFF.md` cited twice, absent on the base | doc overclaim (dead citation) | review (#188) |
+| #182 quote verifier | blocker: substring match over a whitespace-joined multi-line span read a quote with a dropped "not" as `verbatim`. should-fix ×2: symlinked file or directory under a declared path escapes the project root and its diff is echoed into the log. **sweep**: 1 distinctive overlap (the same "exactly the drift … exists to catch" phrase, reused in a second ADR) after the narrow review had called the licence comparison clean; since re-authored | fail-open path (false negative); security bypass ×2; license copy | review; review; review |
+| #183 stewardship cadence | blocker: a clause-for-clause paraphrase of a source sentence. **sweep**: 7 further distinctive overlaps from the same source ADR (its title reused as a heading, three verbatim phrases, three near-paraphrases) that the narrow review, which had found one, did not list; since re-authored | license copy | review (#189) |
+| #184 dry-run evidence | should-fix: `docs/HANDOFF.md` cited twice, absent on the base. **sweep**: 1 distinctive overlap ("cannot be left to disposition") in a PR whose own narrow review had reported 0 overlapping shingles — against the two dry-run files it compared; the phrase came from the source set it had not opened; since re-authored | doc overclaim (dead citation); license copy | review (#188); review |
+| #185 self-report receipt | blocker ×2: a Discernment obligation sentence and two ADR sentences near-verbatim from the source SPEC and ADR ("make itself auditable … name its own weakest claim"; "the objection is to the grade, not to its precision"; "worse than either honest option because it looks checkable and is not"), confirmed by 5-/6-word shingles; resolved in commit `b97bc5f` and verified clean against the full source set | license copy | review (#189) |
 
-**Counted by class** (findings, blocker or should-fix, across the 24 reviews; nits excluded
-unless noted):
+**Counted by class** (findings, blocker or should-fix, across the 25 reviews plus the sweep; nits
+excluded unless noted):
 
 | Class | Findings | PRs | Caught by a mechanism today | Tracking |
 |---|---|---|---|---|
 | Doc overclaim (docs assert what the branch does not do, or cite what it does not contain) | 13 | 11 | counts only (`04_self_description`); hedges in predicates (`23_predicates`, #181); quotes (`24_quotes`, #182); none for dead paths or behavioural claims | #188 for the deterministic half; the semantic half stays with review and the dormant critic (ADR-0030, #68) |
 | Fail-open path (a silent `noop`, an empty result, or a false negative where a fail belonged) | 8 | 7 | the verdict layer only (ADR-0049 allowlist, `01_source_coherence`); inside a check, only where the `01_source_coherence` idiom was hand-copied | #186 |
 | Security bypass (guard or boundary defeated) | 5 | 3 | none — `pre_bash_guard.sh` is a text guard by design; branch protection is the backstop | #60; `[quotes]`/transcript boundaries fixed in their PRs' fix rounds |
-| License copy (CC BY-NC-SA prose or example reproduced) | 2 (+2 nits) | 2 (+1) | none — a shingle script in the scratchpad, run by hand | #189 |
-| Vacuous test or vacuous evidence (a test or a lane that could not fail) | 3 | 3 | `60_mutation` for unit tests of `src/` only; integration tests and the sandbox-collection case are outside it | #187 |
+| License copy (CC BY-NC-SA prose or example reproduced) | 4 blockers in narrow reviews (#181, #183, #185 ×2) + 11 distinctive overlaps from the full-source sweep in 4 PRs the narrow reviews had passed (#180 ×2, #182, #183 ×7, #184) | 6 of the 6 ports (#180–#185) at some pass | none — a shingle script in the scratchpad, run by hand, against whichever source files the reviewer opened | #189 |
+| Vacuous test or vacuous evidence (a test or a lane that could not fail) | 2 | 2 | `60_mutation` for unit tests of `src/` only, and it does fail closed on 0 evaluated mutants (#168 is *not* in this tally: the guard held, the note about it was wrong); integration tests are outside it | #187 (re-scoped: pin the existing guard, print the count) |
 | Sandbox trap (substrate or environment assumption: matcher syntax, symlinks, timeouts, dedupe) | 4 | 4 | dedupe helper exists (`.claude/hooks/_lib.sh`); the rest by review | #137 closed the matcher inventory; the rest unfiled as rules in HANDOFF §8–§9 |
 | False positive (a check that fires on correct input) | 1 (+2 nits) | 1 (+1) | none needed beyond review; low cost | — |
 
@@ -138,6 +145,12 @@ Three readings of that table:
    for pushing three of those classes into checks (#186, #188, #189), because the platform's
    own law is to enforce each practice at the lowest tier that can express it
    (`docs/ENFORCEMENT-COVERAGE.md` §1).
+4. **The licence class is the strongest case for a check, because review alone demonstrably
+   under-reads it.** Narrow reviews cleared #180, #182 and #184 and found one passage in
+   #183; a mechanical sweep over the full source set then found eleven more distinctive
+   overlaps across those four. The difference was not reviewer care — every narrow review
+   ran shingles — but *scope*: a reviewer compares against the files they were pointed at, a
+   check compares against everything declared. That is exactly what #189 specifies.
 
 ## 3. Gaps, in the platform's fixed order
 
@@ -159,13 +172,13 @@ ergonomics.
 
 | Gap | Evidence | Tracks |
 |---|---|---|
-| A test that reads outside `src/`/`tests/` fails only inside mutmut's sandbox; `docs/HANDOFF.md` §9 records a PASS with a vacuous count on #160/#168 while `checks/ci/60_mutation.sh` and ADR-0022 say zero evaluated fails closed — the two accounts disagree and nothing pins the sandbox-collection case | HANDOFF §9 rule 2; `setup.cfg` `[mutmut]` ignore list is hand-kept | #187 (filed) |
+| A test that reads outside `src/`/`tests/` fails only inside mutmut's sandbox. `checks/ci/60_mutation.sh` lines 53–58 fail closed on 0 evaluated mutants (ADR-0022) and did so on #160 and #168; an earlier `docs/HANDOFF.md` §9 note called that a vacuous PASS and was corrected in commit `3cbacaf`. What remains: no regression test pins the guard, and the gate line shows a status without the mutant count, which is how the misreading happened | HANDOFF §9 rule 2 (corrected); `setup.cfg` `[mutmut]` ignore list is hand-kept | #187 (filed; re-scoped to a regression test for the existing guard plus the evaluated-mutant count in gate output and a `docs/CHECKS.md` note) |
 | Integration tests that drive `verify.sh` are outside the mutation lane entirely, so a structurally vacuous one is invisible to any check | #150 blocker | #187 |
 | Docs claim behaviour the code lacks; `55_doc_drift` and `56_critics` are dormant by choice until a judge is wired through the user's own agent | #151, #162, #165, #179; ADR-0030, `borromeanrings.toml` `[critic].judge_command = ""` | #68; `docs/CRITIC-ACTIVATION.md` |
 | In-repo paths and links cited in docs do not resolve on the branch | #161, #168, #184, #170 | #188 (filed) |
-| Re-authored ports carry copied phrases; the shingle comparison is a scratchpad script | #181, #183 blockers; HANDOFF §9 rule 1 | #189 (filed) |
+| Re-authored ports carry copied phrases; the shingle comparison is a scratchpad script whose scope is whatever the reviewer opened | #181, #183, #185 blockers; the full-source sweep's eleven overlaps in #180, #182, #183, #184 after their reviews passed; HANDOFF §9 rule 1 | #189 (filed) |
 | Presence-regex predicates (archetype features) can be read as correctness proofs | #179 should-fix | #79/#179 fix round (SPEC caveat) |
-| Coverage non-regression row in `docs/ENFORCEMENT-COVERAGE.md` §A says ❌ while `40_test` ratchets coverage and `docs/CHECKS.md` says so | the two documents disagree on this base | unfiled as a separate issue: it is one row of #188's class; fix in the same PR that lands #188 |
+| Coverage non-regression row in `docs/ENFORCEMENT-COVERAGE.md` §A says ❌ while `40_test` ratchets coverage and `docs/CHECKS.md` (on `feat/self-description`, lands with #151) says so | the two documents disagree | unfiled as a separate issue: it is one row of #188's class; fix in the same PR that lands #188 |
 
 ### 3.3 Coverage of the matrices
 
@@ -174,7 +187,7 @@ ergonomics.
 | Matrices #2–#6 are documented with "enforced by" rows verified, but most rows beyond the existing checks are candidates | #153 review verified 19 claims; `docs/matrices/` (lands with #153) | #155 (fuzz/DAST), #156 (batch-size ratchet, deploy record), #157 (SLO/postmortem presence), #158 (PII fixtures, model staleness), #159 (static a11y rules) |
 | Archetypes declare which checks must be non-`noop`; only the first catalogue exists | ADR-0062 (#179) | #79 |
 | Python only; the check contract is language-neutral but no second set exists | `checks/python/` is the only language directory; ADR-0015 | #67 |
-| Supply-chain rows that need CI or a remote service are deferred with exact configs, unapplied | ADR-0061 "Deferred to the maintainer" (#170) | #58 (maintainer items), #74 |
+| Supply-chain rows that need CI or a remote service are deferred with exact configs, unapplied | ADR-0061 "Deferred to the maintainer" (on `feat/supply-chain`, #170) | #58 (maintainer items), #74 |
 | API-usage contracts cover Python AST only; behavioural or type-aware API breaks are signature-shape only | ADR-0054 (#160); `docs/ENFORCEMENT-COVERAGE.md` §D | #130 (fix round), #140 for the formal end |
 
 ### 3.4 Ergonomics
@@ -185,7 +198,7 @@ ergonomics.
 | The heavy lane is the bar but the fast lane is what an agent runs by reflex; three PRs went red in CI after a green fast lane | `docs/HANDOFF.md` §2 item 1 | rule only (HANDOFF §2, `CHARTER.toml` `done_when` on #180); no mechanism proposed — a Stop hook cannot run mutation |
 | Plugin symlinks break on non-symlink checkouts | #166 should-fix | #136 (fix round) |
 | The legacy-config deprecation is visible only from `verify.sh` | #165 | fixed in #165's fix round |
-| Self-status reads `MANUAL` for plugin-only governance | ADR-0057 "one honest gap" | #136 |
+| Self-status reads `MANUAL` for plugin-only governance | ADR-0057 "one honest gap" (on `feat/claude-plugin`, #166) | #136 |
 
 ## 4. Prioritised improvements
 
@@ -195,14 +208,17 @@ At most ten; each cites §2. No dates, no estimates, no targets.
    uses, with adversarial rows for git failure and non-repo per check. Because the same
    fail-open shape appeared in three PRs (#164, #148, #179) and was fixed by copy-paste each
    time. — #186
-2. **Make the mutation lane prove it collected the tests it claims** and print the mutant
-   count. Because §2 records a heavy lane that passed on vacuous evidence (#160/#168) and a
-   vacuous integration test the lane cannot see (#150). — #187
+2. **Pin the mutation lane's fail-closed guard with a regression test and print the
+   evaluated-mutant count on the gate line.** Because the guard held on #160/#168 yet the
+   handoff document recorded the opposite for a full session (corrected in `3cbacaf`): a
+   status without a count invites exactly that misreading, and nothing tests the guard. — #187
 3. **Add a deterministic citation check** for in-repo links and paths in docs. Because dead
    citations are four of the thirteen doc-overclaim findings and need no model to catch. — #188
 4. **Commit the shingle comparison as a heavy-lane check** for declared re-authored
-   sources. Because two of five 4D ports came back with copied passages (#181, #183) and the
-   rule is enforced by memory. — #189
+   sources. Because all six 4D ports (#180–#185) carried copied passages at some pass, and
+   the full-source sweep found eleven overlaps in four PRs that per-PR reviews running the
+   same script had cleared — the strongest single piece of evidence in §2 that a review
+   cannot substitute for a check with a declared scope. — #189
 5. **Apply server-side branch protection with `enforce_admins`** so the text guard is a
    convenience, not the enforcement. Because #169 showed a one-line alias defeats the local
    guard, and the platform's own doctrine is that a local aid needs a backstop
@@ -218,7 +234,7 @@ At most ten; each cites §2. No dates, no estimates, no targets.
 8. **Land the archetype non-`noop` clause on every governed project** so a hollow green is
    red by declaration. Because ADR-0049's incident and #164 both show `noop` reads as green
    unless something says which checks must not be `noop`. — #79
-9. **Reconcile the two coverage documents** (`ENFORCEMENT-COVERAGE.md` §A vs `CHECKS.md` on
+9. **Reconcile the two coverage documents** (`ENFORCEMENT-COVERAGE.md` §A vs `CHECKS.md` on `feat/self-description` (#151) on
    the coverage row; the ❌/✅ contradiction #170 found) in the PR that lands #188, and let
    that check keep them honest. — #188
 10. **Bound every subprocess a hook starts** with the same `borromeanrings_bounded` wrapper
@@ -230,12 +246,12 @@ At most ten; each cites §2. No dates, no estimates, no targets.
 | Rule | Where it is enforced or recorded |
 |---|---|
 | **No API keys, no independent model calls, no token spend outside the user's agent** | ADR-0030 (critic must run through the user's own `claude`); `borromeanrings.toml` `[critic].judge_command = ""` (dormant by default); `docs/research/AGENT-TOOLING-SURVEY.md` §0 (on `feat/prior-art-gate`) records this as the constraint that disqualified most of the tooling ecosystem; `docs/HANDOFF.md` §3 "Agent-only"; `CHARTER.toml` `may_not` and `stop_when` (lands with #180) |
-| **No publishing, no push, no merge, no release without the maintainer's go** | `docs/HANDOFF.md` §3 "Draft before push" and §4 (never `--admin`); ADR-0007 (merge only on explicit invocation and a green gate); ADR-0057 §5: the marketplace file is a file in this repo, not a submission to any catalogue; ADR-0061 "Deferred to the maintainer": Dependabot, SLSA and pinned-Actions configs are written into the ADR, not applied |
-| **No CI growth, no packaging pipeline** | ADR-0061 Context (the maintainer's constraint verbatim); #170's review confirmed `.github/workflows/` untouched; ADR-0013 defers pip packaging |
+| **No publishing, no push, no merge, no release without the maintainer's go** | `docs/HANDOFF.md` §3 "Draft before push" and §4 (never `--admin`); ADR-0007 (merge only on explicit invocation and a green gate); ADR-0057 §5 (on `feat/claude-plugin`, lands with #166): the marketplace file is a file in this repo, not a submission to any catalogue; ADR-0061 "Deferred to the maintainer" (on `feat/supply-chain`, lands with #170): Dependabot, SLSA and pinned-Actions configs are written into the ADR, not applied |
+| **No CI growth, no packaging pipeline** | ADR-0061 Context (on `feat/supply-chain`, #170; the maintainer's constraint verbatim); #170's review confirmed `.github/workflows/` untouched; ADR-0013 defers pip packaging |
 | **Threshold-free** | `docs/HANDOFF.md` §3 "Threshold-free"; `src/meta_harness/ratchet.py` (non-regression only); ADR-0022 (mutation is a ratchet, not a score); #153's review grepped the matrices for numeric targets and found none; `CHARTER.toml` `may_not` "introduce an arbitrary numeric quality target" (#180) |
 | **Local guard on destructive and identity-breaking commands** | `.claude/hooks/pre_bash_guard.sh`: `rm -rf /`, fork bomb, `git reset --hard`, `DROP TABLE`, bare force-push, commit/push on a protected branch, wrong identity (ADR-0017/0019/0021); the guard is defence in depth, `06_git_identity` and #60 are the backstops |
 | **Re-author, never copy, CC BY-NC-SA material** | ADR-0020; epic #172; `docs/HANDOFF.md` §9 rule 1; `CHARTER.toml` `stop_when` (#180); mechanism proposed in #189 |
-| **Per-project opt-in; hooks inert elsewhere** | ADR-0013; every hook opens with `[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0`; #166's review verified all six |
+| **Per-project opt-in; hooks inert elsewhere** | ADR-0013; every hook opens with `[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0`; #166's review verified all six (the plugin packaging, ADR-0057, is on `feat/claude-plugin`) |
 | **Never touch user-level configuration from a task worktree** | `docs/HANDOFF.md` §3; `CHARTER.toml` `may_not` (#180); #150's review diffed `~/.claude/settings.json` before and after the suite to prove it |
 
 This document was produced under the same rules: docs-only branch, read-only `gh` calls

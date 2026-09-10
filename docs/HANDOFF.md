@@ -211,8 +211,12 @@ parent has not merged cannot be merged first.
 `borromeanrings.toml` `[checks].required`, `docs/CHECKS.md` rows, `src/meta_harness/adopt.py`
 RECOMMENDED, README's describe block (regenerate with `./describe.sh --readme` after #151).
 
-**Still building:** #189 provenance gate, #187 mutation-guard proof; #186 deliberately waits
-until the trunk merges (it refactors an idiom every check PR copies).
+  - #199 (#187 mutation-guard proof + evaluated count on the gate row)
+  - #200 (#189 provenance gate)
+
+**Deliberately waiting for the trunk to merge:** #186 (it refactors an idiom every check PR
+copies). **Maintainer-side or excluded by the constraints:** #60 (enforce_admins), #64 (wiki
+publishing), #68 (second-model critic), #59 (pre-public review).
 
 ## 11. Audit: checks that read a crashed tool as a clean pass (2026-09-10)
 

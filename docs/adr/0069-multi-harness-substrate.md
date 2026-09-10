@@ -63,7 +63,7 @@ Three constraints do not bend (HANDOFF §3): per-project opt-in, governance by r
 - **Fork the hooks per substrate** (`.codex/hooks/stop_gate.sh`, `.gemini/hooks/…`) —
   rejected. Six scripts × N substrates drift immediately; the dedupe, bounded-read and
   fail-open/closed decisions in `_lib.sh` and `stop_gate.sh` were each fixes for real
-  incidents (#53, the orphaned-shell bug) and would have to be re-fixed N times. It is also
+  incidents (PR #82, the orphaned-shell bug) and would have to be re-fixed N times. It is also
   the "copy" model ADR-0013 rejected, one level up.
 - **A governance daemon every substrate talks to** (a local server; substrates send events
   over a socket/HTTP; the daemon runs the hooks) — rejected for now. It adds a long-running

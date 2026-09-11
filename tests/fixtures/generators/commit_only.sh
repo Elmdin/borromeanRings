@@ -9,5 +9,5 @@
 set -uo pipefail
 
 project="${1:-$PWD}"
-git -C "$project" -c user.name=fixture -c user.email=f@x \
+git -C "$project" -c user.name=fixture -c user.email=f@x -c commit.gpgsign=false \
   commit -q --allow-empty -m "chore: a commit that changes no file"

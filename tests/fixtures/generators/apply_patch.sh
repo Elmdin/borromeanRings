@@ -32,7 +32,16 @@ if [ ! -f "$patch" ]; then
   exit 0
 fi
 
-git -C "$project" apply --verbose "$patch"
+# -c apply.whitespace=nowarn: the outcome must not depend on the machine's git config
+# any more than it depends on the machine's git version.
+git -C "$project" -c apply.whitespace=nowarn apply --verbose "$patch"
 code=$?
-[ "$code" -eq 0 ] && echo "applied $patch"
-exit "$code"
+if [ "$code" -ne 0 ]; then
+  # OUR marker, on stderr, in OUR words. A test that asserts git's phrasing here
+  # ("error: unrecognized input" on git 2.34, "error: No valid patches in input" on 2.55)
+  # is asserting a git release, not the property it means — that the driver captures what
+  # the generator wrote, on both streams. See ADR-0078.
+  echo "apply_patch: git apply refused $patch (exit $code)" >&2
+  exit "$code"
+fi
+echo "applied $patch"

@@ -183,13 +183,43 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    the tree alone, the identity recording, a re-hardcoded cap, counter clearing, and log
    capture). A sub-agent review of the finished commit then found one more, which is now
    fixed and tested: the pre-flight refusal was reachable from inside the loop. A second,
-   independent review then found the fail-open in decision 11 and five more defects, all
-   of which are the reason decisions 4, 7, 8, 9 and 11 read as they do. The lesson worth
+   independent review then found the fail-open in decision 12 and five more defects, all
+   of which are the reason decisions 4, 7, 8, 9 and 12 read as they do. The lesson worth
    keeping is not "review finds things" but *which* thing hid it: every fixture in the
    suite pre-created a `.gitignore` that the harness itself never writes, so the
    configuration under test was the rare one.
 
-11. **`.meta-harness/` is excluded from the snapshot identity whether or not the project
+11. **A test may assert this repo's words; it may not assert another tool's prose, nor
+   assume another tool's defaults.** CI went red on this change for one line:
+   `assert "unrecognized input" in log`. git 2.34 prints `error: unrecognized input`; git
+   2.55 prints `error: No valid patches in input`. The property meant — *the driver
+   captures what the generator wrote* — belongs to the driver, so the fixture now emits its
+   own marker on stderr and the test asserts that. It cannot be broken by a git release.
+
+   **This is ADR-0077's class, outside ADR-0077's reach**, and that is the line worth
+   keeping. ADR-0077 pins every tool whose output decides a verdict — but it pins them
+   through `pyproject.toml`, so it can only reach Python distributions. `git` is not one,
+   and neither are `bash` or coreutils. For tools that cannot be pinned the mitigation has
+   to be different in kind: **do not depend on their prose at all.** A pin makes the output
+   stable; when you cannot pin, stop reading the output.
+
+   Sweeping for the class rather than the instance found a second one, which had not yet
+   failed anywhere: `move_a_ref.sh` moved `refs/heads/main`, and on a machine whose
+   `init.defaultBranch` is `main` that ref already points at HEAD — the fixture would have
+   been a silent no-op proving nothing, on a configuration that is becoming the default. It
+   moves `refs/remotes/origin/dev` instead, which no `git init` creates. Assuming another
+   tool's *default configuration* is the same defect as assuming its *error text*: both
+   make the verdict a property of the machine. The fixtures now also pin
+   `apply.whitespace=nowarn` and `commit.gpgsign=false`, each of which would otherwise let
+   a contributor's global git config fail this suite. The whole integration file passes
+   under `init.defaultBranch=main` and `commit.gpgsign=true`, and each guard was shown red
+   with the guard removed.
+
+   (Recorded because it will be asked: `40_test` red in CI while green locally has now had
+   **two different causes** — this one, and #208's, which remains genuinely unexplained.
+   They are not one pattern, and this explanation does not carry over to that one.)
+
+12. **`.meta-harness/` is excluded from the snapshot identity whether or not the project
    gitignores it, because the driver must not depend on a file borromeanRings never
    writes.** The blocking defect of this change: `dirty_tree_oid` is `git add -A` plus
    `write-tree`, which includes untracked-not-ignored paths, and the driver's capture of
@@ -267,7 +297,7 @@ doing so forces the loop's rules out of both scripts and into one tested place.
   reads repo-root paths, which mutmut's copied working dir does not have (ADR-0022), so it
   is in `setup.cfg`'s ignore list. That trade is still right — un-ignoring it fails the
   lane closed with "MUTATION CHECK DID NOT RUN" — but this change is the evidence that it
-  is not free: the fail-open in decision 11 lived in the shell driver, where no mutant
+  is not free: the fail-open in decision 12 lived in the shell driver, where no mutant
   could reach it, and the integration tests that could have caught it all shared one
   unrepresentative fixture. The response is to keep moving decisions into Python, where
   mutation does see them (`verdict_mismatch`, `attempt_number`, `attempts_from_history`

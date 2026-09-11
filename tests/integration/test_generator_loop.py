@@ -14,6 +14,14 @@ made to N3 — it changes what the gate reads without changing a single file.
 Repo-root paths (``generate.sh``, ``.claude/hooks/``, ``tests/fixtures/``) are read here,
 which is why this file lives under ``tests/integration/`` and is excluded from mutmut's
 copied working dir — see ADR-0022 and ``setup.cfg``.
+
+**Assert our own words, never another tool's.** Every string matched below is produced by
+`generate.sh`, `stop_gate.sh` or a fixture in this repo. Matching git's error prose, or
+assuming git's default configuration, couples a verdict to a release or a machine: CI once
+went red here on nothing but `error: unrecognized input` (git 2.34) becoming `error: No
+valid patches in input` (git 2.55). ADR-0077 pins the tools whose output decides a verdict,
+but only Python distributions — git cannot be pinned that way, so for it the rule is not to
+depend on the prose at all. See ADR-0078.
 """
 
 from __future__ import annotations
@@ -121,7 +129,20 @@ def _project(
     subprocess.run(["git", "init", "-q", "."], cwd=root, check=True)
     subprocess.run(["git", "add", "-A"], cwd=root, check=True)
     subprocess.run(
-        ["git", "-c", "user.name=fixture", "-c", "user.email=f@x", "commit", "-qm", "init"],
+        # Identity and signing are pinned off: a fixture must not fail because the machine
+        # running it signs its commits, any more than it should care which git it has.
+        [
+            "git",
+            "-c",
+            "user.name=fixture",
+            "-c",
+            "user.email=f@x",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "init",
+        ],
         cwd=root,
         check=True,
     )
@@ -240,7 +261,12 @@ def test_no_change_escalates_immediately_without_gating(tmp_path: Path) -> None:
 
 def test_a_crashing_generator_is_generator_failed(tmp_path: Path) -> None:
     """A malformed patch makes git apply refuse; the driver reports that as the
-    generator's failure, keeps its output, and never pretends a gate ran."""
+    generator's failure, keeps its output, and never pretends a gate ran.
+
+    What is asserted about the log is the fixture's OWN marker, on stderr. Asserting git's
+    phrasing here — "error: unrecognized input" on git 2.34, "error: No valid patches in
+    input" on 2.55 — asserts a git release; the property meant is that the driver captures
+    what the generator wrote, on both streams, and that belongs to the driver."""
     project = _project(
         tmp_path / "crash",
         _LAYOUT_TOML,
@@ -253,7 +279,8 @@ def test_a_crashing_generator_is_generator_failed(tmp_path: Path) -> None:
     assert proc.returncode == EXIT_GENERATOR_FAILED
     assert _bundles(project) == [], "no receipt bundle for an attempt that produced nothing"
     log = _logs(project)[0].read_text(encoding="utf-8")
-    assert "unrecognized input" in log, "the generator's own output is kept as evidence"
+    assert "apply_patch: git apply refused" in log, "stderr is captured"
+    assert "handed: attempt=1" in log, "and stdout, in the same log"
 
 
 # --- §2.3: what the gate owns and the generator cannot touch ------------------
@@ -512,9 +539,13 @@ def test_an_inert_generator_escalates_however_the_evidence_area_is_treated(
 
 
 def test_moving_another_ref_is_a_change(tmp_path: Path) -> None:
-    """`git update-ref refs/heads/main HEAD` leaves branch, HEAD, tree and index identical
-    and moves `git merge-base HEAD main` — which six checks resolve their diff base from.
-    A generator that fixes one of those is not a generator that did nothing."""
+    """Creating `refs/remotes/origin/dev` leaves branch, HEAD, tree and index identical and
+    moves what six checks resolve their diff base from (`origin/dev dev origin/main main`).
+    A generator that fixes one of those is not a generator that did nothing.
+
+    The fixture deliberately does not move `refs/heads/main`: where `init.defaultBranch` is
+    `main`, that ref already points at HEAD and setting it to HEAD proves nothing. Assuming
+    another tool's default configuration is the same defect as assuming its error prose."""
     project = _project(tmp_path / "refs", _LAYOUT_TOML, {}, "move_a_ref.sh")
     proc = _drive(project)
 

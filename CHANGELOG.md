@@ -13,6 +13,13 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Toolchain pinning (ADR-0077): `[project.optional-dependencies].dev` pins every check
+  tool with `==`, `constraints-dev.txt` pins the full resolved closure, and CI installs
+  with `-c constraints-dev.txt`. `meta_harness.toolchain` + integration tests fail closed
+  when the gate runs a version other than the pinned one, when a version cannot be read,
+  or when a tool reachable from `checks/**.sh` has no pin. Each tool is observed through
+  **the argv its check uses** (`ruff` from `PATH`, `pytest` via `python3 -m`), because
+  those resolve to different installs on a machine with a user-site shim.
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

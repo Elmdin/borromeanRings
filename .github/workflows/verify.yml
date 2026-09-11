@@ -23,6 +23,30 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install the check toolchain
-        run: pip install -e ".[dev]"
+        # -c pins the whole resolved closure, not just the tools named in `dev`.
+        # Without it CI resolves whatever is newest and the gate's verdict becomes a
+        # function of the release calendar rather than of the code (ADR-0077).
+        run: pip install -e ".[dev]" -c constraints-dev.txt
       - name: Run borromeanRings gate (incl. CI-tier heavy checks)
         run: bash verify.sh --heavy
+      - name: Show the log of every check that did not pass
+        # The gate prints a one-line-per-check summary; the reason lives in the run
+        # dir, which a runner discards. Without this a red CI says only which check
+        # failed, and the diagnosis costs a full local re-investigation. Printed
+        # rather than uploaded so it costs no artifact storage.
+        if: failure()
+        run: |
+          run_dir=$(ls -1dt .meta-harness/receipts/*/ 2>/dev/null | head -1) || true
+          if [ -z "$run_dir" ]; then echo "no receipt dir — the gate died before it ran a check"; exit 0; fi
+          echo "run dir: $run_dir"
+          for receipt in "$run_dir"*.json; do
+            [ -e "$receipt" ] || continue
+            status=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('status','?'))" "$receipt")
+            case "$status" in
+              pass|noop) continue ;;
+            esac
+            id=$(basename "$receipt" .json)
+            echo "::group::$id ($status)"
+            tail -n 200 "$run_dir$id.log" 2>/dev/null || echo "(no log)"
+            echo "::endgroup::"
+          done

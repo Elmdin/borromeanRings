@@ -1,0 +1,60 @@
+# Exact versions of the check toolchain's full resolved closure (ADR-0077).
+#
+# The gate's verdict must not depend on which release happened to install.
+# CI applies this file: pip install -e ".[dev]" -c constraints-dev.txt
+# tests/integration/test_toolchain_pins.py fails closed if the gate ever runs
+# a version other than the one pinned here.
+#
+# To move a tool deliberately: change the pin, run the heavy lane, and fix what
+# the new release flags in the same PR. Never widen a pin to make a check pass.
+# `pip` is deliberately absent: constraining the installer during its own run.
+
+bandit==1.9.4
+boolean.py==5.0
+CacheControl==0.14.4
+certifi==2026.7.22
+charset-normalizer==3.4.9
+click==8.3.1
+coverage==7.13.4
+cyclonedx-python-lib==11.7.0
+defusedxml==0.7.1
+idna==3.7
+iniconfig==2.0.0
+libcst==1.8.6
+librt==0.8.1
+license-expression==30.4.4
+markdown-it-py==3.0.0
+mdit-py-plugins==0.6.1
+mdurl==0.1.2
+msgpack==1.1.2
+mutmut==3.6.0
+mypy==1.19.1
+mypy_extensions==1.1.0
+packageurl-python==0.17.6
+packaging==26.0
+pathspec==1.0.4
+pip-api==0.0.34
+pip-licenses==5.5.5
+pip-requirements-parser==32.0.1
+pip_audit==2.10.0
+platformdirs==4.9.4
+pluggy==1.5.0
+prettytable==3.18.0
+py-serializable==2.1.0
+Pygments==2.20.0
+pyparsing==3.1.4
+pytest==9.0.3
+pytest-cov==7.0.0
+PyYAML==6.0.2
+requests==2.33.0
+rich==14.3.3
+ruff==0.15.8
+setproctitle==1.3.7
+sortedcontainers==2.4.0
+stevedore==5.7.0
+textual==8.2.8
+tomli==2.4.1
+tomli_w==1.2.0
+typing_extensions==4.15.0
+urllib3==2.1.0
+wcwidth==0.8.2

@@ -108,6 +108,15 @@ not allowed.
 - (−) The pinned tools are exempt from the floating-closure argument, so a CVE in `ruff` or
   `mutmut` itself blocks the gate rather than being patched silently. Accepted: a security fix to
   a verdict-deciding tool is exactly the kind of change that should arrive as a reviewed bump.
+- (−) **`TOOLS` becomes a registry mirror, and that is a standing obligation on other changes.**
+  Any PR that adds a check invoking a new binary must, in the same change, add the `Tool` entry,
+  pin the distribution, and map the binary name to the distribution name if they differ. This is
+  the same shape as the README's check counts and `04_self_description`. Found by rehearsing the
+  merge queue rather than by review: #124 (`shellcheck`) and #198 (the TypeScript and Go check
+  sets) each trip it, and #170 trips the exact-pin rule by replacing pins with bounds. The
+  assertion message spells out all three steps so the failure is self-serving rather than a
+  puzzle, and `_DIST_OF_BINARY` is pre-seeded with `shellcheck -> shellcheck-py` so that merge
+  needs one line fewer.
 - (−) The pins record *this* machine's closure. A contributor on a different platform may find a
   version without a wheel for their Python. Exact pins are the safe case for a yanked release
   (PEP 592 still installs a yanked version when pinned exactly), but a platform mismatch would

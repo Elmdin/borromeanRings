@@ -24,7 +24,9 @@ queue is merged.
   `PATH`, `pytest` via `python3 -m`), because those resolve to different installs on a
   machine with a user-site shim.
 - CI prints the log of every check that did not pass, marking checks outside the required
-  set as advisory. A red gate used to name the failing check and nothing else.
+  set as advisory. A red gate used to name the failing check and nothing else. Adding a check that
+  invokes a new binary now also requires registering and pinning it; the failure message
+  names the three steps.
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

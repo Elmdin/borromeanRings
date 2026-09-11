@@ -32,6 +32,10 @@ _DECIDERS_NOT_INVOKED_DIRECTLY = {"coverage", "libcst"}
 _NOT_A_DISTRIBUTION = {"python3", "compileall", "timeout", "gtimeout"}
 # Import name → distribution name, where they differ.
 _DIST_OF_MODULE = {"pip_audit": "pip-audit"}
+# Binary name → distribution name, where they differ. Pre-seeded with the binaries that
+# in-flight branches will add, so their merge only has to extend TOOLS and the pins.
+# Inert until a check actually reaches for the binary.
+_DIST_OF_BINARY = {"shellcheck": "shellcheck-py"}
 
 
 def _dev_requirements() -> list[str]:
@@ -63,12 +67,36 @@ def _tools_named_by_the_checks() -> set[str]:
         found |= {
             _DIST_OF_MODULE.get(m, m) for m in re.findall(r"python3 -m ([A-Za-z0-9_]+)", text)
         }
-    return {canonical(t) for t in found - _NOT_A_DISTRIBUTION}
+    return {canonical(_DIST_OF_BINARY.get(name, name)) for name in found - _NOT_A_DISTRIBUTION}
 
 
 def test_the_tools_table_mirrors_what_the_checks_actually_invoke() -> None:
-    """A tool added to a check without a pin is a hole in the guarantee."""
-    assert _tools_named_by_the_checks() == {canonical(t.dist) for t in TOOLS}
+    """A tool added to a check without a pin is a hole in the guarantee.
+
+    This makes ``TOOLS`` a registry mirror, like the README's check counts. Extending it
+    is a standing obligation of any change that adds a check invoking a new binary, so
+    the failure has to say that outright rather than print two sets and leave it there.
+    """
+    found = _tools_named_by_the_checks()
+    known = {canonical(t.dist) for t in TOOLS}
+
+    unregistered = sorted(found - known)
+    assert not unregistered, (
+        f"checks invoke {unregistered}, which meta_harness.toolchain.TOOLS does not know "
+        f"about, so nothing pins {'it' if len(unregistered) == 1 else 'them'}. In the "
+        "SAME change: (1) add a Tool(dist, invocation) to TOOLS, where invocation is the "
+        "argv the check actually uses — `('x',)` for a PATH binary, "
+        "`('python3', '-m', 'x')` for a module; (2) pin the distribution with == in "
+        "[project.optional-dependencies].dev; (3) if the binary and distribution names "
+        "differ, add an entry to _DIST_OF_BINARY in this file."
+    )
+
+    orphaned = sorted(known - found)
+    assert not orphaned, (
+        f"TOOLS pins {orphaned}, which no check invokes any more. Remove the entry and "
+        "its pin, or restore the check that used it — an unused pin freezes a version "
+        "for no reason and will eventually block on a CVE."
+    )
 
 
 def test_every_dev_requirement_is_pinned_exactly() -> None:

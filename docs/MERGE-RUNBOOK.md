@@ -192,8 +192,8 @@ Unchanged from HANDOFF §10 except for one insertion at the front. Merge base-fi
 26.  #160  feat/api-contracts
 27.  #198  feat/multi-language
 28.  #162  feat/context-budget
-29.  #168  fix/research-skill-tokens        } merge together (#168's fix is in #182)
-30.  #182  feat/quote-fidelity              }
+29.  #168  fix/research-skill-tokens        (stands alone since ddd8cfc — see §4.0)
+30.  #182  feat/quote-fidelity
 31.  #163  feat/verdict-evidence
 32.  #164  fix/a11y-noop                    <-- must precede #179; see §5
 33.  #179  feat/archetype-profiles
@@ -328,6 +328,31 @@ merge from #167 onward. All but the `src/` ones are pure additions.
 ---
 
 ## 4. The gates that went red, and why
+
+### 4.0 Corrections made after the rehearsal (2026-09-11)
+
+Two statements below turned out to be wrong when the red PRs were actually fixed. They are
+corrected here rather than deleted, so the reasoning that produced them stays visible.
+
+- **§4.1's fix for #126 is wrong for CI.** It asserts `"identity" not in out.lower()`, which
+  fixes the local `dev`/`main` case only. On CI the checkout has no `user.name` or
+  `user.email`, so the guard's configured-identity rule refuses every commit with **"Wrong git
+  identity"** — and that text contains "identity", so the suggested assertion still fails.
+  It would also have left the override test passing in CI **for the wrong reason**. The real
+  fix, on the branch at `aa20aee`, runs the tests in a throwaway governed project whose
+  configured identity matches the declared one, with HEAD on a work branch. That keeps the
+  negative control at full strength — nothing may deny a normal commit — rather than
+  weakening it until it passes. Do not apply §4.1's snippet.
+- **#168 and #182 no longer need to merge together.** #168 now carries its own fix (`ddd8cfc`):
+  the test that read `.claude/skills/...` outside mutmut's sandbox moved to
+  `tests/integration/`, byte-identical to #182's version. When #182 merges, drop its CHANGELOG
+  line "moved from `tests/unit/...`", which becomes inaccurate. Still valid: take #182's
+  version of the research `SKILL.md`.
+- **The #122 subtree is a stack, not a fan.** `dev` <- #122 <- #124 <- #125 <- #126 <- #127.
+  #125's red `60_mutation` was #124's, fixed on #124 by `679106b` and simply never pulled into
+  #125. Merge each onto its parent's latest head before trusting its CI result.
+
+All six PRs that were red are now green in CI, except #207, which needs #216 (ruff drift).
 
 ### 4.1 #126 — `test_a_normal_commit_is_still_allowed` fails on any protected branch
 

@@ -246,3 +246,68 @@ run_check helper (00/10/20/30/50 in every lane); 60_mutation (explicit evaluated
 **Receipt-dir rule (from PR #198):** never write a non-receipt file named `*.json` into
 `$RECEIPT_DIR`; every `*.json` glob over the run dir treats it as a receipt. Scratch output
 takes a non-`.json` suffix. #186 adds the reader-side guard.
+
+## 12. Toolchain determinism (2026-09-10) — why PRs kept going red in CI
+
+**Read this before diagnosing any "green locally, red in CI" report.** It was not the
+fast/heavy split, and it was not the PR's diff.
+
+The check toolchain was declared with lower bounds (`ruff>=0.6`, `mypy>=1.10`), so CI's
+`pip install -e ".[dev]"` resolved whatever was newest on the runner while this machine
+kept whatever the shared conda environment had. **Every tool differed:**
+
+| tool | here | CI |
+|---|---|---|
+| ruff | 0.15.8 | 0.16.7 |
+| mypy | 1.19.1 | 2.3.1 |
+| pytest | 9.0.3 | 9.1.1 |
+| mutmut | 3.6.0 | 3.7.0 |
+| coverage | 7.13.4 | 7.16.0 |
+
+That turned #207 red on `10_format` (0.16.7 reformats what 0.15.8 accepts) and #208 red on
+`40_test`. Neither diff was at fault. **Diagnosis order for any future case: compare tool
+versions first.** `gh run view <id> --log` prints pip's `Successfully installed` line.
+
+PR #216 (ADR-0077, branch `fix/pin-the-toolchain`, based on `dev`, CI green) fixes it. Three
+things in it are worth carrying forward.
+
+**An upper bound at the next major is not sufficient.** #170's `78_pins` rule would have
+caught the mypy major jump but not the ruff minor bump, which is the one that broke. A
+formatter's output is not a semantically versioned interface. A tool whose *output is the
+verdict* needs an exact pin.
+
+**Pin the deciders, not the closure.** The first version pinned all 49 packages via a
+`constraints-dev.txt`. CI rejected it: that also froze `click`, `idna`, `msgpack` and
+`urllib3` at versions with known CVEs and `70_pip_audit` went red. "Pin everything" and
+"keep dependencies patched" are in direct conflict; the tie-breaker is that a pin exists to
+stop the release calendar changing a *verdict*. So only the eight check tools plus
+`coverage` (measures the ratchet) and `libcst` (generates mutmut's mutants) are pinned.
+Note this failure mode is invisible locally: `70_pip_audit` always fails here on unrelated
+conda packages, so its signal gets discarded as noise. **CI is the only place that lane
+means anything.**
+
+**Observe a tool the way its check invokes it.** The checks disagree — `10_format` runs
+`ruff` from `PATH`, `40_test` runs `python3 -m pytest` — and on this machine those resolve
+to *different installs of pytest* (a user-site shim at 9.0.2 shadowing site-packages at
+9.0.3). A drift check reading `importlib.metadata` would certify a version the gate never
+runs. `meta_harness.toolchain.TOOLS` therefore stores an argv per tool. Filed as #214 to
+make the invocations uniform.
+
+**CI now prints the log of every check that did not pass** (`.github/workflows/verify.yml`),
+marking non-required checks as advisory. Before this, a red CI named the failing check and
+nothing else, and every diagnosis cost a full local reproduction. Note `06_git_identity`
+fails on this repo's history by design (ADR-0019, local-guard-only for the public repo);
+it is outside the required set and the step labels it advisory.
+
+### Two hazards this turned up, both filed, neither fixed
+- **#214** — checks reach tools two different ways (`PATH` vs `python3 -m`). Pick one.
+- **#215** — a stale untracked copy of `checks/` sits at the repo root as `meta_harness/`,
+  29 shell files from 2026-08-15, untracked *and* unignored, already diverged from the real
+  `checks/`. Not deleted: not mine to remove and nothing has confirmed it is unreferenced.
+
+### Rules this adds to the builder brief
+- **Any new dev dependency is pinned exactly.** A test fails closed on an unpinned one; it
+  caught `html5lib>=1.1` arriving from #211 while #216 was open.
+- **The receipt directory contains non-receipts.** `70_pip_audit.report.json` shares it.
+  Anything iterating that directory must identify a receipt by its `check` field, not by
+  the `.json` extension. New code reproduced this known hazard on its first run.

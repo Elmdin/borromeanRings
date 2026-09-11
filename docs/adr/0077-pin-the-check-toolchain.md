@@ -37,18 +37,37 @@ certify 9.0.3 while `10_format`-style `PATH` resolution could run something else
 observation must mirror each check's own invocation.
 
 ## Decision
-Pin the check toolchain exactly, verify the pin against what the gate actually runs, and record
-the whole closure.
+Pin exactly **what decides a verdict**, verify the pin against what the gate actually runs, and
+leave the rest of the closure free.
 
 1. `[project.optional-dependencies].dev` pins each tool with `==`, not `>=`.
-2. `constraints-dev.txt` pins the full resolved closure (49 distributions), including transitive
-   tools like `coverage` that no direct requirement names but whose version moves a ratchet. CI
-   installs with `pip install -e ".[dev]" -c constraints-dev.txt`.
-3. `meta_harness.toolchain` holds the pure comparison, and a `TOOLS` table records each tool
+2. Two transitive packages are named in `dev` as well, because they decide verdicts even though
+   no check invokes them: `coverage`, which measures the ratchet, and `libcst`, which generates
+   mutmut's mutants. Either one moving changes a score. Depending on them is real, so it is
+   declared rather than inherited.
+3. Everything else in the closure is left to resolve current. See the correction below.
+4. `meta_harness.toolchain` holds the pure comparison, and a `TOOLS` table records each tool
    alongside **the argv the gate uses to reach it**. `tests/integration/test_toolchain_pins.py`
    observes each tool through that argv and fails closed on any mismatch, on an unreadable
-   version, and on any gate tool left unpinned. A separate test derives the tool set from
-   `checks/**.sh`, so adding a tool to a check without pinning it fails the suite.
+   version, on any gate tool left unpinned, and on any `dev` requirement that is not exact. A
+   separate test derives the tool set from `checks/**.sh`, so adding a tool to a check without
+   pinning it fails the suite.
+
+> **Corrected by CI before merge.** The first version of this decision pinned the **full resolved
+> closure** (49 distributions) via a `constraints-dev.txt`. CI rejected it, and was right to.
+> Freezing the closure to the maintainer's machine also froze `click`, `idna`, `msgpack` and
+> `urllib3` at versions carrying known CVEs, and `70_pip_audit` went red naming all four. The
+> local heavy lane had not caught it: `70_pip_audit` always fails locally on unrelated packages
+> in a shared conda environment, so its signal was being discarded as noise.
+>
+> The lesson is that "pin everything" and "keep dependencies patched" are in direct conflict, and
+> the tie-breaker is what the pin is *for*. A pin exists to stop the release calendar changing a
+> verdict. Networking and CLI plumbing does not change a verdict; it only carries vulnerabilities
+> forward. So the line is drawn at the deciders, and the constraints file was deleted.
+>
+> Accepting the CVEs through `[audit].ignore_vulns` was the other way out and was rejected: that
+> is re-baselining a ratchet to make a check pass, which this project forbids on principle and
+> which this ADR forbids by name two paragraphs below.
 4. CI prints the log of every check that did not pass. The gate's summary names the failing
    check but not the reason, and a runner discards the run dir; diagnosing the two failures above
    required reproducing them locally from scratch.
@@ -62,11 +81,12 @@ not allowed.
   the evidence above: it does not constrain a formatter's minor releases, which is the case that
   broke. Kept as the floor for *runtime* dependencies, where an exact pin would over-constrain
   consumers; the two rules compose rather than conflict.
-- **A full lockfile (`pip-tools`, `uv lock`)** — rejected for now: both need a tool this project
-  does not install, and `constraints-dev.txt` already pins the same closure with stdlib only. When
-  [PR #170](https://github.com/Elmdin/borromeanRings/pull/170) lands, this file is the natural
-  value for `[supply_chain].lockfile`, which turns `76_lockfile` from an honest `noop` into a real
-  gate. Recorded so the follow-up is not lost.
+- **A full lockfile (`pip-tools`, `uv lock`), or a hand-written constraints file** — tried, then
+  rejected on the evidence above: a frozen closure is a frozen set of vulnerabilities, and this
+  repo has no mechanism that would ever refresh it. A lockfile is the right tool where something
+  regenerates it on a schedule; nothing here does. That leaves
+  [PR #170](https://github.com/Elmdin/borromeanRings/pull/170)'s `[supply_chain].lockfile`
+  correctly set to `""` and `76_lockfile` an honest `noop`, which is the accurate report.
 - **Let CI float and pin only locally** — rejected: it inverts QAS-2. The clean-runner verdict is
   the authoritative one, so it is the one that must be reproducible.
 - **Compare versions via `importlib.metadata`** — rejected: it reports what is importable, not
@@ -82,10 +102,16 @@ not allowed.
   verified against. CI had been running 3.7.0, so that workaround's justification and its runtime
   had silently come apart.
 - (−) Pins go stale, and nothing here bumps them. That is deliberate: an automated bump would
-  re-introduce the unannounced-change problem. The cost is a periodic manual sweep.
+  re-introduce the unannounced-change problem. The cost is a periodic manual sweep, and
+  `70_pip_audit` is what will force it — a pinned tool that develops a CVE turns the heavy lane
+  red until someone moves the pin, which is the correct pressure.
+- (−) The pinned tools are exempt from the floating-closure argument, so a CVE in `ruff` or
+  `mutmut` itself blocks the gate rather than being patched silently. Accepted: a security fix to
+  a verdict-deciding tool is exactly the kind of change that should arrive as a reviewed bump.
 - (−) The pins record *this* machine's closure. A contributor on a different platform may find a
   version without a wheel for their Python. Exact pins are the safe case for a yanked release
   (PEP 592 still installs a yanked version when pinned exactly), but a platform mismatch would
   need the pin widened for that marker, deliberately.
-- (−) `constraints-dev.txt` must be regenerated whenever a dependency is added. The integration
-  test fails closed if it is not, so the failure is loud rather than silent.
+- (−) Adding a dev dependency now requires pinning it. The integration test fails closed if it is
+  not pinned, so the failure is loud rather than silent — it caught `html5lib>=1.1` arriving from
+  #211 while this branch was open.

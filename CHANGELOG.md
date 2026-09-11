@@ -13,13 +13,18 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
-- Toolchain pinning (ADR-0077): `[project.optional-dependencies].dev` pins every check
-  tool with `==`, `constraints-dev.txt` pins the full resolved closure, and CI installs
-  with `-c constraints-dev.txt`. `meta_harness.toolchain` + integration tests fail closed
-  when the gate runs a version other than the pinned one, when a version cannot be read,
-  or when a tool reachable from `checks/**.sh` has no pin. Each tool is observed through
-  **the argv its check uses** (`ruff` from `PATH`, `pytest` via `python3 -m`), because
-  those resolve to different installs on a machine with a user-site shim.
+- Toolchain pinning (ADR-0077): `[project.optional-dependencies].dev` pins with `==`
+  every package that decides a verdict — the check tools, plus `coverage` (measures the
+  ratchet) and `libcst` (generates mutmut's mutants). The rest of the closure stays free
+  to resolve current, because pinning it froze four packages at versions with known CVEs
+  and `70_pip_audit` correctly went red. `meta_harness.toolchain` + integration tests fail
+  closed when the gate runs a version other than the pinned one, when a version cannot be
+  read, when a `dev` requirement is not exact, or when a tool reachable from `checks/**.sh`
+  has no pin. Each tool is observed through **the argv its check uses** (`ruff` from
+  `PATH`, `pytest` via `python3 -m`), because those resolve to different installs on a
+  machine with a user-site shim.
+- CI prints the log of every check that did not pass, marking checks outside the required
+  set as advisory. A red gate used to name the failing check and nothing else.
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

@@ -19,11 +19,13 @@ from meta_harness.toolchain import (
     parse_pins,
     parse_version,
     render,
-    unpinned,
 )
 
 REPO = Path(__file__).resolve().parents[2]
-CONSTRAINTS = REPO / "constraints-dev.txt"
+
+# Transitive, but they decide a verdict: coverage measures the ratchet and libcst
+# generates mutmut's mutants. Declared in `dev` so they can be pinned.
+_DECIDERS_NOT_INVOKED_DIRECTLY = {"coverage", "libcst"}
 
 # Not pinnable from PyPI: the interpreter, stdlib modules, and the coreutils
 # binaries `checks/_lib.sh` bounds each check with.
@@ -69,29 +71,12 @@ def test_the_tools_table_mirrors_what_the_checks_actually_invoke() -> None:
     assert _tools_named_by_the_checks() == {canonical(t.dist) for t in TOOLS}
 
 
-def test_a_constraints_file_pins_the_whole_resolved_closure() -> None:
-    """Direct pins alone leave transitive tools (e.g. coverage) free to move."""
-    assert CONSTRAINTS.is_file(), "constraints-dev.txt is missing"
-    pins = parse_pins(CONSTRAINTS.read_text(encoding="utf-8"))
-    assert "coverage" in pins, "the coverage ratchet depends on coverage's own version"
-    assert len(pins) > len(TOOLS)
-
-
-def test_every_gate_tool_is_pinned_exactly_in_both_places() -> None:
-    """An upper bound at the next major is not enough: ruff reformats in minors."""
-    constraints = parse_pins(CONSTRAINTS.read_text(encoding="utf-8"))
-    declared = parse_pins("\n".join(_dev_requirements()))
-    assert unpinned(constraints) == (), render((), unpinned(constraints))
-    assert unpinned(declared) == (), render((), unpinned(declared))
-
-
-def test_every_dev_requirement_is_pinned_and_present_in_the_constraints() -> None:
+def test_every_dev_requirement_is_pinned_exactly() -> None:
     """Adding a dev dependency without pinning it reopens the whole hole.
 
     Not limited to the gate's own tools: a test-only dependency (a parser used as a
     conformance oracle, say) decides test outcomes, so its version decides verdicts too.
     """
-    constraints = parse_pins(CONSTRAINTS.read_text(encoding="utf-8"))
     declared = _dev_requirements()
     pinned = parse_pins("\n".join(declared))
     named = {canonical(re.split(r"[<>=!~;\[]", line, maxsplit=1)[0].strip()) for line in declared}
@@ -99,25 +84,14 @@ def test_every_dev_requirement_is_pinned_and_present_in_the_constraints() -> Non
     unpinned_here = sorted(named - set(pinned))
     assert unpinned_here == [], f"dev requirements without an exact pin: {unpinned_here}"
 
-    absent = sorted(named - set(constraints))
-    assert absent == [], f"pinned in pyproject but missing from constraints-dev.txt: {absent}"
-
-
-def test_pyproject_and_the_constraints_file_agree() -> None:
-    constraints = parse_pins(CONSTRAINTS.read_text(encoding="utf-8"))
-    declared = parse_pins("\n".join(_dev_requirements()))
-    disagree = {
-        name: (version, constraints[name])
-        for name, version in declared.items()
-        if name in constraints and constraints[name] != version
-    }
-    assert disagree == {}
+    missing = sorted(_DECIDERS_NOT_INVOKED_DIRECTLY - named)
+    assert missing == [], f"a verdict-deciding package is no longer declared: {missing}"
 
 
 @pytest.mark.parametrize("tool", TOOLS, ids=lambda t: t.dist)
 def test_the_gate_runs_the_pinned_version_of_each_tool(tool) -> None:  # type: ignore[no-untyped-def]
     """Observed the way the check invokes it — a PATH shim can shadow site-packages."""
-    declared = parse_pins(CONSTRAINTS.read_text(encoding="utf-8"))
+    declared = parse_pins("\n".join(_dev_requirements()))
     observed = {canonical(tool.dist): _observe(tool.invocation)}
     found = drifts(declared, observed, (tool,))
     assert found == (), render(found)

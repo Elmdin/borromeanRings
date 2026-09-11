@@ -28,7 +28,9 @@ Add `checks/_py.sh` — a tiny sourced file defining `borromeanrings_py`, the on
 the gate starts a **trusted, verdict-deciding** Python:
 
 ```sh
-borromeanrings_py() { (cd / && PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 "$@"); }
+borromeanrings_py() {
+  (cd / && PYTHONNOUSERSITE=1 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 "$@")
+}
 ```
 
 `/` is root-owned, so nothing can be planted there; `PYTHONPATH` still points at
@@ -36,6 +38,17 @@ borromeanRings' own `src`, which is how `meta_harness` resolves. `verify.sh` and
 `checks/_lib.sh` both source it (checks get it transitively — every check already
 sources `_lib.sh`). Every project path is already passed as an absolute argument, so
 the `cd /` never loses one.
+
+`cd /` closes the **project-directory** shadow completely, but not every interpreter
+shadow: a `usercustomize.py` in the gate-running user's site-packages runs at startup
+and is on `sys.path` even after `cd /` (found in #224 review). `PYTHONNOUSERSITE=1`
+suppresses user-site (and `usercustomize`/`sitecustomize` from it) **without** dropping
+`PYTHONPATH` — the reason `-I` is unacceptable. `meta_harness` resolves from
+`PYTHONPATH`, never user-site, so nothing the gate needs is lost. This narrows, but
+does not fully eliminate, interpreter-level shadowing (a hook written into the
+*system* site-packages, or a `.pth` there, would still load — but that needs a
+privileged write the governed project cannot perform; project-level writes are the
+threat this addresses).
 
 Routed: the four calls #222 names (verdict, language detect, `emit_receipt`,
 `borromeanrings_project_cfg`) **plus** every borromeanRings-owned analysis heredoc whose
@@ -58,25 +71,42 @@ version-agnostic fix.
 - **`cd "$BORROMEANRINGS_HOME"` instead of `/`** — rejected: when borromeanRings governs
   itself, `BORROMEANRINGS_HOME == PROJECT_ROOT`, so a `json.py` planted in its own root
   would still shadow. `/` is neutral under self-governance too.
-- **Route every `python3` in every check, including the tool runs** — rejected. The
-  tool runs (`00_build` compileall+import, `30_typecheck` mypy, `40_test` pytest,
-  `60_mutation` mutmut, `70_pip_audit`, `72_licenses`) execute the **project's own
-  code** by design; that code is already trusted regardless of cwd (a `conftest.py`
-  forges pytest's result — #218), so routing them buys no security and would break test
-  and tool discovery (pytest must run from `PROJECT_ROOT`). Closing *that* class is the
-  M7 executor-isolation milestone, out of scope here — the same limit that keeps the
-  Stop-hook half of #222 (forged `last_green_state`, hook markers) open.
+- **Route every `python3` in every check, including the tool runs** — mostly rejected,
+  with one exception. The tool runs `30_typecheck` (mypy), `40_test` (pytest),
+  `60_mutation` (mutmut), `70_pip_audit`, `72_licenses`, and the `import <package>` half
+  of `00_build` execute the **project's own code** by design; that code is already
+  trusted regardless of cwd (a `conftest.py` forges pytest's result — #218), so routing
+  buys no security and would break test/tool discovery (pytest must run from
+  `PROJECT_ROOT`). Closing *that* class is the M7 executor-isolation milestone — the
+  same limit that keeps the Stop-hook half of #222 open. **Exception (#224 review):**
+  `00_build`'s **compileall** step is stdlib-only, takes a path argument, and never
+  imports project code, so `borromeanrings_py -m compileall "$abs_src"` catches the same
+  syntax errors while defeating a planted `compileall.py` — it *is* routed. Only the
+  `import <package>` half of `00_build` remains on the project path.
 - **Make `07_layout` flag stray root `.py`** — worthwhile but orthogonal; it narrows
   discoverability, it does not stop the shadowing. Deferred.
 
 ## Consequences
 - (+) The gate's verdict can no longer be forged by a stdlib/`meta_harness` name planted
-  in the governed project. `tests/integration/test_verify_no_sys_path_forge.py` plants a
-  `json.py`, proves it wins the import race, and asserts a failing tree still reports
-  FAIL — RED on pre-fix `dev`, GREEN after.
+  **in the governed project directory** — the `sys.path[0]` (cwd) shadow — name-
+  independently (json / tomllib / hashlib / … all closed). `PYTHONNOUSERSITE=1`
+  additionally closes the user-site startup-hook vector.
+  `tests/integration/test_verify_no_sys_path_forge.py` plants a `json.py`, proves it
+  wins the import race, and asserts a failing tree still reports FAIL (RED on pre-fix
+  `dev`, GREEN after); a second test forges via a `usercustomize.py` and asserts
+  `PYTHONNOUSERSITE=1` stops it; a third routes `00_build`'s compileall against a
+  planted `compileall.py`.
 - (+) One helper now owns "how the gate starts trusted Python", mirroring the hooks'
-  `borromeanrings_py`; new trusted calls have an obvious, safe front door.
+  `borromeanrings_py`; new trusted calls have an obvious, safe front door. A static
+  guard test keeps the 18 routed heredocs on the helper and bans `-I`/`-P`.
+- (−) **Not full interpreter isolation.** This closes the project-directory shadow
+  completely and reduces interpreter-level shadowing (user-site closed); a hook the
+  gate's own tools write **as the same user** (e.g. a `conftest.py` in an earlier
+  unrouted check writing a `.pth`/`sitecustomize` into a writable *system* site during
+  the same gate run) is the M7 executor-isolation boundary, not closed here. Do not read
+  this as "the verdict cannot be forged" — read it as "the project directory can no
+  longer forge it, and user-site no longer can".
 - (−) The Stop-hook half of #222 (in-tree records the hook trusts without
-  authentication) remains, blocked on M7. This PR closes only the `verify.sh`
+  authentication) also remains, blocked on M7. This PR closes only the `verify.sh`
   self-certification, which is independently fixable and is the higher-severity half
   (it forges the CI merge gate, not just the local loop).

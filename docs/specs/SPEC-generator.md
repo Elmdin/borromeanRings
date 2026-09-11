@@ -59,7 +59,7 @@ digest* — the *what*, not the *who*.
 |---|---|---|---|---|
 | **N1 Deliver the verdict** | the gate's summary text and the receipt bundle location reach the generator after every failed attempt | gate → generator | stderr + exit 2 from the Stop hook; the bundle is under `.meta-harness/receipts/<run_id>/` and `last_verdict.json` names `run_id` | argv 2 = path to `last_verdict.json` (`""` on the first attempt); the bundle path is inside it |
 | **N2 Request a retry, naming the failing checks** | "attempt n of CAP; these checks failed" | gate → generator | the same stderr text (check names come from the summary rows) | env `BORROMEANRINGS_FAILING_CHECKS` (comma-separated ids), `BORROMEANRINGS_ATTEMPT`, `BORROMEANRINGS_CAP` |
-| **N3 "I have written a change"** | the signal that the tree is ready to gate | generator → gate | the Stop event | process exit 0 **with the gated state changed** — the triple `(branch, head, dirty-tree OID)`, not the tree alone; see the correction below |
+| **N3 "I have written a change"** | the signal that the tree is ready to gate | generator → gate | the Stop event | process exit 0 **with the tree changed** (the gate compares the dirty-tree OID before and after, `SPEC-executor.md` §2.2) |
 | **N4 "I cannot / will not"** | the generator gives up | generator → gate | none — the agent can only stop; the cap does the giving up | exit 0 with the tree **unchanged** ⇒ escalate now (retrying an idempotent generator is wasted attempts); non-zero exit ⇒ `generator-failed`, escalate now |
 | **N5 Bounded retry, then a human** | at most CAP attempts per attempt key, then escalation | gate-owned | `CAP=3`, counter in `.meta-harness/stop_attempts/<session_id>`, reset on green or at escalation | same CAP, same counter directory keyed by the driver's run key; the driver's exit is one of `green` / `escalated` / `generator-failed` |
 | **N6 Identity in the verdict** | which generator produced the judged change | generator → verdict | `stop_gate.sh` would export `BORROMEANRINGS_GENERATOR=claude-code:<session_id>` before running the gate — **not built; an acceptance criterion of #202** | the driver exports `headless:<basename of command>` |
@@ -74,25 +74,11 @@ adapter under a different event source.
 
 ### 2.3 What the gate owns and the generator cannot touch
 
-> **Corrected while building #202 (PR #217).** N3 said "the tree changed", meaning the
-> dirty-tree OID before and after. That is too narrow, and it fails in the direction that
-> costs an attempt. Four checks — `08_branch`, `09_commits`, `11_changelog`, `13_adr` — read
-> the branch and the history, not the working tree. So a generator that amends a commit
-> message, or moves a branch, changes what the gate sees while changing no file at all. A
-> tree-only rule reports "you did nothing" and escalates, when the fix is already in place.
->
-> The comparison is therefore over `(branch, head, dirty-tree OID)`. #217 implements it and
-> `commit_only.sh` is the fixture that discriminates: it changes the history and nothing
-> else, and it must read as a change.
-
 - **CAP** — one constant, one place (today `CAP=3` in `stop_gate.sh`; #202 moves it where
   both adapters read it). A generator cannot raise it.
 - **The attempt counter** — lives under `.meta-harness/`, which the generator must not
   write. A generator that resets its counter has forged an attempt, and the retry bound is
-  the only thing standing between a looping agent and a human's afternoon. **The prohibition
-  now names its consequence** (it did not, which #202 had to decide): a write under
-  `.meta-harness/` is reported to the loop as a synthetic exit 125 ⇒ `generator-failed`, and
-  escalates. A rule with no stated consequence is advice.
+  the only thing standing between a looping agent and a human's afternoon.
 - **The no-op skip** — the gate's, keyed on the gated-input hash. A generator cannot
   declare "nothing changed"; the hash says.
 - **When it is done** — the gate says green; the generator's "done" is a Stop event or an
@@ -161,19 +147,8 @@ scenarios, each an integration test that is shown to fail when the loop regresse
 | no-change | no patch files | `escalated` after attempt 1 | exactly 0 gate runs beyond the baseline |
 | crash | `1.diff` is malformed ⇒ `git apply` exits 1 | `generator-failed` | the generator's log is captured; no receipt bundle for the failed attempt |
 
-A fifth, negative fixture edits a receipt in a prior bundle.
-
-> **Corrected while building #202 (PR #217).** As written this is unreachable: no later
-> verdict reads an earlier bundle, because every gate run writes a fresh receipt dir. The
-> property is real but the scenario was not, so what #217 demonstrates is the property
-> itself — the edited bundle stops verifying — rather than a later verdict noticing it.
-
-A fourth driver outcome, **`refused`** (exit 3), was added for "there is nothing to drive".
-The spec described the driver refusing to run without naming the outcome or its boundary.
-**Refusal is pre-flight only**: a review of #217 found `refuse()` reachable from inside the
-loop after real attempts, where an orchestrator may read exit 3 as "skip this worktree" —
-a fail-open path. Aborting mid-loop is a separate outcome that escalates and clears the
-counter.
+A fifth, negative fixture edits a receipt in a prior bundle: the next verdict over that
+bundle is `!TAMPERED` — the §4 property, demonstrated rather than asserted.
 
 ## 4. What is NOT a generator concern (and what the gate never takes from it)
 

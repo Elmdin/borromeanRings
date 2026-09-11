@@ -555,21 +555,29 @@ def test_a_real_title_is_unaffected_by_an_svg_title_elsewhere() -> None:
     assert a11y_findings(html) == []
 
 
-def test_headings_inside_svg_and_math_are_not_the_documents_headings() -> None:
-    svg = DOC.format("<h1>Real</h1><svg><h1>not a heading</h1></svg>")
-    math = DOC.format("<h1>Real</h1><math><h1>not a heading</h1></math>")
-    assert a11y_findings(svg, require=HEADING) == []
-    assert a11y_findings(math, require=HEADING) == []
+def test_headings_break_out_of_foreign_content_and_are_real_headings() -> None:
+    # h1-h6 are in the parsing spec's breakout list (verified against html5lib): a
+    # browser hoists <svg><h1> out into a genuine HTML heading, so it is the page's.
+    assert a11y_findings(DOC.format("<svg><h1>Real</h1></svg>"), require=HEADING) == []
+    assert a11y_findings(DOC.format("<math><h1>Real</h1></math>"), require=HEADING) == []
+    # ...which also means a second one really is a duplicate.
+    duplicate = DOC.format("<h1>Real</h1><svg><h1>Also</h1></svg>")
+    assert _located(a11y_findings(duplicate, require=HEADING)) == [("heading_structure", 1)]
+
+
+def test_a_breakout_tag_closes_the_whole_foreign_subtree() -> None:
+    # The <svg> is popped, not just the heading: everything after it is HTML again.
+    # So this <title> is the document's title, and this <input> is a real control.
+    titled = '<html lang="en"><body><svg><h1>Real</h1><title>Home</title></svg></body></html>'
+    assert a11y_findings(titled) == []
+    control = '<html lang="en"><body><svg><h1>Real</h1><input></svg></body></html>'
+    assert _rules(a11y_findings(control, require=CONTROL)) == {"control_label"}
 
 
 def test_a_heading_in_an_html_integration_point_is_a_real_heading() -> None:
-    # <foreignObject> resumes HTML inside SVG, so this really is the page's <h1>.
+    # <foreignObject> resumes HTML inside SVG — a different route to the same answer.
     inside = DOC.format("<svg><foreignObject><h1>Real</h1></foreignObject></svg>")
     assert a11y_findings(inside, require=HEADING) == []
-    # ...and without it the document has no <h1> at all.
-    assert _located(a11y_findings(DOC.format("<svg><h1>x</h1></svg>"), require=HEADING)) == [
-        ("heading_structure", None)
-    ]
 
 
 def test_a_control_inside_svg_is_not_a_form_control() -> None:
@@ -642,3 +650,12 @@ def test_a_controls_own_content_is_its_value_not_its_name() -> None:
     assert _located(a11y_findings("<textarea>hello</textarea>", require=CONTROL)) == [
         ("control_label", 1)
     ]
+
+
+def test_a_label_inside_svg_is_not_an_html_label() -> None:
+    # <label> is not in the breakout list (html5lib confirms it stays in the SVG
+    # namespace), so it labels nothing — by for= or by wrapping.
+    associated = '<svg><label for="q">Name</label></svg><input id="q">'
+    assert _located(a11y_findings(associated, require=CONTROL)) == [("control_label", 1)]
+    wrapping = "<svg><label><foreignObject><input></foreignObject></label></svg>"
+    assert _located(a11y_findings(wrapping, require=CONTROL)) == [("control_label", 1)]

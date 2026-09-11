@@ -33,6 +33,18 @@ queue is merged.
   ("click here") list either: link purpose *in context* is a judgement, not a fact.
 
 ### Fixed
+- `15_a11y` suppressed headings inside `<svg>`/`<math>`, which is the **opposite** of what
+  a browser does (PR #211 follow-up review). `h1`–`h6` are in the HTML parsing spec's
+  foreign-content *breakout* list: a browser hoists `<svg><h1>` out into a genuine
+  heading and closes the `<svg>` doing it. The old behaviour both invented a "no `<h1>`"
+  finding for a page whose heading sat in an `<svg>` and hid a duplicate `<h1>`. The
+  **whole** breakout list is now implemented (`b, big, blockquote, body, br, center,
+  code, dd, div, dl, dt, em, embed, h1`–`h6`, `head, hr, i, img, li, listing, menu, meta,
+  nobr, ol, p, pre, ruby, s, small, span, strike, strong, sub, sup, table, tt, u, ul,
+  var`, plus `font` with `color`/`face`/`size`), along with `<annotation-xml>`'s
+  `encoding` condition — and it is **derived from html5lib by a new conformance suite**
+  rather than recited, since reciting it is what got it wrong twice. `html5lib` joins the
+  `dev` extra as a test oracle only; the harness still runs on the stdlib alone.
 - `15_a11y` treated an accessible *name* as present when only the **mechanism** was
   present (PR #211 review). `<label><input></label>`, `<label for="q"></label>` and an
   `aria-labelledby` pointing at an empty element all passed while announcing nothing;

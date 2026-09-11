@@ -92,12 +92,29 @@ rules turn on exemptions, id matching and text content, which do):
 - **`<template>` content cannot name an enclosing element**: it never renders in place,
   so it is not the outline, not the document `<title>`, and not a link's text — while a
   link or control *inside* a template is still checked on its own terms.
-- **Inside an `<svg>`/`<math>` subtree, a familiar tag name is not an HTML element.** An
-  `<svg><title>` names an icon and must never satisfy the (default-on) `page_title` rule;
-  an `<svg><h1>` is not a heading; an `<svg><input>` is not a form control. HTML resumes
-  at an integration point (`<foreignObject>`, `<desc>`, `<mtext>`, …). Two elements are
-  deliberately *not* excluded there: an SVG `<a href>` is a real link and still needs a
-  name, and `<img>` genuinely breaks out of foreign content into HTML.
+- **Inside an `<svg>`/`<math>` subtree, a familiar tag name is usually not an HTML
+  element** — an `<svg><title>` names an icon and must never satisfy the (default-on)
+  `page_title` rule, and an `<svg><input>` is not a form control. But the parsing spec
+  keeps a **breakout list** of tags a browser refuses to leave there: it closes the
+  foreign element and parses them as HTML. `h1`–`h6` and `img` are both on it, so an
+  `<svg><h1>` *is* the document's heading — and the breakout closes the whole subtree, so
+  what follows is HTML too. HTML also resumes at an integration point (`<foreignObject>`,
+  `<desc>`, the MathML text points, and `<annotation-xml>` only with an HTML `encoding`).
+  One deliberate departure: an SVG `<a href>` stays in the SVG namespace and `link_text`
+  checks it anyway — a judgement about user-facing links, not a classification claim.
+
+**The namespace rules are derived from a real parser, not recited.** The first attempt at
+the foreign-content model had no breakout list; the second suppressed headings, which is
+the exact opposite of what a browser does; a third recitation of the list would have been
+a coin flip. So `html5lib` (a spec-conformant HTML5 tree builder) is now a **dev-only test
+oracle**: `tests/unit/test_accessibility_conformance.py` parses each fixture with both
+html5lib and this module and requires them to agree on where every element lands, and it
+*computes* the breakout list from html5lib and compares it with the one the module
+implements. It is in the `dev` extra only and never imported by the harness — the gate
+must keep running on the stdlib alone. Where the two genuinely cannot agree — Python's
+tokenizer enters CDATA for an `<svg><script>`, which a conformant one does not, so markup
+written there never reaches us — the departure is pinned by a test and stated in the SPEC
+rather than left to be rediscovered.
 
 **A name is resolved, not merely present.** The first cut asked only whether a naming
 *mechanism* was attached; a second review showed that answers the wrong question in both
@@ -170,6 +187,13 @@ this: the reasoning is from the specifications, which is all it needs.
   no CSS-generated content, no shadow DOM, `title`/`placeholder` rejected on purpose, and
   references followed one level. It answers "is there a non-empty name here?", not "what
   is the name?".
+- (−) The namespace model rides on `html.parser`'s tokenizer, which treats `<script>`/
+  `<style>` as raw text in *any* namespace. Markup written inside an `<svg><script>` is
+  therefore invisible, where a browser would parse it. Suppressing it is still the better
+  error (crediting JS source as a name would be a false positive); it is disclosed.
+- (+) Conformance is now checkable rather than recited: a dev-only html5lib oracle
+  derives the breakout list and the integration points, so the next disagreement fails a
+  test instead of surviving three reviews.
 - (−) An *empty* heading still satisfies "the document has an `<h1>`" — that is
   axe-core's separate `empty-heading` rule and a row this matrix does not carry, so it is
   disclosed rather than silently folded into `heading_structure`.

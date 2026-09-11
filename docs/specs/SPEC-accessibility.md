@@ -98,9 +98,10 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
      *starts* at `h3` is not flagged, because only the deltas are examined.
    - Headings inside `<template>` do **not** count: template content is inert until
      cloned, so it is not part of this document's outline. Headings inside comments do
-     not count either (they are not markup), nor does an `<h1>` inside an
-     `<svg>`/`<math>` subtree (there it is not an HTML heading at all) — unless an HTML
-     integration point such as `<foreignObject>` has resumed HTML, where it is. `control_label` and `link_text` *do* apply
+     not count either (they are not markup). An `<h1>` inside an `<svg>`/`<math>` **does**
+     count: `h1`–`h6` are in the parsing spec's breakout list, so a browser hoists the
+     heading out into HTML — and closes the `<svg>` doing it, which is why a second `<h1>`
+     written after one inside an `<svg>` is a duplicate this rule can see. `control_label` and `link_text` *do* apply
      inside `<template>` — a control's name and a link's text are properties of the
      element wherever it is finally inserted.
 
@@ -130,13 +131,28 @@ The rules answer what a *browser* would build, not what the text looks like:
   `<title>` inside one is not the document's title, and it cannot name an enclosing
   link. It *is* still scanned in its own right (a control inside a template still needs
   a name).
-- **Inside an `<svg>`/`<math>` subtree a familiar tag name is not an HTML element.** An
-  `<svg><title>` names an icon, so it never satisfies the document's `<title>`; an
-  `<svg><h1>` is not a heading; an `<svg><input>` is not a form control. HTML resumes at
-  an integration point (`<foreignObject>`, `<desc>`, `<mtext>`, …), where all three are
-  judged normally again. Two things are deliberately *not* excluded there: an SVG
-  `<a href>` is a genuine link and still needs a name, and an `<img>` really does break
-  out of foreign content into HTML, so it still needs an `alt`.
+- **Inside an `<svg>`/`<math>` subtree a familiar tag name is usually not an HTML
+  element** — but the parsing spec has a **breakout list** of tags a browser refuses to
+  keep there: it closes the foreign element and parses them as HTML. The list is
+  `b, big, blockquote, body, br, center, code, dd, div, dl, dt, em, embed, h1, h2, h3,
+  h4, h5, h6, head, hr, i, img, li, listing, menu, meta, nobr, ol, p, pre, ruby, s,
+  small, span, strike, strong, sub, sup, table, tt, u, ul, var`, plus `font` when it
+  carries `color`, `face` or `size`. It is **derived from html5lib by
+  `tests/unit/test_accessibility_conformance.py`, not copied from prose** — reciting it
+  is what got it wrong twice.
+  - So an `<svg><h1>` **is** the document's heading, and an `<svg><img>` **does** need an
+    `alt`. A breakout closes the whole subtree, so everything written after it is HTML
+    too.
+  - What stays foreign: `<title>` (it names an icon, never the page), `<input>`,
+    `<select>`, `<textarea>` (not form controls), `<label>` (labels nothing),
+    `<template>`, `<script>`, `<style>`, and `<a>`. HTML resumes at an integration point
+    — `<foreignObject>`, `<desc>`, `<title>`'s children, the MathML text points
+    (`<mtext>`, `<mi>`, `<mo>`, `<mn>`, `<ms>`), and `<annotation-xml>` **only** when its
+    `encoding` is `text/html` or `application/xhtml+xml`.
+  - **One deliberate departure:** an SVG `<a href>` stays in the SVG namespace, and
+    `link_text` checks it anyway. That is a **judgement about user-facing links** — it is
+    a link a user clicks and a screen reader announces — not a claim about HTML element
+    classification.
 
 ### Reporting
 Each violation is one line:
@@ -178,6 +194,13 @@ Stated so the green is never read as more than it is:
   fact from SC 3.1.1's "has a language".
 - **An SVG link that uses only the deprecated `xlink:href` is not seen as a link**, so it
   is never checked for a name.
+- **Markup written inside an `<svg><script>`/`<style>` is invisible.** A `<script>` is a
+  raw-text element only in the HTML namespace, so a browser parses the *content* of an
+  SVG one as markup and an `<h1>` there becomes a real heading. Python's `html.parser`
+  switches to CDATA on any `script`/`style` tag, namespace or not, so that tag never
+  reaches this module and no tree-level rule can recover it. Suppressing the text anyway
+  is the better of the two errors — crediting raw JS/CSS source as an accessible name
+  would be a false *positive*, and a browser renders none of it. Pinned by a test.
 - **`id` resolution is document-wide and does not model `<template>` scope.** A
   `<label for="x">` or `aria-labelledby="x"` outside a template is accepted when the
   only `id="x"` lives *inside* one, though a browser would not resolve it. This is a
@@ -234,6 +257,12 @@ scope this — the reasoning above is from the specifications, which is all it n
   `<h1>` inside `<template>`, a comment or an `<svg>`, two `<h1>`s, and `h1 → h3`) and
   integration-tested by driving the real `verify.sh`. Every rule has been shown to fail
   when the behaviour it describes regresses.
+- **Conformance is derived, not recited** — `tests/unit/test_accessibility_conformance.py`
+  parses every namespace fixture twice, once with **html5lib** (a spec-conformant tree
+  builder; a dev-only test oracle, never a runtime dependency) and once with this module,
+  and requires the two to agree on where each element lands. The breakout list is
+  *computed* from html5lib and compared to the one the module implements, so the next
+  Python or html5lib that disagrees fails the suite instead of silently drifting.
 
 ## Dogfood
 - **fire** (Electron; raw renderer HTML) — five pages, *every one* missing

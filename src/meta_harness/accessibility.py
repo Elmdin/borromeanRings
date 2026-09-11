@@ -100,11 +100,73 @@ _VOID_TAGS: frozenset[str] = frozenset(
 #: Roots of a foreign subtree: inside one, an HTML tag name is not an HTML element.
 _FOREIGN_ROOT_TAGS: frozenset[str] = frozenset({"svg", "math"})
 
-#: Where HTML resumes inside a foreign subtree (the HTML parsing spec's integration
-#: points). Tag names arrive lower-cased, so ``<foreignObject>`` is ``foreignobject``.
-_HTML_INTEGRATION_TAGS: frozenset[str] = frozenset(
-    {"foreignobject", "desc", "title", "annotation-xml", "mtext", "mi", "mo", "mn", "ms"}
+#: Start tags that a browser refuses to keep inside a foreign subtree: it pops out of
+#: the ``<svg>``/``<math>`` entirely and parses them as HTML ("any other start tag" in
+#: the HTML parsing spec's rules for foreign content). Headings are in this list, so
+#: ``<svg><h1>Title</h1></svg>`` really is the document's heading — and everything after
+#: it is HTML too, because the foreign element has been closed. Derived from html5lib
+#: 1.1, not from memory, and re-derived by tests/unit/test_accessibility_conformance.py.
+_BREAKOUT_TAGS: frozenset[str] = frozenset(
+    {
+        "b",
+        "big",
+        "blockquote",
+        "body",
+        "br",
+        "center",
+        "code",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "em",
+        "embed",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "head",
+        "hr",
+        "i",
+        "img",
+        "li",
+        "listing",
+        "menu",
+        "meta",
+        "nobr",
+        "ol",
+        "p",
+        "pre",
+        "ruby",
+        "s",
+        "small",
+        "span",
+        "strike",
+        "strong",
+        "sub",
+        "sup",
+        "table",
+        "tt",
+        "u",
+        "ul",
+        "var",
+    }
 )
+
+#: ``<font>`` breaks out only when it carries one of these presentational attributes.
+_FONT_BREAKOUT_ATTRS: frozenset[str] = frozenset({"color", "face", "size"})
+
+#: SVG elements whose children are HTML again (HTML integration points). Tag names
+#: arrive lower-cased, so ``<foreignObject>`` is ``foreignobject``.
+_SVG_INTEGRATION_TAGS: frozenset[str] = frozenset({"foreignobject", "desc", "title"})
+
+#: MathML text integration points — their children are HTML too.
+_MATHML_TEXT_INTEGRATION_TAGS: frozenset[str] = frozenset({"mi", "mo", "mn", "ms", "mtext"})
+
+#: ``<annotation-xml>`` is an integration point only for these ``encoding`` values.
+_HTML_ENCODINGS: frozenset[str] = frozenset({"text/html", "application/xhtml+xml"})
 
 #: Heading tag → outline level.
 _HEADING_LEVELS: dict[str, int] = {f"h{level}": level for level in range(1, 7)}
@@ -137,6 +199,11 @@ class _NameScope:
     tag: str
     line: int
     template_depth: int
+    #: True when this element is inside an ``<svg>``/``<math>`` subtree, so its tag
+    #: name does not make it an HTML element.
+    foreign: bool = False
+    #: True when this element's *children* are HTML again (an integration point).
+    integration: bool = False
     text: str = ""
     refs: list[str] = field(default_factory=list)
 
@@ -199,6 +266,24 @@ def _attr_map(attrs: list[tuple[str, str | None]]) -> dict[str, str]:
     return values
 
 
+def _breaks_out_of_foreign_content(tag: str, values: dict[str, str]) -> bool:
+    """True when a browser would pop out of ``<svg>``/``<math>`` to parse this tag."""
+    if tag in _BREAKOUT_TAGS:
+        return True
+    return tag == "font" and any(name in values for name in _FONT_BREAKOUT_ATTRS)
+
+
+def _is_integration_point(tag: str, values: dict[str, str]) -> bool:
+    """True when this foreign element's children are HTML again.
+
+    ``<annotation-xml>`` qualifies only when its ``encoding`` says the content is HTML;
+    with any other encoding it is an ordinary MathML element.
+    """
+    if tag in _SVG_INTEGRATION_TAGS or tag in _MATHML_TEXT_INTEGRATION_TAGS:
+        return True
+    return tag == "annotation-xml" and values.get("encoding", "").strip().lower() in _HTML_ENCODINGS
+
+
 def _id_tokens(value: str) -> tuple[str, ...]:
     """Split an id-reference list (``aria-labelledby``) into its whitespace-separated ids."""
     return tuple(value.split())
@@ -227,6 +312,8 @@ class _Collector(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Open this element's name scope, credit its own naming attributes, dispatch."""
         values = _attr_map(attrs)
+        if self._foreign_context() and _breaks_out_of_foreign_content(tag, values):
+            self._exit_foreign_content()  # the browser closes the <svg>; so do we
         self._push(tag, values)
         starter = self._starters.get(tag)
         if starter is not None:
@@ -255,7 +342,14 @@ class _Collector(HTMLParser):
         depth = self._open_tags.get("template", 0)
         if tag == "template":
             depth += 1  # the template's own content sits one level in
-        scope = _NameScope(tag=tag, line=self.getpos()[0], template_depth=depth)
+        foreign = self._foreign_context()
+        scope = _NameScope(
+            tag=tag,
+            line=self.getpos()[0],
+            template_depth=depth,
+            foreign=foreign,
+            integration=foreign and _is_integration_point(tag, values),
+        )
         self._scopes.append(scope)
         self._open_tags[tag] = self._open_tags.get(tag, 0) + 1
         element_id = values.get("id", "").strip()
@@ -287,26 +381,37 @@ class _Collector(HTMLParser):
         """True inside ``<script>``/``<style>``, whose content is source, not text."""
         return any(self._open_tags.get(tag, 0) for tag in _RAW_TEXT_TAGS)
 
-    def _in_foreign_content(self) -> bool:
-        """True when the element being started is *not* an HTML element.
+    def _foreign_context(self) -> bool:
+        """True when an element opened *here* would not be an HTML element.
 
         Inside an ``<svg>``/``<math>`` subtree a familiar tag name belongs to that
-        language — an ``<svg><title>`` names an icon and an ``<svg><h1>`` is not a
-        heading — until an HTML integration point (``<foreignObject>``, ``<desc>``,
-        ``<mtext>``, …) resumes HTML. Ancestors only: the element's own scope is
-        already on the stack when its collector runs.
+        language — an ``<svg><title>`` names an icon, not the page — until an HTML
+        integration point (``<foreignObject>``, ``<desc>``, ``<mtext>``, an
+        ``<annotation-xml>`` carrying an HTML ``encoding``) resumes HTML. Asked of the
+        current stack, before the new element is pushed, so it answers for that element.
         """
-        for scope in reversed(self._scopes[:-1]):
-            if scope.tag in _HTML_INTEGRATION_TAGS:
+        for scope in reversed(self._scopes):
+            if scope.integration:
                 return False
             if scope.tag in _FOREIGN_ROOT_TAGS:
                 return True
         return False
 
+    def _exit_foreign_content(self) -> None:
+        """Close the foreign subtree the way a breakout tag makes a browser close it.
+
+        Not just this element: the ``<svg>`` itself is popped, so everything after the
+        breakout is HTML too — which is why a second ``<h1>`` written after one inside
+        an ``<svg>`` is a duplicate the outline rule can see.
+        """
+        while self._foreign_context():
+            scope = self._scopes.pop()
+            self._open_tags[scope.tag] -= 1
+
     def _wrapping_label(self) -> _NameScope | None:
-        """The innermost ``<label>`` this element is nested inside, if any."""
+        """The innermost HTML ``<label>`` this element is nested inside, if any."""
         for scope in reversed(self._scopes):
-            if scope.tag == "label":
+            if scope.tag == "label" and not scope.foreign:
                 return scope
         return None
 
@@ -334,7 +439,7 @@ class _Collector(HTMLParser):
     def _start_title(self, tag: str, values: dict[str, str]) -> None:
         if self._open_tags.get("template", 0):
             return  # inert until cloned — not this document's title
-        if self._in_foreign_content():
+        if self._scopes[-1].foreign:
             return  # an <svg>/<math> <title> names an icon, not the page
         self._in_title = True
 
@@ -352,17 +457,21 @@ class _Collector(HTMLParser):
             self.facts.links.append(self._scopes[-1])
 
     def _start_label(self, tag: str, values: dict[str, str]) -> None:
+        if self._scopes[-1].foreign:
+            return  # an SVG <label> is not an HTML label; it labels nothing
         target = values.get("for", "").strip()
         if target:
             self.facts.label_targets.setdefault(target, self._scopes[-1])
 
     def _start_heading(self, tag: str, values: dict[str, str]) -> None:
-        if self._open_tags.get("template", 0) or self._in_foreign_content():
-            return  # inert, or not an HTML heading at all
+        if self._open_tags.get("template", 0):
+            return  # inert until cloned — not part of this document's outline
+        # No namespace test: h1-h6 break out of foreign content, so a heading written
+        # inside an <svg> is a real heading (and closes the <svg> on its way out).
         self.facts.headings.append(_Heading(_HEADING_LEVELS[tag], self.getpos()[0]))
 
     def _start_control(self, tag: str, values: dict[str, str]) -> None:
-        if self._in_foreign_content():
+        if self._scopes[-1].foreign:
             return  # an <svg><input> is an SVG element, not a form control
         self.facts.controls.append(
             _Control(

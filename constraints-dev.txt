@@ -58,3 +58,11 @@ tomli_w==1.2.0
 typing_extensions==4.15.0
 urllib3==2.1.0
 wcwidth==0.8.2
+
+# Incoming with #211 (html5lib is a conformance oracle for the a11y check, so its
+# version decides test outcomes). Pinned here ahead of that merge so the two
+# branches do not collide; a constraint on a package pip is not installing is a
+# no-op, so this is inert until #211 lands.
+html5lib==1.1
+six==1.16.0
+webencodings==0.5.1

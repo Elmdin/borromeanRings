@@ -165,16 +165,3 @@ def test_format_report_lists_rows_then_total() -> None:
 def test_format_report_empty_budget_is_just_the_total() -> None:
     empty = ContextBudget(sources=(), total_bytes=0, total_tokens=0)
     assert format_report(empty) == "TOTAL             0 B  ~0 tok  (tokens ≈ bytes/4)"
-
-
-def test_research_skill_static_cost_is_pinned() -> None:
-    """Issue #47 / ADR-0060: the research skill's SKILL.md may not regrow past the audited size.
-
-    3692 B is the value measured in docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md; lower is
-    fine (tighten the number when it drops), higher is a regression to justify.
-    """
-    repo = Path(__file__).resolve().parents[2]
-    skill = repo / ".claude" / "skills" / "borromeanrings-research" / "SKILL.md"
-    assert skill.is_file()
-    assert skill.stat().st_size <= 3692
-    assert measure_context_budget(repo).sources  # the file is one of the measured rows

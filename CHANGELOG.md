@@ -24,7 +24,8 @@ queue is merged.
   available, reads symbols not files on code hosts, and stops at saturation. Same contract;
   the redundant "Tactics" section is folded into the numbered steps.
   `.borromeanrings-context-baseline` re-seeded downward to 31690 (the ratchet tightens on
-  purpose) and a unit test pins the skill at ≤ 3692 B.
+  purpose) and a test pins the skill at ≤ 3692 B (in `tests/integration/`, which
+  mutmut skips: it reads `.claude/`, which mutmut's `mutants/` copy lacks).
 
 ### Added
 - Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +

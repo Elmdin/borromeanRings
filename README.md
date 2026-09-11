@@ -28,12 +28,13 @@ Each run writes one receipt per check to `.meta-harness/receipts/<run-id>/`, plu
 a config cross-check against `borromeanrings.toml`: a required check that never ran (crash/skip) ⇒ overall fail.
 
 ```bash
-./run-in-worktree.sh   # the same gate, run against a SNAPSHOT in a throwaway git worktree
+./run-in-worktree.sh   # the same gate, run against a SNAPSHOT in a throwaway repo
 ```
 
-Same branch, same commit, your dirty tree (untracked files included, ignored paths
-excluded) — but its own working tree, `.meta-harness/` and `mutants/`, so several agents
-can be gated at once without sharing anything but the object store. The receipts come back
+Same branch, same commit — **pinned**, so they cannot drift if you commit while it runs —
+and your dirty tree (untracked files included, ignored paths excluded), but with its own
+working tree, refs, `.meta-harness/` and `mutants/`, so several agents can be gated at once
+without sharing anything but the object store. The receipts come back
 into `.meta-harness/receipts/<run-id>/` and mean exactly what a local run's mean: proven
 receipt-by-receipt by `tests/integration/test_executor_conformance.py` (ADR-0076).
 
@@ -89,7 +90,7 @@ keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 ## Layout
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
-- `run-in-worktree.sh` — the **`worktree` executor**: the same gate against a snapshot of this project, in a throwaway worktree with its own evidence area; cleans up on every exit path (ADR-0076)
+- `run-in-worktree.sh` — the **`worktree` executor**: the same gate against a snapshot of this project, in a throwaway repository that borrows the object store and owns its refs (so its HEAD cannot follow yours) with its own evidence area; cleans up on every exit path (ADR-0076)
 - `status.sh` — **this project's** status by default: governed? enforcement actually on (hooks wired vs. disabled)? last verdict, and how many of those checks inspected **nothing** (ADR-0049). `--all` opts into the portfolio table across every governed project; `--run` re-gates, `--list` prints paths (ADR-0046)
 - `ledger.sh` — the **effectiveness view**: per project, gate runs / failures caught / pass-fail streak from the recorded verdict history — is the gate actually catching anything (ADR-0047)
 - `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set); catalogued in `docs/CHECKS.md`

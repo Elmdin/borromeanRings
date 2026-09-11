@@ -54,6 +54,10 @@ _DURATION_RE = re.compile(r"\b\d+\.\d+s\b")
 #: What a masked duration is replaced by.
 DURATION_MASK = "<T>"
 
+#: What ``find_spec`` reports as the origin of a **namespace** package: it has no
+#: single file to resolve, so there is nothing to compare against the worktree.
+NAMESPACE_ORIGIN = "namespace"
+
 
 def canonicalise_log(text: str, replacements: Sequence[tuple[str, str]] = ()) -> str:
     """Mask a log's run-specific noise: each ``(needle, mask)`` pair, then durations.
@@ -115,8 +119,15 @@ def import_shadow_violation(module_origin: str, worktree_root: str) -> str | Non
     the worktree is correct by construction. Anything outside it means an editable
     install (or a stray ``PYTHONPATH``) wins over the snapshot, and the run would
     report on code it did not check out.
+
+    **Known limit:** a *namespace* package has no single origin — ``find_spec``
+    reports :data:`NAMESPACE_ORIGIN` (or ``None``, which reaches here as ``""``)
+    while its portions may live in several directories, one of which could be
+    outside the worktree. This guard cannot see that and says "no violation"; the
+    portion list would have to be checked instead. Recorded rather than pretended
+    away — a governed project whose package is a namespace package is not covered.
     """
-    if not module_origin:
+    if not module_origin or module_origin == NAMESPACE_ORIGIN:
         return None
     if Path(module_origin).resolve().is_relative_to(Path(worktree_root).resolve()):
         return None

@@ -14,15 +14,17 @@ queue is merged.
 
 ### Added
 - **The `worktree` executor** (`./run-in-worktree.sh`, ADR-0076) — the gate, run against a
-  *snapshot* of your project in a throwaway git worktree, with the receipts brought back.
+  *snapshot* of your project in a throwaway repository, with the receipts brought back.
   Materialises HEAD + the dirty tree (tracked edits **and** untracked-not-ignored files;
-  ignored paths stay out), keeps the primary's branch identity (`git rev-parse HEAD` and
-  `--abbrev-ref HEAD` both equal the primary's — asserted at runtime, fail-closed), gives
-  the run its own working tree, index, `.meta-harness/`, `mutants/` and caches while
-  sharing only the object store, never commits, and cleans up on every exit path
-  (success, failure, interrupt) with the removal bounded to the temp dir it created.
-  A separate entry point on purpose: it *calls* `verify.sh`, so the default path cannot
-  regress. This is the isolation primitive #144 needs.
+  ignored paths stay out) + the ref state, keeps the primary's branch identity
+  (`git rev-parse HEAD` and `--abbrev-ref HEAD` both equal the primary's — asserted at
+  runtime, fail-closed) and **pins it so it cannot move while the primary commits**, gives
+  the run its own working tree, index, ref namespace, `.meta-harness/`, `mutants/` and
+  caches while borrowing only the object store, never commits, never writes a ref or
+  reflog in the primary, and cleans up on every exit path (success, failure, interrupt)
+  with the removal bounded to the temp dir it created. A separate entry point on purpose:
+  it *calls* `verify.sh`, so the default path cannot regress. This is the isolation
+  primitive #144 needs.
 - **Executor conformance test** (`tests/integration/test_executor_conformance.py`) — the
   deliverable that makes "one contract, two executors" more than a claim: the whole fast
   lane, run over one fixture project under `local` and under `worktree`, compared receipt
@@ -43,12 +45,28 @@ queue is merged.
   string, so an edited log still fails `!TAMPERED`. Used by the verdict and `verify_dir`.
 
 ### Fixed
-- Two corrections to `SPEC-executor.md` found by building against it (ADR-0076): its
+- **The worktree executor's branch identity could follow the primary** (found in review of
+  PR #212). A `git worktree` shares the repository's ref namespace, so pointing its HEAD at
+  `refs/heads/<branch>` to satisfy G8 pointed it at the primary's **live** ref: correct at
+  the instant it was asserted, and then silently following the branch forward on the
+  primary's next commit while the materialised tree stayed pinned — so `09_commits`,
+  `13_adr`, `11_changelog` and `34_api_diff` would judge a commit range that did not match
+  the tree they were reading. Unfixable within one repository (HEAD must point at the
+  shared ref for `--abbrev-ref` to print the branch name), so the executor now builds a
+  **snapshot repository**: `git init` + `objects/info/alternates` (no object copied) + the
+  primary's refs copied in verbatim + the branch pinned at the captured commit. HEAD cannot
+  move, the primary's refs and reflogs are never written, two concurrent runs on one branch
+  no longer share anything, and `git worktree prune` is not merely avoided but unneeded.
+  Three new tests cover it: HEAD immovability while the primary commits, an in-flight
+  commit during a run, and two concurrent runs on one branch.
+- Three corrections to `SPEC-executor.md` found by building against it (ADR-0076): its
   materialisation (`read-tree --reset -u` alone) leaves every untracked file *tracked* in
   the worktree, which makes `12_secrets` and `01_source_coherence` see a different project
   than `local` does — the executor restores the primary's index; and its D2 fixture
   expects `12_secrets` to flag an untracked credential, which it cannot, because it scans
-  tracked files only.
+  tracked files only; and its §3.2 materialisation (`git worktree add`, either variant)
+  cannot hold G8 for the duration of a run at all — the guarantee needs "and neither can
+  change while the run lasts" in its wording.
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
   checks had inspected *nothing*: `src_dir` pointed at a missing `src/` and the real code

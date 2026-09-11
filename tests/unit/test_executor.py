@@ -9,6 +9,7 @@ from pathlib import Path
 from meta_harness.executor import (
     DURATION_MASK,
     EXECUTOR_FIELD_PREFIX,
+    NAMESPACE_ORIGIN,
     VOLATILE_FIELDS,
     canonicalise_log,
     import_shadow_violation,
@@ -173,3 +174,23 @@ def test_import_shadow_violation_none_when_module_is_the_worktree_itself(tmp_pat
     wt = tmp_path / "wt"
     wt.mkdir()
     assert import_shadow_violation(str(wt), str(wt)) is None
+
+
+def test_import_shadow_violation_none_for_a_namespace_package() -> None:
+    # A namespace package has no single origin; the guard cannot judge it and says
+    # so by returning None rather than guessing. Documented limit, not a silent pass.
+    assert import_shadow_violation(NAMESPACE_ORIGIN, "/wt") is None
+    assert NAMESPACE_ORIGIN == "namespace"
+
+
+def test_import_shadow_violation_still_flags_a_path_named_like_the_namespace_marker(
+    tmp_path: Path,
+) -> None:
+    # Only the exact marker is exempt: a real file whose name merely contains
+    # "namespace" is still compared against the worktree.
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    outside = tmp_path / "primary" / "namespace_pkg.py"
+    outside.parent.mkdir()
+    outside.touch()
+    assert import_shadow_violation(str(outside), str(wt)) is not None

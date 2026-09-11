@@ -11,17 +11,30 @@
 #
 # What it gives you (the SPEC's guarantees, in this script's terms):
 #   * snapshot   — HEAD + the dirty tree (tracked edits AND untracked-not-ignored
-#                  files); ignored paths (.meta-harness/, mutants/, caches, venvs)
-#                  are NOT materialised;
+#                  files) + the REF STATE at capture time; ignored paths
+#                  (.meta-harness/, mutants/, caches, venvs) are NOT materialised;
 #   * G8         — `git rev-parse HEAD` and `git rev-parse --abbrev-ref HEAD` inside
-#                  the worktree equal the primary's (asserted at runtime, fail-closed);
-#   * isolation  — its own working tree, index, .meta-harness/, mutants/ and tool
-#                  caches; it shares only the object store, and never commits, never
-#                  moves a ref, never writes anything into the primary except the
-#                  copied receipt bundle;
-#   * cleanup    — the worktree and its temp dir go away on every exit path (success,
-#                  failure, interrupt), and the removal is bounded to the directory
-#                  this run created.
+#                  the worktree equal the primary's (asserted at runtime, fail-closed)
+#                  and CANNOT MOVE for the life of the run, whatever the primary does;
+#   * isolation  — its own working tree, index, REF NAMESPACE, .meta-harness/,
+#                  mutants/ and tool caches; it shares only the object store, and
+#                  never commits, never writes a ref or reflog in the primary, never
+#                  writes anything into the primary except the copied receipt bundle;
+#   * cleanup    — the snapshot repo and its temp dir go away on every exit path
+#                  (success, failure, interrupt), and the removal is bounded to the
+#                  directory this run created.
+#
+# NOT a `git worktree`, and that is the point (PR #212 review; ADR-0076). A linked
+# worktree shares the repository's REF namespace, so making `--abbrev-ref HEAD` equal
+# the primary's branch means pointing HEAD at the primary's LIVE branch ref: it
+# matches at the instant you assert it, and then silently follows the branch forward
+# the moment the primary commits — while the materialised tree stays pinned at the
+# captured snapshot. Checks that re-derive HEAD and their commit range live
+# (09_commits, 13_adr, 11_changelog, 34_api_diff) then judge a range that does not
+# correspond to the tree they are looking at. Instead this builds a fresh repository
+# that BORROWS the object store (`objects/info/alternates` — no object is copied) and
+# owns its refs: the primary's refs are copied in verbatim as a snapshot, and the
+# branch is pinned there at the captured commit. Nothing outside the run can move it.
 #
 # Usage: ./run-in-worktree.sh [--project DIR] [--heavy] [--keep]
 set -uo pipefail
@@ -88,6 +101,10 @@ BRANCH="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 PREFIX="$(git -C "$PROJECT_ROOT" rev-parse --show-prefix 2>/dev/null)"
 PREFIX="${PREFIX%/}"
 PRIMARY_INDEX="$(git -C "$PROJECT_ROOT" rev-parse --absolute-git-dir)/index"
+# The COMMON git dir (shared by the repo's linked worktrees) is where the object store
+# lives — the one thing the snapshot repo borrows instead of copying.
+COMMON_DIR="$(cd "$TOP" && cd "$(git rev-parse --git-common-dir)" && pwd -P)" ||
+  die "could not resolve the repository's common git directory"
 
 WT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/borromeanrings-worktree.XXXXXX")" ||
   die "could not create a temp directory"
@@ -103,17 +120,13 @@ cleanup() {
   local resolved
   if [ "$KEEP" = "1" ] && [ -d "$WT_DIR" ]; then
     printf 'WORKTREE: %s\n' "$WT_DIR"
-    printf 'kept for inspection — remove with: git -C %s worktree remove --force %s && rm -rf %s\n' \
-      "$TOP" "$WT_DIR" "$WT_ROOT"
+    printf 'kept for inspection — remove with: rm -rf %s\n' "$WT_ROOT"
     return
   fi
-  # `worktree remove` deregisters exactly this worktree. Deliberately NOT
-  # `worktree prune`: that is repo-wide, and this executor touches nothing that
-  # belongs to another run.
-  if [ -d "$WT_DIR" ] && ! git -C "$TOP" worktree remove --force "$WT_DIR" >/dev/null 2>&1; then
-    printf 'run-in-worktree.sh: could not deregister %s — `git -C %s worktree prune` clears its metadata\n' \
-      "$WT_DIR" "$TOP" >&2
-  fi
+  # Nothing to deregister: the snapshot repo is a repository of its own, not a linked
+  # worktree, so the primary holds no metadata about it. Removing the temp dir is the
+  # whole cleanup — and `git worktree prune` (repo-wide, other runs' business) is
+  # never needed and never run.
   resolved="$(cd "$WT_ROOT" 2>/dev/null && pwd -P || true)"
   if [ -z "$resolved" ]; then
     return
@@ -149,25 +162,54 @@ TREE="$(GIT_INDEX_FILE="$SNAPSHOT_INDEX" git -C "$TOP" write-tree)" ||
   die "could not write the snapshot tree"
 
 # --- Materialise -----------------------------------------------------------------
-# Detach at the primary's HEAD (this never trips git's "already checked out"
-# safeguard and never touches the branch ref), then point the worktree's HEAD at the
-# same branch so branch-reading checks (08_branch, 13_adr, …) see what the primary
-# sees. A detached worktree would report its branch as "HEAD" and quietly change
-# those receipts — that is G8, and it is asserted below rather than assumed.
-git -C "$TOP" worktree add --detach --quiet "$WT_DIR" "$HEAD_SHA" ||
-  die "could not create the worktree at $WT_DIR"
-if [ "$BRANCH" != "HEAD" ]; then
-  git -C "$WT_DIR" symbolic-ref HEAD "refs/heads/$BRANCH" ||
-    die "could not point the worktree's HEAD at refs/heads/$BRANCH"
+# A repository of its own, borrowing the primary's objects and owning its refs.
+#
+# `--template=` keeps the user's global git templates (and any active hooks in them)
+# out of a repo that exists only to be read.
+mkdir -p "$WT_DIR" || die "could not create $WT_DIR"
+git init -q --template= "$WT_DIR" >/dev/null 2>&1 || git init -q "$WT_DIR" ||
+  die "could not initialise the snapshot repository at $WT_DIR"
+WT_GIT_DIR="$(cd "$WT_DIR" && cd "$(git rev-parse --git-dir)" && pwd -P)" ||
+  die "could not resolve the snapshot repository's git directory"
+
+# Borrow the object store — no object is copied, which is what keeps this cheap.
+printf '%s\n' "$COMMON_DIR/objects" >"$WT_GIT_DIR/objects/info/alternates" ||
+  die "could not point the snapshot repository at the primary's object store"
+# A shallow primary has a grafted history boundary; without it, reading `base..HEAD`
+# in the snapshot repo walks into objects that were never fetched.
+if [ -f "$COMMON_DIR/shallow" ]; then
+  cp "$COMMON_DIR/shallow" "$WT_GIT_DIR/shallow" || die "could not copy the shallow boundary"
 fi
+
+# The REF STATE is part of the snapshot: copy every ref verbatim, so the checks that
+# resolve a base (`origin/dev`, `dev`, `origin/main`, `main` — 09_commits, 11_changelog,
+# 13_adr, 34_api_diff) find exactly the refs the primary had, at exactly the commits it
+# had, for the whole run. Read-only on the primary: `for-each-ref` writes nothing.
+git -C "$TOP" for-each-ref --format='create %(refname) %(objectname)' |
+  git -C "$WT_DIR" update-ref --stdin ||
+  die "could not copy the primary's refs into the snapshot repository"
+
+# Pin HEAD. `refs/heads/$BRANCH` here belongs to THIS repository: the primary can
+# commit all it likes and this ref — and therefore `git rev-parse HEAD` — cannot move.
+if [ "$BRANCH" != "HEAD" ]; then
+  git -C "$WT_DIR" update-ref "refs/heads/$BRANCH" "$HEAD_SHA" ||
+    die "could not pin refs/heads/$BRANCH at $HEAD_SHA"
+  git -C "$WT_DIR" symbolic-ref HEAD "refs/heads/$BRANCH" ||
+    die "could not point HEAD at refs/heads/$BRANCH"
+else
+  # The primary is detached; so is the snapshot. G8 holds either way.
+  git -C "$WT_DIR" update-ref --no-deref HEAD "$HEAD_SHA" ||
+    die "could not detach HEAD at $HEAD_SHA"
+fi
+
 git -C "$WT_DIR" read-tree --reset -u "$TREE" ||
   die "could not materialise the snapshot tree in the worktree"
-# read-tree left the worktree's index EQUAL TO THE SNAPSHOT, which would make every
-# untracked file look tracked — and checks that read the tracked set (12_secrets,
+# read-tree left the index EQUAL TO THE SNAPSHOT, which would make every untracked
+# file look tracked — and checks that read the tracked set (12_secrets,
 # 01_source_coherence) would then see a different project than `local` does. Restore
 # the primary's index so `git status` and `git ls-files` match it exactly.
 if [ -f "$PRIMARY_INDEX" ]; then
-  cp "$PRIMARY_INDEX" "$(git -C "$WT_DIR" rev-parse --absolute-git-dir)/index" ||
+  cp "$PRIMARY_INDEX" "$WT_GIT_DIR/index" ||
     die "could not restore the primary's index in the worktree"
 fi
 

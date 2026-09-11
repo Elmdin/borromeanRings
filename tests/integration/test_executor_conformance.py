@@ -11,9 +11,10 @@ The fixture is built to *discriminate* — every property the worktree executor
 could plausibly get wrong shows up as a receipt difference here:
 
 * it sits on a `feat/` branch whose commit touches `src/`, so `08_branch` names the
-  branch in its log and `13_adr` **fails**. A detached worktree (what a plain
-  `git worktree add --detach` gives you) reports its branch as `HEAD`: `13_adr`
-  would flip to pass and `08_branch`'s log would name `HEAD`. That is G8.
+  branch in its log and `13_adr` **fails**. A detached snapshot reports its branch as
+  `HEAD`: `13_adr` would flip to pass and `08_branch`'s log would name `HEAD`. That
+  is G8 — and the cases below prove the other half of it, that the branch identity
+  cannot *drift* mid-run either.
 * it has an uncommitted edit to a tracked file *and* an untracked file, each with
   its own lint error, so `20_lint`'s log names both — and `40_test`'s
   `coverage_percent` counts the untracked file's lines, so it moves if the file is
@@ -25,12 +26,18 @@ could plausibly get wrong shows up as a receipt difference here:
 Everything the two runs legitimately disagree about — the `log` path, the
 `content_sha256` that covers it, the `run_id` in every path, test durations — is
 masked by the equivalence relation and by nothing else.
+
+The last group of cases is about a primary that MOVES. A single sequential run
+cannot catch a HEAD that follows the primary's branch, and concurrency is the whole
+motivation (#144), so those cases commit on the primary — after a run, during a run,
+and alongside a second concurrent run — and assert the receipts do not notice.
 """
 
 import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -307,34 +314,30 @@ def _canonical_logs(run_dir: Path, project_root: Path) -> dict[str, str]:
 
 
 @pytest.fixture(scope="module")
-def transported(conformance: dict) -> dict[str, object]:
-    """A second worktree run, WITHOUT --keep: the real transported-bundle case.
+def transported(concurrent_runs: dict) -> dict[str, object]:
+    """One of the concurrent (no --keep) runs: the real transported-bundle case.
 
-    The worktree (and the log paths recorded inside every receipt) is gone by the
-    time the bundle is read — which is the only way to test reader-side log
-    resolution honestly. With the worktree kept alive, the recorded path still
-    resolves and the fallback is never exercised.
+    The worktree — and the log path recorded inside every receipt — is gone by the
+    time the bundle is read, which is the only way to test reader-side log resolution
+    honestly: with a worktree kept alive the recorded path still resolves and the
+    fallback is never exercised. Reuses the concurrency fixture's runs rather than
+    paying for a gate run of its own.
     """
-    project = conformance["project"]
-    result = subprocess.run(
-        ["bash", str(RUN_IN_WORKTREE), "--project", str(project)],
-        cwd=project,
-        env=_gate_env(),
-        capture_output=True,
-        text=True,
-        timeout=900,
-    )
-    run_dir = Path(_marker(result.stdout, "RECEIPTS: "))
-    sidecar = dict(
-        line.split(": ", 1)  # type: ignore[misc]
-        for line in (run_dir / "executor.txt").read_text(encoding="utf-8").splitlines()
-        if ": " in line
-    )
+    run_dir = concurrent_runs["run_dirs"][0]
     return {
         "run_dir": run_dir,
-        "worktree_path": Path(sidecar["worktree"]),
-        "result": result,
+        "worktree_path": Path(_sidecar(run_dir)["worktree"]),
     }
+
+
+def _sidecar(run_dir: Path) -> dict[str, str]:
+    """The `executor.txt` sidecar as key → value."""
+    out: dict[str, str] = {}
+    for line in (run_dir / "executor.txt").read_text(encoding="utf-8").splitlines():
+        key, sep, value = line.partition(": ")
+        if sep:
+            out[key] = value
+    return out
 
 
 @pytest.fixture(scope="module")
@@ -513,6 +516,203 @@ def test_the_executor_removes_its_worktree(transported: dict) -> None:
     assert not transported["worktree_path"].exists()
     assert not transported["worktree_path"].parent.exists()
     assert transported["run_dir"].is_dir()
+
+
+# --------------------------------------------------------------------------
+# The primary is allowed to move (PR #212 review; ADR-0076)
+#
+# These are the cases a single sequential run structurally cannot catch, and
+# concurrency is the entire motivation (#144). Under the first implementation —
+# a `git worktree` whose HEAD pointed at the primary's LIVE branch ref — the
+# worktree's HEAD silently followed the primary's next commit while its
+# materialised tree stayed pinned, so the branch-reading checks judged a commit
+# range that did not correspond to the tree in front of them.
+# --------------------------------------------------------------------------
+
+INJECTED_SUBJECT = "WIP not a conventional subject"
+
+
+def _move_the_primary(project: Path) -> str:
+    """Commit on the primary. A live-ref worktree would follow this; a snapshot must not.
+
+    Deliberately chosen to move BOTH branch-reading checks if it is followed: the
+    subject is not a declared `commit_type` (`09_commits` would fail) and it adds an
+    ADR (`13_adr` would flip from fail to pass). Only the ADR file is committed, so
+    the dirty edit and the untracked file stay as they were.
+    """
+    _write(project, "docs/adr/0001-injected.md", "# injected decision\n")
+    _git(project, "add", "docs/adr/0001-injected.md")
+    _git(project, "commit", "-q", "-m", INJECTED_SUBJECT)
+    return _git(project, "rev-parse", "HEAD")
+
+
+def _await_materialisation(tmpdir: Path, timeout: float = 120.0) -> Path | None:
+    """Wait for a run's snapshot tree to appear under ``tmpdir``, or ``None`` on timeout."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        found = sorted(tmpdir.glob("borromeanrings-worktree.*/tree/borromeanrings.toml"))
+        if found:
+            return found[0]
+        time.sleep(0.01)
+    return None
+
+
+@pytest.fixture(scope="module")
+def moving_primary(tmp_path_factory: pytest.TempPathFactory) -> object:
+    """One kept run, with the primary committing **while the gate is running in it**.
+
+    The snapshot is captured before the commit and the branch-reading checks run
+    after it, so this single run answers every "the primary moved" question: the
+    receipts, the worktree's own HEAD, and what the primary's ref looks like
+    afterwards.
+    """
+    project = _build_fixture_project(tmp_path_factory.mktemp("moving_primary"))
+    tmpdir = tmp_path_factory.mktemp("moving_primary_tmp")
+    captured = _git(project, "rev-parse", "HEAD")
+    ref_before = _git(project, "rev-parse", f"refs/heads/{BRANCH}")
+    reflog_before = _git(project, "reflog", "show", "--format=%H", BRANCH)
+    process = subprocess.Popen(
+        ["bash", str(RUN_IN_WORKTREE), "--project", str(project), "--keep"],
+        cwd=project,
+        env={**_gate_env(), "TMPDIR": str(tmpdir)},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        materialised = _await_materialisation(tmpdir)
+        assert materialised is not None, (
+            "never saw the snapshot materialise — the test would be vacuous"
+        )
+        moved = _move_the_primary(project)
+        stdout, stderr = process.communicate(timeout=900)
+    finally:
+        if process.poll() is None:  # pragma: no cover — only on a hang
+            process.kill()
+            process.communicate()
+    worktree = Path(_marker(stdout, "WORKTREE: "))
+    try:
+        yield {
+            "project": project,
+            "worktree": worktree,
+            "run_dir": Path(_marker(stdout, "RECEIPTS: ")),
+            "captured": captured,
+            "moved": moved,
+            "ref_before": ref_before,
+            "reflog_before": reflog_before,
+            "stderr": stderr,
+        }
+    finally:
+        shutil.rmtree(worktree.parent, ignore_errors=True)
+
+
+def test_the_worktree_head_cannot_follow_the_primary_branch(moving_primary: dict) -> None:
+    # The structural half: the worktree still exists, the primary has moved on, and
+    # the worktree's HEAD has not.
+    worktree = moving_primary["worktree"]
+    assert moving_primary["moved"] != moving_primary["captured"]
+    assert _git(worktree, "rev-parse", "HEAD") == moving_primary["captured"]
+    assert _git(worktree, "rev-parse", f"refs/heads/{BRANCH}") == moving_primary["captured"]
+    # …and G8 still holds: it is the branch, by name, not a detached HEAD.
+    assert _git(worktree, "rev-parse", "--abbrev-ref", "HEAD") == BRANCH
+
+
+def test_a_commit_on_the_primary_during_a_run_does_not_change_the_receipts(
+    moving_primary: dict,
+) -> None:
+    # The receipt half: the commit landed after the snapshot was captured and before
+    # the branch-reading checks ran. They must say what a quiet primary would produce.
+    run_dir = moving_primary["run_dir"]
+    bundle = _bundle(run_dir)
+    assert _sidecar(run_dir)["head"] == moving_primary["captured"]
+    # 09_commits: the injected subject is not a declared commit type. If HEAD had
+    # followed the branch, this would be a fail naming that subject.
+    assert bundle["09_commits"]["status"] == "pass", moving_primary["stderr"]
+    assert INJECTED_SUBJECT not in (run_dir / "09_commits.log").read_text(encoding="utf-8")
+    # 13_adr: the injected commit adds an ADR. If HEAD had followed the branch, this
+    # would have flipped from fail to pass.
+    assert bundle["13_adr"]["status"] == "fail"
+    assert "0001-injected.md" not in (run_dir / "13_adr.log").read_text(encoding="utf-8")
+    assert bundle["08_branch"]["status"] == "pass"
+
+
+def test_the_worktree_owns_its_refs_and_borrows_only_objects(moving_primary: dict) -> None:
+    worktree = moving_primary["worktree"]
+    # Its own repository, not a linked worktree of the primary…
+    assert (worktree / ".git").is_dir()
+    alternates = (worktree / ".git" / "objects" / "info" / "alternates").read_text(encoding="utf-8")
+    assert alternates.strip().endswith("/objects")
+    # …so the primary holds no metadata about it, and it copies no objects of its own.
+    assert not list((worktree / ".git" / "objects" / "pack").glob("*.pack"))
+    # The ref state is a snapshot of the primary's: the base the range-reading checks
+    # resolve is present, at the primary's commit.
+    primary = moving_primary["project"]
+    assert _git(worktree, "rev-parse", "main") == _git(primary, "rev-parse", "main")
+
+
+def test_the_executor_never_writes_the_primary_s_branch_ref(moving_primary: dict) -> None:
+    # Property 3, in the presence of a moving primary: the ONLY thing that moved the
+    # branch during the run was the test's own commit — the ref sits exactly at it and
+    # the reflog grew by exactly that one entry, so the executor wrote neither.
+    project = moving_primary["project"]
+    assert _git(project, "rev-parse", f"refs/heads/{BRANCH}") == moving_primary["moved"]
+    reflog_now = _git(project, "reflog", "show", "--format=%H", BRANCH).splitlines()
+    assert reflog_now == [moving_primary["moved"], *moving_primary["reflog_before"].splitlines()]
+
+
+@pytest.fixture(scope="module")
+def concurrent_runs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, object]:
+    """#144's actual shape: two agents gated at once, on one branch, in one project."""
+    project = _build_fixture_project(tmp_path_factory.mktemp("concurrent"))
+    ref_before = _git(project, "rev-parse", f"refs/heads/{BRANCH}")
+    processes = [
+        subprocess.Popen(
+            ["bash", str(RUN_IN_WORKTREE), "--project", str(project)],
+            cwd=project,
+            env=_gate_env(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for _ in range(2)
+    ]
+    outputs = []
+    try:
+        for process in processes:
+            outputs.append(process.communicate(timeout=900))
+    finally:
+        for process in processes:
+            if process.poll() is None:  # pragma: no cover — only on a hang
+                process.kill()
+                process.communicate()
+    return {
+        "project": project,
+        "ref_before": ref_before,
+        "run_dirs": [Path(_marker(stdout, "RECEIPTS: ")) for stdout, _ in outputs],
+        "outputs": outputs,
+    }
+
+
+def test_two_concurrent_runs_on_one_branch_both_succeed(concurrent_runs: dict) -> None:
+    run_dirs = concurrent_runs["run_dirs"]
+    assert run_dirs[0] != run_dirs[1], "two runs must not share a receipt bundle"
+    first, second = (_bundle(d) for d in run_dirs)
+    assert set(first) == set(second)
+    divergences = {
+        cid: receipt_differences(receipt, second[cid])
+        for cid, receipt in first.items()
+        if receipt_differences(receipt, second[cid])
+    }
+    assert divergences == {}
+    # Same snapshot, separate worktrees, and the primary's branch ref is where it was.
+    assert {_sidecar(d)["head"] for d in run_dirs} == {
+        _git(concurrent_runs["project"], "rev-parse", "HEAD")
+    }
+    assert _sidecar(run_dirs[0])["worktree"] != _sidecar(run_dirs[1])["worktree"]
+    assert (
+        _git(concurrent_runs["project"], "rev-parse", f"refs/heads/{BRANCH}")
+        == concurrent_runs["ref_before"]
+    )
 
 
 def test_the_executor_refuses_a_worktree_inside_the_repository(conformance: dict) -> None:

@@ -38,21 +38,68 @@ executor itself cannot run — an entry point that fails before the gate starts 
 receipt dir to write into. It fails closed and loudly (exit 1, the reason on stderr)
 instead. Those pieces belong with the in-gate dispatch, and are listed as not-done below.
 
-### 2. G8 (branch identity) — detach, then re-point HEAD
+### 2. G8 (branch identity) — a snapshot repository, not a `git worktree`
 
-`git worktree add --detach` at the primary's HEAD, then
-`git symbolic-ref HEAD refs/heads/<branch>` inside the worktree. `--detach` never trips
-git's "already checked out in another worktree" safeguard and never touches the branch
-ref; the symbolic-ref then makes `git rev-parse HEAD` **and**
-`git rev-parse --abbrev-ref HEAD` equal the primary's. The script asserts both at runtime
-and refuses to run if either differs — G8 is checked, not assumed. When the primary is
-itself detached, the worktree stays detached, and G8 still holds.
+**Amended after the PR #212 review, which found the first mechanism broken.** The
+original was `git worktree add --detach` at the primary's HEAD followed by
+`git symbolic-ref HEAD refs/heads/<branch>`. It passed every sequential test and was
+wrong, for a reason worth writing down:
+
+> **A linked worktree shares the repository's ref namespace.** Making
+> `git rev-parse --abbrev-ref HEAD` equal the primary's branch means pointing the
+> worktree's HEAD at the primary's **live** branch ref. It matches at the instant you
+> assert it — and then follows the branch forward the moment the primary commits, while
+> the materialised tree stays pinned at the captured snapshot. `09_commits`, `13_adr`,
+> `11_changelog` and `34_api_diff` re-derive HEAD and their commit range *live*, so they
+> then judge a range that does not correspond to the tree in front of them. It also
+> bypasses git's own "already checked out in another worktree" safeguard, which exists
+> precisely to stop two working trees sharing one branch ref.
+
+Reproduced in a scratch repo: worktree HEAD `bf833dd` → primary commits → worktree HEAD
+`f812edd`, tree unchanged. **Within one repository this is unfixable**: HEAD must be a
+symbolic ref to `refs/heads/<branch>` for `--abbrev-ref` to print the branch name, and in
+one repository that ref is necessarily the shared, live one. Per-worktree ref hierarchies
+(`refs/worktree/*`) do not help — they print under their own name, not the branch's.
+
+**So the worktree executor no longer uses `git worktree`.** It builds a *snapshot
+repository*: `git init` in the temp dir, `objects/info/alternates` pointing at the
+primary's object store (**no object is copied** — this is what `git clone --shared` does,
+without the ref rewriting), every one of the primary's refs copied in **verbatim**, and
+`refs/heads/<branch>` pinned there at the captured commit. The five properties the review
+asked for, each by construction:
+
+| Property | How |
+|---|---|
+| HEAD equals the captured SHA and **cannot move** | the branch ref lives in *this* repository; nothing outside the run can write it |
+| `--abbrev-ref HEAD` equals the primary's branch | HEAD is a symbolic ref to that pinned local branch (asserted at runtime, fail-closed) |
+| the primary's branch ref and reflog are never written | the only primary-side git commands are `rev-parse`, `for-each-ref`, `add -A`/`write-tree` under `GIT_INDEX_FILE`, all read-only on refs. No `worktree add`, so not even `.git/worktrees/` metadata |
+| two concurrent runs on one branch both succeed | each run is its own repository with its own refs; there is nothing to contend for |
+| objects still shared; cleanup bounded | alternates (a 108 KB `.git` in the fixture); cleanup is `rm -rf` of the temp dir this run made, and `git worktree prune` is now not merely avoided but unnecessary |
+
+**Copying the refs verbatim is load-bearing for conformance, not incidental.** The base
+that `09_commits`, `11_changelog`, `13_adr` and `34_api_diff` resolve (`origin/dev`, `dev`,
+`origin/main`, `main`) must be the same ref at the same commit as the primary's, for the
+whole run. A `git clone --shared` would *not* give that: clone rewrites the source's local
+branches as `refs/remotes/origin/*`, so the clone's `origin/main` is the primary's **local**
+`main`, which may differ from the primary's own `origin/main` — a silent divergence in four
+checks. Verbatim ref copy avoids it, and makes the ref state an explicit part of the
+snapshot: `(head, tree, branch, refs)`.
 
 Why it matters concretely: on this base exactly two required checks read the branch
-*name* — `08_branch` and `13_adr` (`17_prior_art` joins them with #131). A plain detached
+*name* — `08_branch` and `13_adr` (`17_prior_art` joins them with #131). A detached
 worktree reports its branch as `HEAD`, which silently flips `13_adr` from fail to pass and
 changes `08_branch`'s log. The conformance fixture sits on a `feat/` branch that touches
-`src/` precisely so both checks have something to say and a detached run would show.
+`src/` precisely so both checks have something to say and a detached run would show. When
+the primary is itself detached, the snapshot is detached at the same commit, and G8 holds.
+
+**Honest limits of the new mechanism.** Alternates mean the snapshot repo borrows objects
+it does not own: a `git gc --prune` in the primary *during* a run could remove an object
+the run still needs (the same exposure a linked worktree has, since it shares the same
+object store — the spec already accepts object sharing). A shallow primary's `shallow`
+boundary is copied, or history reads would walk into objects that were never fetched. And
+the primary's `.git/config` is *not* inherited: the snapshot repo is created from
+`git init --template=` with no hooks and no local config, so a check that depended on a
+repo-local git setting would see the default instead. None do today.
 
 ### 3. The snapshot: dirty tree in, ignored paths out, **and the primary's index restored**
 
@@ -115,6 +162,22 @@ inspection"): an orchestrator running N of these must not accumulate temp trees 
 things go wrong, so the failure *reason* is printed instead of preserved on disk, and
 `--keep` is there when you want the tree.
 
+### 3b. A third SPEC correction: §3.2's prescribed mechanism cannot hold G8
+
+`SPEC-executor.md` §3.2 step 1 offers `git worktree add --force <branch>` **or**
+`--detach` + re-pointing HEAD, "the builder's choice", with the contract being that
+`rev-parse HEAD` and `--abbrev-ref HEAD` equal the primary's. Both options are the same
+option — both end with the worktree's HEAD on the repository's shared live branch ref —
+and **neither holds the contract for the life of a run** once the primary can commit,
+which is exactly the situation #144 creates. The guarantee wording needs to say *when*:
+
+> **G8 (branch identity).** Branch-reading checks see the primary's branch name and the
+> commit captured in the snapshot, and **neither can change for the duration of the run**,
+> whatever happens in the primary meanwhile.
+
+and §3.2's materialisation should prescribe a private ref namespace (a snapshot repository
+sharing the object store), not `git worktree add`.
+
 ## The editable-install hazard, and what we can honestly offer
 
 A Python project installed editable (`pip install -e .`) can resolve its imports to the
@@ -141,10 +204,19 @@ asserted from inside a governed project too.
 
 ## Alternatives considered
 
-- **`git worktree add --force <branch>`** (the spec's other option for G8). Rejected:
-  `--force` exists to override the "already checked out" safeguard, and reaching for a
-  force flag in the normal path is how you stop noticing when it matters. Detach +
-  `symbolic-ref` reaches the same state without asking git to relax anything.
+- **`git worktree add --force <branch>`**, and **`--detach` + `symbolic-ref`** (the spec's
+  two options for G8, and this ADR's original decision). Both rejected now: they share the
+  primary's live branch ref, so HEAD follows the primary's next commit (see §2).
+- **`git clone --shared --no-checkout`** + pinning the branch there. Has all five
+  properties, and was the shape the review suggested. Rejected for a narrower reason:
+  clone rewrites the source's local branches as remote-tracking refs, so the base refs the
+  four range-reading checks resolve are no longer the primary's — a conformance divergence.
+  `git init` + alternates + a verbatim ref copy is the same cost with exact ref fidelity.
+- **A per-worktree ref hierarchy** (`refs/worktree/*`) inside the primary. Rejected: those
+  refs shorten to their own names, so `--abbrev-ref HEAD` would not print the branch name.
+- **Relaxing G8** (run detached and accept `HEAD` as the branch name). Rejected: it changes
+  the receipts of every branch-reading check, which is the thing conformance forbids. It
+  stays on the table only if a future host cannot give a private ref namespace.
 - **A `--worktree` flag on `verify.sh`.** Rejected above: it puts a second path inside the
   script whose default path must not regress.
 - **Emitting relative `log` paths** (the other fix for the transported bundle). Rejected in
@@ -166,6 +238,12 @@ asserted from inside a governed project too.
   object store, and receipts that mean the same thing as a local run's.
 - The equivalence relation is now code (`meta_harness.executor`), not prose, and is unit
   tested to exact values.
+- **A moving primary is now a tested property, not an assumption.** Three cases the
+  original single-sequential-run suite structurally could not catch: HEAD immovability
+  while the primary commits (deterministic — no race in the test), an in-flight commit
+  during a run leaving `09_commits`/`13_adr` receipts untouched, and two concurrent runs
+  on one branch producing equivalent bundles. All three fail against the first mechanism;
+  the first two were run against it to prove they do.
 - **Honest limits.** `local` and `worktree` share the host, so a check that reads outside
   `PROJECT_ROOT` sees the same state under both. The snapshot excludes ignored paths, so
   the two executors are equivalent only for checks that do not read ignored files — a tool

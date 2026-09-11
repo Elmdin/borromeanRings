@@ -22,14 +22,6 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 # python3 start on every Stop.
 [ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
 
-# The retry bound is declared in ONE place (meta_harness.generator.CAP) and read by both
-# generator adapters, so neither can drift from the other or quietly grant itself a
-# fourth attempt. Unreadable ⇒ fail closed to a single attempt: the smallest bound still
-# escalates to the human, where guessing an unbounded one never would.
-CAP="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
-  'from meta_harness.generator import CAP; print(CAP)' 2>/dev/null || true)"
-case "$CAP" in '' | *[!0-9]* | 0) CAP=1 ;; esac
-
 input="$(borromeanrings_read_stdin)"
 read -r stop_active session_id <<EOF
 $(printf '%s' "$input" | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('stop_hook_active', False)).lower(), d.get('session_id','default'))" 2>/dev/null || echo "false default")
@@ -71,21 +63,38 @@ then
   exit 0
 fi
 
+# The retry bound is declared in ONE place (meta_harness.generator.CAP) and read by both
+# generator adapters, so neither can drift from the other or quietly grant itself a fourth
+# attempt. Read here, below the re-entry guard and the dedupe claim, so a Stop that exits
+# early pays for no python3 start. Unreadable ⇒ fail closed to a single attempt — the
+# smallest bound still escalates to the human, where guessing an unbounded one never
+# would — and say so, because "attempt 1/1" with no explanation is not an explanation.
+CAP="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
+  'from meta_harness.generator import CAP; print(CAP)' 2>/dev/null || true)"
+case "$CAP" in
+  '' | *[!0-9]* | 0)
+    echo "borromeanRings: could not read the retry cap (got '$CAP') — failing closed to a single attempt." >&2
+    CAP=1
+    ;;
+esac
+
+# This adapter's self-declared provenance, recorded in the verdict as intent.generator —
+# like a git author line, and worth exactly as much. The gate makes no decision on it
+# (ADR-0049: the generator's word is not evidence); it only records who claimed to write
+# the change it judged (ADR-0071 §4). It is also what makes the retry bound survive a
+# deleted counter: the session id is how this adapter's rows are picked out of the gate's
+# append-only verdict history below.
+GENERATOR="claude-code:$session_id"
+
 attempt_dir="$PROJECT_DIR/.meta-harness/stop_attempts"
 mkdir -p "$attempt_dir"
 counter_file="$attempt_dir/$session_id"
-attempts="$(cat "$counter_file" 2>/dev/null || echo 0)"
 
 # Bounded: a hanging check inside the gate must fail closed here, not park this
 # hook (and its children) until the substrate's own hook timeout — or forever.
 # Keep the bound under the Stop hook's 600s budget in .claude/settings.json.
-#
-# BORROMEANRINGS_GENERATOR is this adapter's self-declared provenance, recorded in the
-# verdict as intent.generator — like a git author line, and worth exactly as much. The
-# gate makes no decision on it (ADR-0049: the generator's word is not evidence); it only
-# records who claimed to write the change it judged. See ADR-0071 §4.
 summary="$(BORROMEANRINGS_PROJECT="$PROJECT_DIR" \
-  BORROMEANRINGS_GENERATOR="claude-code:$session_id" borromeanrings_bounded \
+  BORROMEANRINGS_GENERATOR="$GENERATOR" borromeanrings_bounded \
   "${BORROMEANRINGS_GATE_TIMEOUT:-540}" bash "$BORROMEANRINGS_HOME/verify.sh" 2>&1)"
 gate_code=$?
 if [ "$gate_code" -eq 0 ]; then
@@ -97,10 +106,40 @@ if [ "$gate_code" -eq 124 ]; then
 (gate TIMED OUT after ${BORROMEANRINGS_GATE_TIMEOUT:-540}s wall-clock — a check is hanging; treated as FAIL, fail-closed)"
 fi
 
-attempts=$((attempts + 1))
+# Which attempt this is, and what happens next — BOTH from meta_harness.generator, so
+# this adapter and the headless driver run the same rules rather than two shell
+# transcriptions of them that agree today.
+#
+# The attempt number is anchored to two things, not one. The counter file is a single
+# small file that an agent working in this tree can delete, and deleting it used to hand
+# back a fresh set of three; the gate's verdict history (ADR-0047) is append-only, is what
+# the effectiveness ledger reports, and is picked out by THIS session's provenance label,
+# so the count survives. Whichever is higher wins.
+#
+# next_action is given tree_changed=true and exit_code=0 because a Stop event carries
+# neither signal: a hooked agent cannot say "I wrote nothing" or "I could not" (spec §6).
+# Fail-closed: anything unreadable escalates rather than retrying.
+attempts=""
+action=""
+read -r attempts action <<EOF
+$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+  "$PROJECT_DIR" "$GENERATOR" "$(cat "$counter_file" 2>/dev/null || true)" "$CAP" 2>/dev/null <<'PY'
+import sys
+
+from meta_harness.generator import attempt_number, attempts_from_history, next_action
+from meta_harness.verdict import read_history
+
+project, generator, counter, cap = sys.argv[1:5]
+rows = [(v.generator, v.ok) for v in read_history(project)]
+attempts = attempt_number(counter, attempts_from_history(rows, generator))
+print(attempts, next_action(attempts, int(cap), False, True, 0))
+PY
+)
+EOF
+case "$attempts" in '' | *[!0-9]*) attempts="$CAP" ;; esac
 printf '%s' "$attempts" >"$counter_file"
 
-if [ "$attempts" -lt "$CAP" ]; then
+if [ "$action" = "retry" ]; then
   {
     echo "borromeanRings gate FAILED (attempt $attempts/$CAP). Fix the failing checks below, then finish again."
     echo "$summary"

@@ -26,11 +26,12 @@ the attempt counter's file. Those are the thin shell drivers' (``generate.sh``,
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from stat import S_ISREG
 
-from meta_harness.verdict import is_failing
+from meta_harness.verdict import Verdict, is_failing
 
 #: The retry bound, shared by every generator adapter. Three attempts, then a human.
 #: A generator cannot raise it: it is not passed in from the environment or the config.
@@ -51,6 +52,9 @@ ACTIONS = (ACTION_GREEN, ACTION_RETRY, ACTION_ESCALATED, ACTION_GENERATOR_FAILED
 #: Longest provenance label recorded. A label, not a payload — a self-declared string
 #: goes into every verdict record, so it is bounded before it gets there.
 MAX_GENERATOR_LENGTH = 128
+
+#: Bytes read at a time when hashing an evidence file. Receipt logs run to megabytes.
+HASH_CHUNK_BYTES = 65536
 
 
 def next_action(attempt: int, cap: int, gate_ok: bool, tree_changed: bool, exit_code: int) -> str:
@@ -142,37 +146,49 @@ def failing_check_ids(checks: Sequence[tuple[str, str]]) -> tuple[str, ...]:
     return tuple(check_id for check_id, status in checks if is_failing(status))
 
 
-def snapshot_evidence(root: Path | str, *, exclude: Path | str | None = None) -> dict[str, str]:
-    """Fingerprint every file under ``root``: ``{relative path: "<size>:<mtime_ns>"}``.
+def _content_hash(path: Path) -> str:
+    """SHA-256 of a file, read in chunks so a megabyte-scale log costs no memory."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(HASH_CHUNK_BYTES):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def snapshot_evidence(root: Path | str) -> dict[str, str]:
+    """Fingerprint every file under ``root``: ``{relative path: "<size>:<sha256>"}``.
 
     Taken by the driver either side of the generator's run, over the gate's evidence
-    area (``.meta-harness/``). Size *and* mtime, because resetting an attempt counter
-    from ``2`` to ``0`` changes neither the file set nor the size.
+    area (``.meta-harness/``). The fingerprint is the file's **content**, not its size and
+    mtime: a generator can write ``0`` over ``2`` in the attempt counter and then
+    ``os.utime`` the nanoseconds back, and a size-and-mtime reading goes silent on exactly
+    the tamper it exists to catch. Hashing costs a read of the evidence area per attempt
+    and is the only reading that cannot be restored.
+
+    Nothing is excluded. The driver keeps its own capture of the generator's output
+    outside this directory until after the comparison, so "nothing under
+    ``.meta-harness/`` moved" is literally true rather than true-apart-from-one-path the
+    generator could compute.
 
     Args:
         root: directory to fingerprint; a missing one yields ``{}`` (a project that has
             never been gated has no evidence area, which is not a fault).
-        exclude: one path to leave out — the driver's own capture of the generator's
-            stdout, which it writes itself and which is therefore not a violation.
 
     Returns:
         A mapping suitable for :func:`evidence_writes`.
     """
     base = Path(root)
-    skipped = Path(exclude).resolve() if exclude is not None else None
     snapshot: dict[str, str] = {}
     if not base.is_dir():
         return snapshot
     for path in base.rglob("*"):
-        if skipped is not None and path.resolve() == skipped:
-            continue
         try:
             info = path.stat()
+            if not S_ISREG(info.st_mode):
+                continue
+            snapshot[str(path.relative_to(base))] = f"{info.st_size}:{_content_hash(path)}"
         except OSError:
             continue  # unreadable now ⇒ it drops out, and dropping out reads as a write
-        if not S_ISREG(info.st_mode):
-            continue
-        snapshot[str(path.relative_to(base))] = f"{info.st_size}:{info.st_mtime_ns}"
     return snapshot
 
 
@@ -200,3 +216,91 @@ def evidence_writes(before: Mapping[str, str], after: Mapping[str, str]) -> tupl
         elif before[name] != after[name]:
             reasons.append(f"modified: {name}")
     return tuple(reasons)
+
+
+def attempts_from_history(checks: Sequence[tuple[str, bool]], generator: str) -> int:
+    """How many attempts ``generator`` has already spent, from the gate's own history.
+
+    The attempt counter is one small file, and a generator runs as the same user in the
+    same tree: it can delete it. The gate's verdict history (ADR-0047) cannot be quietly
+    reset the same way — it is append-only, it is what the effectiveness ledger reports,
+    and truncating it destroys a record a human reads. So the bound is anchored to both,
+    and the higher of the two wins (:func:`attempt_number`).
+
+    Counts the trailing run of failures attributed to this exact generator, stopping at
+    its last green. Rows belonging to other generators are skipped, not counted, so two
+    sessions in one project keep independent bounds — the ``claude-code:<session_id>``
+    label is what makes that work. An unattributed row (``""``) matches nothing.
+
+    Args:
+        checks: ``(generator, ok)`` rows from the verdict history, oldest first.
+        generator: the provenance label to count for; ``""`` counts nothing.
+
+    Returns:
+        Attempts already spent, ``0`` when the last run for this generator was green.
+    """
+    if not generator:
+        return 0
+    spent = 0
+    for label, ok in reversed(checks):
+        if label != generator:
+            continue
+        if ok:
+            break
+        spent += 1
+    return spent
+
+
+def attempt_number(counter_value: str | None, history_spent: int) -> int:
+    """Which attempt a failing run is, from the counter file and the history together.
+
+    The counter file records attempts *before* this run, so it is incremented here; the
+    history already contains this run's verdict, so it is not. Whichever is higher wins:
+    a deleted or rewritten counter cannot lower the count below what the ledger shows.
+
+    Args:
+        counter_value: the raw contents of the attempt-counter file, or ``None``/``""``
+            when it is absent — unreadable is treated as zero *spent*, never as a licence.
+        history_spent: :func:`attempts_from_history` for this generator.
+
+    Returns:
+        The 1-based attempt number to hand :func:`next_action`. Never below 1.
+    """
+    previous = 0
+    if counter_value is not None:
+        # ASCII digits only: "٣".isdigit() is True and int() reads it as 3, which would
+        # let a hand-written counter carry a value no shell wrote.
+        raw = counter_value.strip()
+        if raw.isascii() and raw.isdigit():
+            previous = int(raw)
+    # No floor is needed: `previous` cannot be negative (digits only), so this is >= 1.
+    return max(previous + 1, history_spent)
+
+
+def verdict_mismatch(verdict: Verdict | None, run_id: str, gate_ok: bool) -> str:
+    """Why the persisted verdict is not the one this gate run produced; ``""`` if it is.
+
+    The driver hands the generator a path to ``last_verdict.json`` and the ids it names.
+    A missing record (the gate timed out, or crashed), a leftover record from an earlier
+    run, or a record that disagrees with the exit code the gate just returned would all
+    have the driver retry against facts that are not this run's — and a failing run whose
+    verdict names nothing tells the generator "the gate failed; nothing failed". All four
+    are ambiguous states, and an ambiguous state ends the run (N2).
+
+    Args:
+        verdict: the record read back after the gate, or ``None`` if unreadable.
+        run_id: the receipt bundle the gate just wrote — the run this must describe.
+        gate_ok: the gate's own exit status for that run.
+
+    Returns:
+        A human reason, or ``""`` when the verdict is this run's and is self-consistent.
+    """
+    if verdict is None:
+        return f"no verdict was readable for run {run_id}"
+    if verdict.run_id != run_id:
+        return f"the verdict describes run {verdict.run_id!r}, not the run just made ({run_id!r})"
+    if verdict.ok != gate_ok:
+        return f"the verdict (ok={verdict.ok}) disagrees with the gate's exit (ok={gate_ok})"
+    if not gate_ok and not failing_check_ids(verdict.checks):
+        return f"the gate failed but the verdict names no failing check (run {run_id})"
+    return ""

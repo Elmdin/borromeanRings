@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -37,7 +38,8 @@ FIXTURES = BORROMEANRINGS_HOME / "tests" / "fixtures" / "generators"
 DRIVER_TIMEOUT_S = 600
 
 #: Exit codes the driver promises (generate.sh header).
-EXIT_GREEN, EXIT_ESCALATED, EXIT_GENERATOR_FAILED, EXIT_REFUSED = 0, 1, 2, 3
+EXIT_GREEN, EXIT_ESCALATED, EXIT_GENERATOR_FAILED = 0, 1, 2
+EXIT_REFUSED, EXIT_MISCONFIGURED = 3, 4
 
 # A language-agnostic project: only checks/shared runs, so a gate run costs a second or
 # two. 07_layout fails for any repo-root .md outside the allowlist — a defect a patch can
@@ -93,17 +95,25 @@ def _delete_file_patch(path: str, line: str) -> str:
     )
 
 
-def _project(root: Path, toml: str, files: dict[str, str], generator: str) -> Path:
-    """Build and commit a throwaway governed project driven by ``generator``."""
+def _project(
+    root: Path, toml: str, files: dict[str, str], generator: str, *, gitignore: bool = True
+) -> Path:
+    """Build and commit a throwaway governed project driven by ``generator``.
+
+    ``gitignore=False`` builds the case borromeanRings never establishes for itself:
+    ``init.sh`` and ``adopt.sh`` write no ``.gitignore``, so a governed project whose
+    evidence area is part of its own tracked tree is the DEFAULT, not the exception. Every
+    fixture here used to pre-create that file, which is how a fail-open in the driver's
+    change detection went unseen — so at least one case must not.
+    """
     root.mkdir(parents=True, exist_ok=True)
     contents = {
         "borromeanrings.toml": toml.format(command=str(FIXTURES / generator)),
-        # The gate's evidence area must be ignored, or every gate run would itself read
-        # as a change to the tree (SPEC-executor.md §2.2).
-        ".gitignore": ".meta-harness/\n",
         "README.md": "# fixture\n",
         **files,
     }
+    if gitignore:
+        contents[".gitignore"] = ".meta-harness/\n"
     for rel, text in contents.items():
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -261,15 +271,19 @@ def test_a_generator_that_resets_the_retry_counter_is_caught(tmp_path: Path) -> 
     assert _bundles(project) == [], "a run this untrustworthy is never gated"
 
 
-def test_the_counter_is_never_handed_to_the_generator(tmp_path: Path) -> None:
-    """ "Not resettable" is enforced; "not readable" is by construction — the attempt
-    number arrives as a number, and no path into the counter directory is passed."""
+def test_the_generator_is_told_its_attempt_as_a_number(tmp_path: Path) -> None:
+    """The generator needs no counter: the attempt and the cap arrive as numbers.
+
+    Note what this does NOT claim. A generator runs as the same user in the same tree; it
+    is handed the project path, and from attempt two it is handed a path inside
+    ``.meta-harness/`` (the verdict it must read). The counter is therefore *readable*,
+    and saying otherwise would be a comfortable fiction. What holds is that reading it
+    buys nothing and writing it is caught — the two tests either side of this one."""
     project = _project(tmp_path / "handed", _LAYOUT_TOML, {}, "apply_patch.sh")
     _drive(project)
 
     handed = _logs(project)[0].read_text(encoding="utf-8")
-    assert "attempt=1 cap=3" in handed, "the attempt is delivered as a count"
-    assert "stop_attempts" not in handed, "and never as a path the generator could edit"
+    assert "attempt=1 cap=3" in handed
 
 
 def test_an_edited_receipt_is_caught_and_stops_verifying(tmp_path: Path) -> None:
@@ -467,6 +481,111 @@ def test_an_unreadable_config_says_so_rather_than_blaming_the_generator(tmp_path
     (project / "borromeanrings.toml").write_text("[checks\nrequired = ", encoding="utf-8")
     proc = _drive(project)
 
-    assert proc.returncode == EXIT_REFUSED
+    assert proc.returncode == EXIT_MISCONFIGURED
     assert "cannot read" in proc.stderr
     assert "no [generator].command" not in proc.stderr
+
+
+# --- change detection: what the gate can see, and nothing the driver wrote itself ------
+
+
+@pytest.mark.parametrize("gitignore", [True, False], ids=["ignored", "tracked"])
+def test_an_inert_generator_escalates_however_the_evidence_area_is_treated(
+    tmp_path: Path, gitignore: bool
+) -> None:
+    """A generator that runs cleanly and writes nothing has said "I have nothing to add",
+    and that answer cannot depend on whether the project gitignores `.meta-harness/`.
+
+    It did: the driver captured the generator's stdout inside the gated tree, so on a
+    project without the ignore the tree "changed" every attempt and the run was reported
+    **green** — exit 0, "a change was written and the gate accepted it", for a run in
+    which nothing was written. `init.sh` writes no `.gitignore`, so that was the default
+    configuration, and every fixture here pre-created the file that hid it."""
+    project = _project(
+        tmp_path / f"inert-{gitignore}", _LAYOUT_TOML, {}, "inert.sh", gitignore=gitignore
+    )
+    proc = _drive(project)
+
+    assert _result(proc) == "escalated"
+    assert proc.returncode == EXIT_ESCALATED
+    assert _bundles(project) == [], "the gate is never asked about a change nobody made"
+
+
+def test_moving_another_ref_is_a_change(tmp_path: Path) -> None:
+    """`git update-ref refs/heads/main HEAD` leaves branch, HEAD, tree and index identical
+    and moves `git merge-base HEAD main` — which six checks resolve their diff base from.
+    A generator that fixes one of those is not a generator that did nothing."""
+    project = _project(tmp_path / "refs", _LAYOUT_TOML, {}, "move_a_ref.sh")
+    proc = _drive(project)
+
+    assert _result(proc) == "green"
+    assert len(_bundles(project)) == 1, "the gate was asked, because its base moved"
+
+
+def test_untracking_a_file_is_a_change(tmp_path: Path) -> None:
+    """`git rm --cached` changes `git ls-files`, which three checks enumerate from, while
+    the file stays on disk and a dirty-tree OID built with `add -A` puts it straight back."""
+    project = _project(tmp_path / "index", _LAYOUT_TOML, {}, "untrack_a_file.sh")
+    proc = _drive(project)
+
+    assert len(_bundles(project)) == 1, "the gate was asked, because what it enumerates moved"
+    assert _result(proc) in {"green", "escalated"}
+
+
+# --- the retry bound survives a deleted counter ---------------------------------------
+
+
+def test_the_stop_hook_bound_survives_a_deleted_counter(tmp_path: Path) -> None:
+    """The shipped adapter's hole: the counter is one small file in the agent's own tree,
+    and deleting it used to hand back a fresh set of three — an unbounded retry loop with
+    nothing to detect it. The bound is now anchored to the gate's append-only verdict
+    history as well, picked out by this session's provenance label."""
+    project = _project(
+        tmp_path / "hooked-bound", _LAYOUT_TOML, {"BAD.md": "disallowed\n"}, "inert.sh"
+    )
+    codes = []
+    for _ in range(3):
+        shutil.rmtree(project / ".meta-harness" / "stop_attempts", ignore_errors=True)
+        proc = subprocess.run(
+            ["bash", str(STOP_GATE)],
+            input=json.dumps({"stop_hook_active": False, "session_id": "s-anchor"}),
+            env={**os.environ, "CLAUDE_PROJECT_DIR": str(project)},
+            capture_output=True,
+            text=True,
+            timeout=DRIVER_TIMEOUT_S,
+        )
+        codes.append((proc.returncode, "ESCALATION" in proc.stderr))
+
+    assert codes == [(2, False), (2, False), (0, True)], (
+        "three attempts then the human, however often the counter is deleted"
+    )
+
+
+def test_a_resumed_run_key_does_not_get_a_fresh_set_of_attempts(tmp_path: Path) -> None:
+    """N5 bounds the attempt KEY, not the invocation. A driver killed mid-run leaves its
+    counter behind; starting again on that key resumes rather than restarting."""
+    project = _project(tmp_path / "resume", _LAYOUT_TOML, {}, "apply_patch.sh")
+    counter = _counter(project)
+    counter.parent.mkdir(parents=True, exist_ok=True)
+    counter.write_text("3", encoding="utf-8")
+
+    proc = _drive(project)
+
+    assert proc.returncode == EXIT_ESCALATED
+    assert "already spent 3 of 3" in proc.stderr
+    assert _logs(project) == [], "the generator is not invoked for an attempt it cannot have"
+    assert not counter.exists()
+
+
+def test_a_broken_config_is_misconfigured_not_merely_absent(tmp_path: Path) -> None:
+    """ "There is no config here" and "the config is here and broken" are different facts,
+    and an orchestrator branches on the number, not on the sentence. The second is a
+    governed project about to go ungated and unnoticed."""
+    project = tmp_path / "brokentoml"
+    project.mkdir()
+    (project / "borromeanrings.toml").write_text("[checks\nrequired = ", encoding="utf-8")
+    proc = _drive(project)
+
+    assert proc.returncode == EXIT_MISCONFIGURED
+    assert proc.returncode != EXIT_REFUSED
+    assert "cannot read" in proc.stderr

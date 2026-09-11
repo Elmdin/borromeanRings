@@ -45,10 +45,13 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    `<command> <project> <last_verdict|"">` with `BORROMEANRINGS_{ATTEMPT,CAP,FAILING_CHECKS,GENERATOR}`
    set, cwd at the project, stdin closed and output captured to
    `.meta-harness/generator/<run_key>/<attempt>.log`, and runs the gate itself. Its exit
-   codes are `0` green, `1` escalated, `2` generator-failed and `3` **refused** — a fourth
-   outcome the spec implied but did not name, for "there is nothing to drive": no config,
-   no declared command, no git repository, an unwritable evidence area. Refusing is not
-   escalating; nothing was attempted.
+   codes are `0` green, `1` escalated, `2` generator-failed, `3` **refused** — an outcome
+   the spec implied but did not name, for "there is nothing to drive": no
+   `borromeanrings.toml`, no declared command — and `4` **misconfigured**, for a config
+   that is present and broken. Refusing is not escalating; nothing was attempted. And a
+   broken config is not an absent one: the first is a project nobody asked to gate, the
+   second is a governed project about to go ungated and unnoticed, and an orchestrator
+   branches on the number rather than on the sentence.
 
    That distinction is load-bearing and therefore bounded: **refusing is pre-flight only.**
    Once the loop has begun, any failure that stops the driver — the evidence area became
@@ -72,21 +75,31 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    not a best effort: if the ids cannot be read at all the run ends rather than handing
    the generator an empty list it would read as "nothing failed".
 
-4. **A generator that writes under `.meta-harness/` is `generator-failed`.** The spec
-   forbade it and specified the detection (snapshot the directory listing before and
-   after) but not the consequence; this is that consequence. The driver fingerprints every
-   file under `.meta-harness/` by **size and mtime** either side of the run — size alone
-   would miss a counter reset from `2` to `0` — excluding only the log it is itself
-   writing, and reports the violation into the decision as exit `125`: "could not be
-   trusted to have run honestly", distinct from any code the command actually returned.
+4. **A generator that writes under `.meta-harness/` is `generator-failed`, and the
+   fingerprint is the content.** The spec forbade the write and specified the detection
+   (snapshot the directory before and after) but not the consequence; this is that
+   consequence, reported into the decision as exit `125` — "could not be trusted to have
+   run honestly", distinct from any code the command actually returned.
 
-   The retry counter is protected twice over. It is **not resettable**: an edit is caught
-   and ends the run. It is **not readable in any useful sense**: the driver hands over the
-   attempt *number*, never a path into `stop_attempts/`, and within a run its own
-   in-memory count is authoritative — the file is written for a human, the ledger and a
-   second invocation on the same key, and never read back. We did not attempt to make the
-   file unreadable by file permissions: the generator runs as the same user, so that would
-   be theatre.
+   The fingerprint is `size:sha256`, not `size:mtime_ns`. Size and mtime was the first
+   implementation and it was forgeable in one line: write `0` over `2` in the counter,
+   then `os.utime` the nanoseconds back, and the guard goes silent on exactly the tamper
+   it exists to catch. Hashing costs one read of the evidence area per attempt; the cost
+   is real and scales with a directory nothing prunes, and it is the only reading a
+   generator cannot restore.
+
+   Nothing is excluded from the snapshot, either. The driver's own capture of the
+   generator's output now lives outside `.meta-harness/` until the comparison is over,
+   because the excluded path used to be `generator/$RUN_KEY/$ATTEMPT.log` — and the run
+   key and the attempt are both handed to the generator, which makes an exception it can
+   compute into a door.
+
+   **What we do *not* claim about the counter.** A generator runs as the same user in the
+   same tree, is handed the project path, and from attempt two is handed a path inside
+   `.meta-harness/` (the verdict it must read). The counter is readable, and file
+   permissions would be theatre. What holds is narrower and true: reading it buys nothing
+   (the attempt and the cap arrive as numbers), writing it is caught within a run, and —
+   decision 8 — deleting it between runs no longer resets the bound.
 
 5. **CAP lives in `meta_harness.generator` and both adapters read it.** An unreadable CAP
    falls back to **one** attempt, not three: the smallest bound still escalates to a
@@ -105,19 +118,61 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    that the label cannot damage the record it goes into (control characters refused, 128
    characters max).
 
-7. **"The tree changed" means the executor's snapshot identity changed — `(branch, head,
-   dirty tree)`, not the tree alone.** This is a correction to SPEC-generator.md N3, found
-   while building it. The required check set contains checks that read the branch and the
-   history (`08_branch`, `09_commits`, `11_changelog`, `13_adr`, `34_api_diff`), so a
-   generator that amends a commit message or renames a branch has changed what the gate
-   sees while leaving the working tree byte-identical. Under a tree-only comparison that
-   generator is told it did nothing and the run escalates with the fix already in place —
-   the worst kind of wrong, because a human is called in to look at work that is done. A
-   fifth fixture (`commit_only.sh`) is the discriminating case, and it goes red against the
-   tree-only rule. `next_action`'s parameter keeps the name `tree_changed`; what the driver
-   feeds it is the wider comparison.
+   It is also what makes decision 8 possible: `claude-code:<session_id>` is how one
+   session's rows are picked out of a project-wide history.
 
-8. **The four scenarios are integration tests over real gate runs**, with the evidence
+7. **"The tree changed" means everything the gate can read changed — `(branch, head,
+   dirty tree, all refs, the index)`.** This is a correction to SPEC-generator.md N3, and
+   it took two passes to get right, which is itself the argument for stating it as a list
+   of what checks actually read rather than as an intuition about "the code".
+
+   Tree alone is wrong: `08_branch`, `09_commits`, `11_changelog`, `13_adr` and
+   `34_api_diff` read the branch and the history, so an amended commit message changes
+   what the gate sees and no file at all. `(branch, head, tree)` is *also* wrong, in the
+   same direction and for two more reasons a review found: six checks resolve their diff
+   base by trying `origin/dev dev origin/main main`, so `git update-ref refs/heads/main
+   HEAD` — or a plain `git fetch` — moves what they read with HEAD untouched; and
+   `01_source_coherence`, `12_secrets` and `15_a11y` enumerate files with `git ls-files`,
+   so `git rm --cached f` changes what they inspect while the file sits unchanged on disk
+   and `add -A` puts it straight back into the tree OID.
+
+   Each narrowing has the same failure shape: the generator is told it did nothing and the
+   run escalates with the fix already in place — a human called in to look at finished
+   work. Three fixtures discriminate the three cases (`commit_only.sh`, `move_a_ref.sh`,
+   `untrack_a_file.sh`), and each goes red against the narrower rule. `next_action`'s
+   parameter keeps the name `tree_changed`; what the driver feeds it is the wider
+   comparison.
+
+8. **The retry bound is anchored to the gate's append-only history as well as to the
+   counter file.** The counter is one small file in the agent's own working tree. In the
+   headless driver a write to it is caught; in `stop_gate.sh` — the adapter most runs
+   actually use — there is no evidence guard at all and the file *is* read back, so
+   `rm .meta-harness/stop_attempts/*` bought an unbounded retry loop with nothing to
+   detect it. That is the one failure a human cannot un-spend, sitting behind a file
+   anyone in the tree can delete.
+
+   Both adapters now take the attempt number as `max(counter + 1, history)`, where
+   `history` is the trailing run of failures attributed to *this generator label* since
+   its last green, read from `.meta-harness/verdict_history.jsonl`. That file is
+   append-only, it is what the effectiveness ledger reports (ADR-0047), and truncating it
+   destroys a record a human reads — so the cheap attack stops working and the expensive
+   one is loud. It is still not unforgeable; nothing file-based can be against a process
+   running as the same user. It is strictly better than one deletable integer, and the
+   claim is now sized to what it does.
+
+   The driver also *resumes* rather than restarts: a counter left behind by a killed run
+   means the key has spent attempts, and N5 bounds the key, not the invocation.
+
+9. **Both adapters call `next_action`.** The first implementation shared only `CAP` and
+   left `stop_gate.sh` with the loop transcribed in shell. The two agreed — a review
+   enumerated all four caps and found them equivalent — but agreeing today is not the
+   property claimed, which was that they cannot drift. The hook now calls the same
+   function, passing `tree_changed=true, exit_code=0` because a Stop event carries neither
+   signal: a hooked agent cannot say "I wrote nothing" or "I could not" (spec §6). That
+   asymmetry is a real limit of the substrate, and it is now visible at the call site
+   instead of implied by a missing branch.
+
+10. **The four scenarios are integration tests over real gate runs**, with the evidence
    behind each outcome asserted, not just the outcome: how many receipt bundles the gate
    actually produced, which ids the retry named, whether the counter survived. Two
    negative fixtures sit beside them — one resets the counter, one edits a receipt in an
@@ -127,7 +182,28 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    delivery, the evidence guard, change detection, the snapshot identity narrowed back to
    the tree alone, the identity recording, a re-hardcoded cap, counter clearing, and log
    capture). A sub-agent review of the finished commit then found one more, which is now
-   fixed and tested: the pre-flight refusal was reachable from inside the loop.
+   fixed and tested: the pre-flight refusal was reachable from inside the loop. A second,
+   independent review then found the fail-open in decision 11 and five more defects, all
+   of which are the reason decisions 4, 7, 8, 9 and 11 read as they do. The lesson worth
+   keeping is not "review finds things" but *which* thing hid it: every fixture in the
+   suite pre-created a `.gitignore` that the harness itself never writes, so the
+   configuration under test was the rare one.
+
+11. **`.meta-harness/` is excluded from the snapshot identity whether or not the project
+   gitignores it, because the driver must not depend on a file borromeanRings never
+   writes.** The blocking defect of this change: `dirty_tree_oid` is `git add -A` plus
+   `write-tree`, which includes untracked-not-ignored paths, and the driver's capture of
+   the generator's stdout lived in `.meta-harness/`. On a project without the ignore, the
+   tree therefore "changed" on every attempt — so a generator that ran cleanly and wrote
+   **nothing** was reported `green`, exit 0, "a change was written and the gate accepted
+   it". Neither `init.sh` nor `adopt.sh` writes a `.gitignore`, so that was the default
+   configuration, and every fixture in the suite pre-created the file that hid it.
+
+   Two fixes, because either alone would leave the other half standing: the evidence area
+   is excluded from the tree OID outright (`git rm --cached` against the temporary index),
+   and the capture lives outside it until the comparison is over. The driver also warns
+   when `.meta-harness/` is not ignored — it no longer depends on that, but a project
+   whose gate scans its own receipts wants to know.
 
 ## Alternatives considered
 
@@ -166,21 +242,37 @@ doing so forces the loop's rules out of both scripts and into one tested place.
 - (+) Two independent defences stand between a generator and the gate's evidence, and both
   are demonstrated rather than asserted.
 - (−) **`intent.generator` is implemented in `meta_harness.verdict` because ADR-0056's
-  `Intent` is not yet on this base** (it lives on `feat/verdict-evidence`, PR #163). The
-  persisted JSON is already the shape that `Intent` will own — `intent: {"generator": …}` —
-  so records need no migration and `parse_intent` reads them fail-soft. **When #134 merges,
-  `Verdict.generator` moves into `evidence.Intent` as one more fail-soft field and the
-  shim in `verdict.py` goes away.** That merge is the only work this ADR knowingly defers.
+  `Intent` is not yet on this base** (it lives on `feat/verdict-evidence`, PR #163), and
+  merging the two is a **migration, not a rename**. On that branch `Intent` is
+  `(branch, head_sha, input_digest)`, `Intent.to_dict()` emits exactly those three keys,
+  `parse_intent` reads exactly those three and drops the rest, and `Verdict.to_dict()`
+  there is `"intent": self.intent.to_dict()`. The two `to_dict`s collide on the same key,
+  and whichever wins, `generator` is **dropped** unless `Intent` is extended. The merge
+  therefore requires three edits, named here so they are not discovered later: add
+  `generator: str = ""` to `evidence.Intent`, emit and read it in `to_dict`/`parse_intent`,
+  and delete `Verdict.generator` and `_parse_generator` from `verdict.py`. Persisted
+  records survive it — the JSON shape is the same — but the code does not merge itself.
 - (−) The headless driver duplicates the hook's loop *shape* in a second thin script, as
   ADR-0071 predicted. Two places to keep correct; the decision and the cap are not among
   them.
 - (−) The evidence guard is a **two-point diff**, so a generator that creates a file under
-  `.meta-harness/` and deletes it again before exiting, or that edits one and restores both
-  its bytes and its mtime, is invisible to it. Closing that would need a filesystem watcher
-  (inotify is Linux-only and may not be installed) or an executor the generator cannot
-  reach at all — which is #201's and #144's job, not a `local` executor's. Named here
-  rather than papered over: the guard catches a generator that *leaves* the gate's evidence
-  changed, which is what a generator trying to buy itself attempts must do.
+  `.meta-harness/` and deletes it again before exiting, or that edits one and restores its
+  exact bytes, is invisible to it. (Restoring the *timestamps* no longer suffices — that
+  hole is closed.) Closing the rest would need a filesystem watcher (inotify is Linux-only
+  and may not be installed) or an executor the generator cannot reach at all — #201's and
+  #144's job, not a `local` executor's. Named rather than papered over: the guard catches a
+  generator that *leaves* the gate's evidence changed, which is what a generator trying to
+  buy itself attempts must do.
+- (−) The loop's end-to-end behaviour sits outside the mutation lane: `test_generator_loop.py`
+  reads repo-root paths, which mutmut's copied working dir does not have (ADR-0022), so it
+  is in `setup.cfg`'s ignore list. That trade is still right — un-ignoring it fails the
+  lane closed with "MUTATION CHECK DID NOT RUN" — but this change is the evidence that it
+  is not free: the fail-open in decision 11 lived in the shell driver, where no mutant
+  could reach it, and the integration tests that could have caught it all shared one
+  unrepresentative fixture. The response is to keep moving decisions into Python, where
+  mutation does see them (`verdict_mismatch`, `attempt_number`, `attempts_from_history`
+  are all new here and all mutated), and to keep the fixtures honest about the default
+  configuration rather than the convenient one.
 - (−) The evidence guard means a governed project whose `.gitignore` does not ignore
   `.meta-harness/` cannot use the headless driver sensibly — every gate run would read as
   a change to the tree. `init.sh` writes that ignore; a hand-built project must too.
@@ -190,6 +282,6 @@ doing so forces the loop's rules out of both scripts and into one tested place.
   the kind of inference this project refuses elsewhere.
 - (+) The N3 correction removes a whole class of false escalation: a generator that fixes
   a commit message, adds a commit, or moves a branch is no longer told it did nothing.
-- (−) Six real gate runs are added to the test suite (about 25 s of CPU). Three of the
+- (−) Roughly a dozen real gate runs are added to the test suite (about 40 s of CPU). Three of the
   four scenarios use a language-agnostic fixture whose gate costs ~2 s; only
   fixed-on-retry uses a Python fixture, because that row of the spec names `20_lint`.

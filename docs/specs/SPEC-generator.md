@@ -62,7 +62,7 @@ digest* — the *what*, not the *who*.
 |---|---|---|---|---|
 | **N1 Deliver the verdict** | the gate's summary text and the receipt bundle location reach the generator after every failed attempt | gate → generator | stderr + exit 2 from the Stop hook; the bundle is under `.meta-harness/receipts/<run_id>/` and `last_verdict.json` names `run_id` | argv 2 = path to `last_verdict.json` (`""` on the first attempt); the bundle path is inside it |
 | **N2 Request a retry, naming the failing checks** | "attempt n of CAP; these checks failed" | gate → generator | the same stderr text (check names come from the summary rows) | env `BORROMEANRINGS_FAILING_CHECKS` (comma-separated ids), `BORROMEANRINGS_ATTEMPT`, `BORROMEANRINGS_CAP` |
-| **N3 "I have written a change"** | the signal that the tree is ready to gate | generator → gate | the Stop event | process exit 0 **with the project changed** — the driver compares the executor's full snapshot identity `(branch, head, dirty tree)` before and after (`SPEC-executor.md` §2.2). **Corrected in #202:** the dirty-tree OID alone is not enough — 08_branch, 09_commits, 11_changelog and 13_adr read the branch and the history, so a generator that amends a commit message or renames a branch has changed what the gate sees while leaving the tree byte-identical, and a tree-only comparison tells it that it did nothing (ADR-0078) |
+| **N3 "I have written a change"** | the signal that the tree is ready to gate | generator → gate | the Stop event | process exit 0 **with the project changed** — the driver compares `(branch, head, dirty tree, all refs, the index)` before and after. **Corrected twice in #202**, because it is a list of what checks read and not an intuition: the dirty-tree OID alone misses an amended commit message (08_branch, 09_commits, 11_changelog, 13_adr read branch and history); adding branch and head still misses `git update-ref refs/heads/main HEAD` (six checks resolve a base from `origin/dev dev origin/main main`) and `git rm --cached` (01_source_coherence, 12_secrets, 15_a11y enumerate with `git ls-files`, and `add -A` puts the file back in the tree). Each narrowing tells a generator that fixed one of those that it did nothing, and escalates with the fix in place (ADR-0078). The dirty tree always **excludes `.meta-harness/`**, gitignored or not — it is the driver's own workspace |
 | **N4 "I cannot / will not"** | the generator gives up | generator → gate | none — the agent can only stop; the cap does the giving up | exit 0 with the tree **unchanged** ⇒ escalate now (retrying an idempotent generator is wasted attempts); non-zero exit ⇒ `generator-failed`, escalate now |
 | **N5 Bounded retry, then a human** | at most CAP attempts per attempt key, then escalation | gate-owned | `CAP=3`, counter in `.meta-harness/stop_attempts/<session_id>`, reset on green or at escalation | same CAP, same counter directory keyed by the driver's run key; the driver's exit is one of `green` / `escalated` / `generator-failed` |
 | **N6 Identity in the verdict** | which generator produced the judged change | generator → verdict | `stop_gate.sh` exports `BORROMEANRINGS_GENERATOR=claude-code:<session_id>` before running the gate | the driver exports `headless:<basename of command>` |
@@ -85,9 +85,16 @@ adapter under a different event source.
   write. A generator that resets its counter has forged an attempt, and the retry bound is
   the only thing standing between a looping agent and a human's afternoon. Enforced, not
   requested: a write anywhere under `.meta-harness/` during the generator's run ends the
-  run as `generator-failed` (ADR-0078). "Not readable" is by construction rather than by
-  permission — the attempt arrives as a *number*, no path into `stop_attempts/` is handed
-  over, and the driver's own in-memory count is what the loop acts on.
+  run as `generator-failed`, detected by **content hash** — size and mtime is one
+  `os.utime` away from forgeable (ADR-0078).
+
+  The counter is **readable**, and pretending otherwise would be a comfortable fiction: a
+  generator runs as the same user in the same tree and is handed a path inside
+  `.meta-harness/` from attempt two (the verdict). What holds is that reading it buys
+  nothing — the attempt and the cap arrive as numbers — and that **resetting it does not
+  reset the bound**: both adapters take the attempt as `max(counter + 1, trailing failures
+  for this generator in the append-only verdict history)`. `rm stop_attempts/*` used to
+  hand a hooked agent an unbounded retry loop; now it hands it nothing.
 - **The no-op skip** — the gate's, keyed on the gated-input hash. A generator cannot
   declare "nothing changed"; the hash says.
 - **When it is done** — the gate says green; the generator's "done" is a Stop event or an
@@ -112,9 +119,11 @@ second adapter appears:
 ### 3.2 `headless` — a scripted generator (for tests and for #144's orchestrator)
 
 **Driver.** `generate.sh` at the repo root, beside `verify.sh`. Exit codes: `0` green,
-`1` escalated, `2` generator-failed, `3` **refused** — nothing to drive (no config, no
-declared command, no git repository, an unwritable evidence area). Refusing is not
-escalating: nothing was attempted. **Refusal is pre-flight only** — once an attempt is
+`1` escalated, `2` generator-failed, `3` **refused** — nothing to drive (no
+`borromeanrings.toml`, no declared command) — and `4` **misconfigured**: a config that IS
+here and is broken, which is a governed project about to go ungated, not a project nobody
+asked to gate. Refusing is not escalating: nothing was attempted. **Refusal is pre-flight
+only** — once an attempt is
 under way, any failure that stops the driver escalates instead, because an orchestrator
 may reasonably skip a worktree that reports "nothing to drive" and must never skip one
 where something was attempted (ADR-0078).
@@ -170,7 +179,10 @@ fail when the loop regresses:
 | never-fixed | `1..3.diff` each keep the error | `escalated` after attempt 3 | exactly 3 gate runs; 3 receipt bundles; counter cleared |
 | no-change | no patch files | `escalated` after attempt 1 | exactly 0 gate runs beyond the baseline |
 | crash | `1.diff` is malformed ⇒ `git apply` exits 1 | `generator-failed` | the generator's log is captured; no receipt bundle for the failed attempt |
-| commit-only (added by #202) | `commit_only.sh` commits without touching a file | the gate runs | the dirty-tree OID is unchanged, the snapshot identity is not — the discriminating case for N3's correction |
+| commit-only (added by #202) | `commit_only.sh` commits without touching a file | the gate runs | the dirty-tree OID is unchanged, the snapshot identity is not |
+| moved ref (added by #202) | `move_a_ref.sh` runs `git update-ref refs/heads/main HEAD` | the gate runs | branch, head, tree and index are all identical; six checks' diff base is not |
+| untracked file (added by #202) | `untrack_a_file.sh` runs `git rm --cached README.md` | the gate runs | the file is unchanged on disk and back in the tree OID; `git ls-files` is not |
+| inert (added by #202) | `inert.sh` exits 0 having written nothing | `escalated`, **whether or not the project gitignores `.meta-harness/`** | the case that was reported `green`: the driver's own capture of stdout lived in the gated tree |
 
 Two further negative fixtures, both caught:
 

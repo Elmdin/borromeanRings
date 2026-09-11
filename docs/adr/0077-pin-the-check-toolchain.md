@@ -12,14 +12,24 @@ tool release could in principle change a verdict."*
 The trigger fired. On 2026-09-10 two pull requests were red on GitHub while green locally, on the
 same commits:
 
-| PR | Failing check | Cause |
-|---|---|---|
-| #207 | `10_format` | `ruff` 0.15.8 locally, 0.16.7 in CI — the newer release reformats |
-| #208 | `40_test` | `mypy` 1.19.1 locally, 2.3.1 in CI — a major version apart |
+**#207 is the proven case.** It failed `10_format` in CI. Its tree passes
+`ruff format --check .` under 0.15.8 (`96 files already formatted`, exit 0) and fails under the
+0.16.7 that CI resolved. Verified on `refs/pull/207/merge`, the exact tree CI ran, not on the
+branch head — CI tests the merge result, and the `harness-version` in its log confirms which.
+Same bytes, two verdicts, one variable.
 
-Every tool differed. `pytest` 9.0.3 against 9.1.1, `pip-audit` 2.10.0 against 2.10.1, `mutmut`
-3.6.0 against 3.7.0, and transitively `coverage` 7.13.4 against 7.16.0. The gate was reporting a
-property of the PyPI release calendar, not of the code.
+**#208 is not evidence, and an earlier draft of this ADR wrongly said it was.** That draft
+attributed its `40_test` failure to `mypy` 1.19.1 against 2.3.1. Review checked the run and the
+claim is contradicted by its own log: `30_typecheck` **passed** under mypy 2.3.1, and no test in
+that tree references mypy. `40_test` is a coverage ratchet, and that run carried `coverage`
+7.16.0 and `pytest` 9.1.1 against 7.13.4 and 9.0.3 here, but **nothing here establishes which of
+those, if either, was the cause.** It is recorded as unexplained rather than quietly dropped,
+because a decision record that keeps a convenient but unverified second data point is worth less
+than one that admits it has a single proven case.
+
+Every tool did differ — `pytest` 9.0.3 against 9.1.1, `pip-audit` 2.10.0 against 2.10.1, `mutmut`
+3.6.0 against 3.7.0, `coverage` 7.13.4 against 7.16.0 — and one proven divergence is enough: the
+gate was reporting a property of the PyPI release calendar, not of the code.
 
 Two further facts shaped the decision.
 
@@ -114,9 +124,18 @@ not allowed.
   the same shape as the README's check counts and `04_self_description`. Found by rehearsing the
   merge queue rather than by review: #124 (`shellcheck`) and #198 (the TypeScript and Go check
   sets) each trip it, and #170 trips the exact-pin rule by replacing pins with bounds. The
-  assertion message spells out all three steps so the failure is self-serving rather than a
-  puzzle, and `_DIST_OF_BINARY` is pre-seeded with `shellcheck -> shellcheck-py` so that merge
-  needs one line fewer.
+  assertion message spells out all three steps so the failure is an instruction rather than a
+  puzzle.
+- (−) **Not every binary can be verified this way, and the exception is easy to miss.** The
+  mapping from binary name to distribution was briefly pre-seeded with
+  `shellcheck -> shellcheck-py` to smooth that merge. Review showed it was wrong in a way worth
+  keeping on the record: the wheel is versioned `0.11.0.1` while the binary it ships reports
+  `0.11.0`, so following the assertion's own advice produces a drift on a correctly pinned
+  machine; and `command -v shellcheck` finds whatever is on `PATH` — a conda binary here, the
+  image's on a runner — which is not the wheel at all and succeeds even when the wheel is absent.
+  That is this ADR's own shim problem, reintroduced by a convenience added to fix it. A binary
+  whose reported version is not its distribution's version needs a check-specific assertion
+  instead, and the mapping now says so.
 - (−) The pins record *this* machine's closure. A contributor on a different platform may find a
   version without a wheel for their Python. Exact pins are the safe case for a yanked release
   (PEP 592 still installs a yanked version when pinned exactly), but a platform mismatch would

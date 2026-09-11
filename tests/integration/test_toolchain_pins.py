@@ -5,6 +5,7 @@ on a laptop and red on GitHub because ``pip install -e ".[dev]"`` resolved newer
 releases of ``ruff`` and ``mypy`` than the laptop had.
 """
 
+import importlib.metadata as metadata
 import re
 import subprocess
 from pathlib import Path
@@ -13,6 +14,7 @@ import pytest
 import tomllib
 
 from meta_harness.toolchain import (
+    LIBRARY_DECIDERS,
     TOOLS,
     canonical,
     drifts,
@@ -32,10 +34,21 @@ _DECIDERS_NOT_INVOKED_DIRECTLY = {"coverage", "libcst"}
 _NOT_A_DISTRIBUTION = {"python3", "compileall", "timeout", "gtimeout"}
 # Import name → distribution name, where they differ.
 _DIST_OF_MODULE = {"pip_audit": "pip-audit"}
-# Binary name → distribution name, where they differ. Pre-seeded with the binaries that
-# in-flight branches will add, so their merge only has to extend TOOLS and the pins.
-# Inert until a check actually reaches for the binary.
-_DIST_OF_BINARY = {"shellcheck": "shellcheck-py"}
+# Binary name → distribution name, where they differ. Empty on purpose.
+#
+# It was briefly pre-seeded with `shellcheck -> shellcheck-py` to smooth an incoming
+# merge. Review showed that is wrong, and instructive about why this file exists at all:
+# the `shellcheck-py` wheel is versioned 0.11.0.1 while the binary it ships reports
+# 0.11.0, so following the assertion's own advice produces a drift on a correctly pinned
+# machine. Worse, `command -v shellcheck` finds whichever shellcheck is on PATH — here a
+# conda binary, on a runner the image's — which is not the wheel at all, and succeeds
+# even when the wheel is absent. That is precisely the shim problem this module exists to
+# catch, reintroduced by the fix for it.
+#
+# So a binary whose reported version is not its distribution's version cannot be verified
+# this way, and must not be added here. Give it a check-specific version assertion
+# instead.
+_DIST_OF_BINARY: dict[str, str] = {}
 
 
 def _dev_requirements() -> list[str]:
@@ -88,14 +101,18 @@ def test_the_tools_table_mirrors_what_the_checks_actually_invoke() -> None:
         "argv the check actually uses — `('x',)` for a PATH binary, "
         "`('python3', '-m', 'x')` for a module; (2) pin the distribution with == in "
         "[project.optional-dependencies].dev; (3) if the binary and distribution names "
-        "differ, add an entry to _DIST_OF_BINARY in this file."
+        "differ, read the _DIST_OF_BINARY comment in this file FIRST — a binary whose "
+        "reported version differs from its wheel's cannot be verified this way at all."
     )
 
     orphaned = sorted(known - found)
     assert not orphaned, (
-        f"TOOLS pins {orphaned}, which no check invokes any more. Remove the entry and "
-        "its pin, or restore the check that used it — an unused pin freezes a version "
-        "for no reason and will eventually block on a CVE."
+        f"no check appears to invoke {orphaned}, which TOOLS still pins. Check the "
+        "scanner BEFORE removing anything: it reads three shell patterns, so a tool "
+        "reached through a variable, an alias, or only inside a "
+        "`borromeanrings_run_bounded` command string is invisible to it even though the "
+        "gate still runs it. Unpinning a live tool is the harmful outcome here. Only if "
+        "the check really is gone should the entry and its pin be removed."
     )
 
 
@@ -116,10 +133,28 @@ def test_every_dev_requirement_is_pinned_exactly() -> None:
     assert missing == [], f"a verdict-deciding package is no longer declared: {missing}"
 
 
+@pytest.mark.parametrize("dist", LIBRARY_DECIDERS)
+def test_the_gate_imports_the_pinned_version_of_each_library(dist: str) -> None:
+    """Imported deciders are observed through metadata, not through an argv.
+
+    They were pinned before they were verified: setting any of them to a nonexistent
+    9.9.9 used to leave the whole suite green, because the comparison walked only the
+    invoked tools. `coverage` measures the ratchet and `libcst` generates the mutants,
+    so a silent move in either changes a score with nothing to show for it.
+    """
+    declared = parse_pins("\n".join(_dev_requirements()))
+    try:
+        observed: str | None = metadata.version(dist)
+    except metadata.PackageNotFoundError:
+        observed = None
+    found = drifts(declared, {canonical(dist): observed}, (dist,))
+    assert found == (), render(found)
+
+
 @pytest.mark.parametrize("tool", TOOLS, ids=lambda t: t.dist)
 def test_the_gate_runs_the_pinned_version_of_each_tool(tool) -> None:  # type: ignore[no-untyped-def]
     """Observed the way the check invokes it — a PATH shim can shadow site-packages."""
     declared = parse_pins("\n".join(_dev_requirements()))
     observed = {canonical(tool.dist): _observe(tool.invocation)}
-    found = drifts(declared, observed, (tool,))
+    found = drifts(declared, observed, (tool.dist,))
     assert found == (), render(found)

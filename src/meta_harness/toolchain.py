@@ -23,7 +23,7 @@ it. See docs/adr/0077-pin-the-check-toolchain.md.
 """
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 # A PEP 440 release with optional pre/post/dev suffix, as printed by `--version`.
@@ -73,6 +73,20 @@ TOOLS: tuple[Tool, ...] = (
     Tool("pip-licenses", ("pip-licenses",)),
 )
 
+# Packages the gate IMPORTS rather than invokes. They have no argv, so the version that
+# decides a verdict is the installed distribution's, read from ``importlib.metadata`` —
+# the opposite of the rule for TOOLS, and for the opposite reason. A shim on PATH cannot
+# shadow an import, but an import is invisible to a PATH lookup.
+#
+# These were pinned before they were verified. Review caught that setting any of them to
+# a nonexistent 9.9.9 left the whole suite green, because the drift comparison only
+# walked TOOLS — the hole was exactly at the packages this repo calls deciders. The
+# comparison now defaults to both sets.
+LIBRARY_DECIDERS: tuple[str, ...] = ("coverage", "libcst", "pytest-cov")
+
+#: Every distribution whose version this repo pins and then verifies.
+ALL_PINNED: tuple[str, ...] = tuple(t.dist for t in TOOLS) + LIBRARY_DECIDERS
+
 
 def canonical(name: str) -> str:
     """Canonical distribution name (PEP 503): case-folded, runs of ``-_.`` to ``-``."""
@@ -109,27 +123,28 @@ def parse_pins(text: str) -> Mapping[str, str]:
 def drifts(
     declared: Mapping[str, str],
     observed: Mapping[str, str | None],
-    tools: tuple[Tool, ...] = TOOLS,
+    names: Sequence[str] = ALL_PINNED,
 ) -> tuple[Drift, ...]:
-    """Tools whose observed version differs from the declared pin.
+    """Distributions whose observed version differs from the declared pin.
 
-    A tool with no declared pin is skipped here — ``unpinned`` reports that, so the
-    two failure modes stay distinguishable in a log.
+    Defaults to every pinned distribution, invoked or imported, so adding a decider to
+    either table brings it under the guarantee. One with no declared pin is skipped
+    here — ``unpinned`` reports that, so the two failure modes stay distinguishable.
     """
     out: list[Drift] = []
-    for tool in tools:
-        want = declared.get(canonical(tool.dist))
+    for name in names:
+        want = declared.get(canonical(name))
         if want is None:
             continue
-        got = observed.get(canonical(tool.dist))
+        got = observed.get(canonical(name))
         if got != want:
-            out.append(Drift(tool.dist, want, got))
+            out.append(Drift(name, want, got))
     return tuple(out)
 
 
-def unpinned(declared: Mapping[str, str], tools: tuple[Tool, ...] = TOOLS) -> tuple[str, ...]:
-    """Gate tools with no exact pin, in declaration order."""
-    return tuple(t.dist for t in tools if canonical(t.dist) not in declared)
+def unpinned(declared: Mapping[str, str], names: Sequence[str] = ALL_PINNED) -> tuple[str, ...]:
+    """Distributions this repo pins by policy but which carry no exact pin."""
+    return tuple(name for name in names if canonical(name) not in declared)
 
 
 def render(found: tuple[Drift, ...], missing: tuple[str, ...] = ()) -> str:

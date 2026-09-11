@@ -26,3 +26,82 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Run borromeanRings gate (incl. CI-tier heavy checks)
         run: bash verify.sh --heavy
+      - name: Show the log of every check that did not pass
+        # The gate prints one line per check; the reason lives in the run dir, which a
+        # runner discards. Without this a red CI names the failing check and nothing
+        # else, and the diagnosis costs a full local re-investigation. Printed rather
+        # than uploaded so it costs no artifact storage.
+        #
+        # Three failure modes here are deliberate, and all three were found by review
+        # after the first version shipped with two of them live:
+        #  - one malformed receipt must not hide the others (each is handled alone);
+        #  - a log with NO receipt must still print, because a check that dies inside
+        #    emit_receipt leaves exactly that, and it is the case you most need to see;
+        #  - a receipt's `log` field is data, not a trusted path, so it is only read
+        #    when it resolves inside the run dir.
+        # This step must never fail the job: it runs only when the job already failed.
+        if: failure()
+        run: |
+          python3 - <<'PY' || true
+          import json, pathlib, tomllib
+
+          receipts_root = pathlib.Path(".meta-harness/receipts")
+          runs = sorted(receipts_root.glob("*/"), key=lambda d: d.stat().st_mtime,
+                        reverse=True) if receipts_root.is_dir() else []
+          if not runs:
+              print("no receipt dir — the gate died before it ran a check")
+              raise SystemExit(0)
+          run_dir = runs[0].resolve()
+          print(f"run dir: {run_dir}")
+
+          try:
+              spine = tomllib.loads(pathlib.Path("borromeanrings.toml").read_text())
+              required = set(spine["checks"]["required"]) | set(
+                  spine["checks"].get("heavy", []))
+          except Exception:
+              required = set()
+
+          def tail(path_value, fallback):
+              """Last 200 lines of a log, but only from inside the run dir."""
+              for candidate in (path_value, fallback):
+                  if not isinstance(candidate, str) and not isinstance(
+                          candidate, pathlib.Path):
+                      continue
+                  try:
+                      resolved = pathlib.Path(candidate).resolve()
+                      resolved.relative_to(run_dir)
+                      text = resolved.read_text(errors="replace")
+                  except (OSError, ValueError):
+                      continue
+                  return "\n".join(text.splitlines()[-200:]) or "(log is empty)"
+              return "(no readable log inside the run dir)"
+
+          shown = set()
+          for path in sorted(run_dir.glob("*.json")):
+              try:
+                  receipt = json.loads(path.read_text())
+                  if not isinstance(receipt, dict):
+                      continue
+                  name = receipt.get("check")
+                  if not isinstance(name, str):
+                      continue          # a scratch file, not a receipt
+                  shown.add(path.stem)
+                  status = receipt.get("status", "?")
+                  if status in ("pass", "noop"):
+                      continue
+                  tag = "" if name in required else "  [advisory — not required]"
+                  print(f"::group::{name} ({status}){tag}")
+                  print(tail(receipt.get("log"), path.with_suffix(".log")))
+                  print("::endgroup::")
+              except Exception as exc:   # one bad receipt must not hide the rest
+                  print(f"::group::{path.name} (unreadable receipt: {exc!r})")
+                  print("::endgroup::")
+
+          for log in sorted(run_dir.glob("*.log")):
+              if log.stem in shown:
+                  continue
+              # A check that died inside emit_receipt leaves a log and no receipt.
+              print(f"::group::{log.stem} (NO RECEIPT — the check died before writing one)")
+              print(tail(str(log), log))
+              print("::endgroup::")
+          PY

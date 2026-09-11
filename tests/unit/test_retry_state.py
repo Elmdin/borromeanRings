@@ -52,7 +52,7 @@ def test_state_root_falls_back_to_home_when_xdg_is_unset() -> None:
 
 @pytest.mark.parametrize("env", [{}, {"HOME": ""}, {"HOME": "relative/home"}])
 def test_state_root_without_a_usable_home_is_unavailable(env: dict[str, str]) -> None:
-    with pytest.raises(StateUnavailable, match="HOME"):
+    with pytest.raises(StateUnavailable, match="^no absolute XDG_STATE_HOME or HOME to keep"):
         state_root(env)
 
 
@@ -203,7 +203,8 @@ def test_an_unreadable_counter_fails_closed(tmp_path: Path) -> None:
     project = _project(tmp_path)
     counter = _counter(tmp_path, project)
     counter.mkdir(parents=True)  # a directory where the counter file should be
-    assert record_failure(str(project), "s", 3, _env(tmp_path)).startswith("unrecorded ")
+    line = record_failure(str(project), "s", 3, _env(tmp_path))
+    assert line == f"unrecorded cannot read {counter}: Is a directory"
 
 
 def test_a_state_root_that_is_a_file_fails_closed(tmp_path: Path) -> None:
@@ -212,6 +213,25 @@ def test_a_state_root_that_is_a_file_fails_closed(tmp_path: Path) -> None:
     blocker.write_text("")
     line = record_failure(str(project), "s", 3, {"XDG_STATE_HOME": str(blocker)})
     assert line.startswith("unrecorded ")
+
+
+def test_a_missing_state_root_is_created_with_its_parents(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    env = {"XDG_STATE_HOME": str(tmp_path / "deep" / "nested" / "state")}
+    assert record_failure(str(project), "s", 3, env) == "retry 1"
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+def test_an_unwritable_state_root_fails_closed(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    locked.chmod(0o500)
+    try:
+        line = record_failure(str(project), "s", 3, {"XDG_STATE_HOME": str(locked)})
+    finally:
+        locked.chmod(0o700)
+    assert line.startswith("unrecorded cannot write ") and "Permission denied" in line
 
 
 def test_no_home_fails_closed(tmp_path: Path) -> None:
@@ -229,8 +249,7 @@ def test_a_failed_write_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyP
     line = record_failure(str(project), "s", 3, _env(tmp_path))
     assert line.startswith("unrecorded ") and "denied" in line
     counter = _counter(tmp_path, project)
-    assert not counter.exists()
-    assert not list(counter.parent.glob("*.tmp"))  # the half-written file is cleaned up
+    assert list(counter.parent.iterdir()) == []  # the half-written file is cleaned up
 
 
 def test_a_failed_write_does_not_retire_the_legacy_count(
@@ -354,6 +373,16 @@ def test_main_uses_the_injected_resolver(
     main(["fail", "/a", "s", "3"], env, resolve=lambda _p: "/same")
     main(["fail", "/b", "s", "3"], env, resolve=lambda _p: "/same")
     assert capsys.readouterr().out == "retry 1\nretry 2\n"
+
+
+def test_main_clear_uses_the_injected_resolver(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    env = _env(tmp_path)
+    main(["fail", "/a", "s", "3"], env, resolve=lambda _p: "/same")
+    main(["clear", "/b", "s"], env, resolve=lambda _p: "/same")
+    main(["fail", "/a", "s", "3"], env, resolve=lambda _p: "/same")
+    assert capsys.readouterr().out == "retry 1\ncleared\nretry 1\n"
 
 
 def test_main_clear(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

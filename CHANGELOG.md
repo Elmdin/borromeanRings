@@ -31,6 +31,11 @@ queue is merged.
   `git commit`/`push`: a script or heredoc that merely mentions git is not a commit.
   Verified end to end against all four evasion paths through the hook's own stdin
   protocol, with negative controls.
+  Those hook tests now run against a throwaway governed project (configured identity =
+  declared identity, HEAD on a work branch) instead of the harness checkout: CI's checkout
+  has no `user.name`/`user.email`, so the configured-identity rule denied every commit
+  there — failing the negative control and letting the override test pass for the wrong
+  reason. The override test now also asserts the denial came from the override rule.
 - `merge.sh` now merges the **governed project**, not borromeanRings itself (closes #121).
   It unconditionally `cd`-ed into `BORROMEANRINGS_HOME`, so invoking it from a governed
   project checked *borromeanRings's* working tree for dirtiness and would have merged

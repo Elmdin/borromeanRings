@@ -148,7 +148,7 @@ mutation result was vacuous (see rule 2 below); #182 carries the fix, merge them
 cross-line false-verbatim fix). **Building:** #176 (structural self-report receipt), the last 4D
 sub-issue.
 
-**The 4D merge** (epic #172): the maintainer's `/home/imaansol/Elmdin/4D` project ("The
+**The 4D merge** (epic #172): the maintainer's local 4D project ("The
 Fluency Compact", CC BY-NC-SA) is being folded in as capabilities, re-authored under ADR-0020's
 rule. Built: charter gate (#173/#180), predicate lint (#174/#181), quote verifier (#175/#182),
 stewardship-as-cadence (#177/#183), dry-run evidence + exclusions (#178/#184); building:

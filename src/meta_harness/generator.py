@@ -27,9 +27,10 @@ the attempt counter's file. Those are the thin shell drivers' (``generate.sh``,
 from __future__ import annotations
 
 import hashlib
+import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from stat import S_ISREG
+from stat import S_IFMT, S_ISLNK, S_ISREG
 
 from meta_harness.verdict import Verdict, is_failing
 
@@ -165,10 +166,13 @@ def snapshot_evidence(root: Path | str) -> dict[str, str]:
     the tamper it exists to catch. Hashing costs a read of the evidence area per attempt
     and is the only reading that cannot be restored.
 
-    Nothing is excluded. The driver keeps its own capture of the generator's output
-    outside this directory until after the comparison, so "nothing under
-    ``.meta-harness/`` moved" is literally true rather than true-apart-from-one-path the
-    generator could compute.
+    Nothing is excluded, and nothing is skipped for being the wrong kind of file. The
+    driver keeps its own capture of the generator's output outside this directory until
+    after the comparison, so "nothing under ``.meta-harness/`` moved" is literally true
+    rather than true-apart-from-one-path the generator could compute — and it is true of
+    *entries*, not of regular files specifically: a directory or a symlink appearing where
+    there was none is somewhere to write, and a symlink is recorded as itself rather than
+    as whatever it aims at, because ``rglob`` will not descend into one.
 
     Args:
         root: directory to fingerprint; a missing one yields ``{}`` (a project that has
@@ -183,10 +187,15 @@ def snapshot_evidence(root: Path | str) -> dict[str, str]:
         return snapshot
     for path in base.rglob("*"):
         try:
-            info = path.stat()
-            if not S_ISREG(info.st_mode):
-                continue
-            snapshot[str(path.relative_to(base))] = f"{info.st_size}:{_content_hash(path)}"
+            # lstat, so a symlink is recorded as itself rather than as its target.
+            info = path.lstat()
+            key = str(path.relative_to(base))
+            if S_ISREG(info.st_mode):
+                snapshot[key] = f"{info.st_size}:{_content_hash(path)}"
+            elif S_ISLNK(info.st_mode):
+                snapshot[key] = f"link:{os.readlink(path)}"
+            else:
+                snapshot[key] = f"type:{S_IFMT(info.st_mode)}"
         except OSError:
             continue  # unreadable now ⇒ it drops out, and dropping out reads as a write
     return snapshot
@@ -222,10 +231,19 @@ def attempts_from_history(checks: Sequence[tuple[str, bool]], generator: str) ->
     """How many attempts ``generator`` has already spent, from the gate's own history.
 
     The attempt counter is one small file, and a generator runs as the same user in the
-    same tree: it can delete it. The gate's verdict history (ADR-0047) cannot be quietly
-    reset the same way — it is append-only, it is what the effectiveness ledger reports,
-    and truncating it destroys a record a human reads. So the bound is anchored to both,
-    and the higher of the two wins (:func:`attempt_number`).
+    same tree: it can delete it. Anchoring to the gate's verdict history as well
+    (ADR-0047) means deleting the counter alone no longer resets the bound — the higher of
+    the two wins (:func:`attempt_number`).
+
+    **What this is not.** It is a second file in the same tree, not a second authority. A
+    review demonstrated three one-command defeats: delete the history, **append one forged
+    green row for this label**, or relabel the rows. Appending is the worst, because
+    appending is the file's sanctioned operation and the label is not secret — it is the
+    filename under ``stop_attempts/`` and plaintext in every row. So the honest claim is
+    narrow: the bound now costs two operations instead of one, and one of them writes a
+    lie into the record a human reads. It is a speed bump against accident and
+    carelessness, **not** a bound against a generator that means to break it. A real one
+    needs the count somewhere the generator cannot reach — issue #218.
 
     Counts the trailing run of failures attributed to this exact generator, stopping at
     its last green. Rows belonging to other generators are skipped, not counted, so two

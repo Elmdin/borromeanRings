@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+from stat import S_IFDIR
 
 import pytest
 
@@ -168,12 +169,18 @@ def test_snapshot_of_a_missing_directory_is_empty(tmp_path: Path) -> None:
 
 
 def test_snapshot_records_size_and_content_hash_of_every_file(tmp_path: Path) -> None:
-    """The recorded value is the content, which is what cannot be restored by a toucher."""
+    """The recorded value is the content, which is what cannot be restored by a toucher.
+
+    Directories are recorded too, by kind: one appearing where there was none is somewhere
+    a generator can write."""
     (tmp_path / "sub").mkdir()
     target = tmp_path / "sub" / "a.txt"
     target.write_text("hello", encoding="utf-8")
     digest = hashlib.sha256(b"hello").hexdigest()
-    assert snapshot_evidence(tmp_path) == {os.path.join("sub", "a.txt"): f"5:{digest}"}
+    assert snapshot_evidence(tmp_path) == {
+        "sub": f"type:{S_IFDIR}",
+        os.path.join("sub", "a.txt"): f"5:{digest}",
+    }
 
 
 def test_snapshot_hashes_a_file_larger_than_one_read(tmp_path: Path) -> None:
@@ -374,3 +381,33 @@ def test_hashing_reads_in_bounded_chunks(tmp_path: Path, monkeypatch: pytest.Mon
 
     assert sizes, "the file was read"
     assert set(sizes) == {HASH_CHUNK_BYTES}, f"one bounded chunk at a time, got {set(sizes)}"
+
+
+def test_snapshot_records_directories_and_symlinks_as_themselves(tmp_path: Path) -> None:
+    """ "Nothing under `.meta-harness/` moved" has to be true of ENTRIES, not of regular
+    files specifically. A symlink to a directory dropped into the evidence area is a place
+    to write that `rglob` will not descend into — invisible, if only files are recorded."""
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "kept").mkdir()
+    before = snapshot_evidence(tmp_path / "kept")
+
+    (tmp_path / "kept" / "sub").mkdir()
+    (tmp_path / "kept" / "door").symlink_to(tmp_path / "elsewhere", target_is_directory=True)
+    after = snapshot_evidence(tmp_path / "kept")
+
+    assert evidence_writes(before, after) == ("added: door", "added: sub")
+    assert after["door"] == f"link:{tmp_path / 'elsewhere'}"
+    assert after["sub"] == f"type:{S_IFDIR}"
+
+
+def test_a_symlink_is_not_recorded_as_its_target(tmp_path: Path) -> None:
+    """Following the link would record the target's content and miss the link's own
+    retargeting — the same file fingerprint either side of a swap."""
+    (tmp_path / "a.txt").write_text("a", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("b", encoding="utf-8")
+    (tmp_path / "link").symlink_to(tmp_path / "a.txt")
+    before = snapshot_evidence(tmp_path)
+
+    (tmp_path / "link").unlink()
+    (tmp_path / "link").symlink_to(tmp_path / "b.txt")
+    assert evidence_writes(before, snapshot_evidence(tmp_path)) == ("modified: link",)

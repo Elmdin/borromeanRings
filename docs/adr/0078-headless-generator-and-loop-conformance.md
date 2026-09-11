@@ -143,6 +143,20 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    parameter keeps the name `tree_changed`; what the driver feeds it is the wider
    comparison.
 
+   **And then the scope, rather than a sixth element.** Having been narrowed three times,
+   the list earns a boundary instead of another entry. These five facts are a **git**
+   identity: they cover everything the gate reads that git can see and does not ignore.
+   Two things are outside them by construction, and a review demonstrated both. *Gitignored
+   paths*: `add -A` honours `.gitignore`, so a change under `mutants/`, `.mutmut-cache`,
+   `.pytest_cache/` or `.venv/` — all of which `60_mutation` and `40_test` read — leaves
+   all five facts byte-identical. (`.meta-harness/` is the one exception: force-excluded
+   *and* separately guarded.) *Ambient machine state*: `70_pip_audit`, `72_licenses`,
+   `40_test` and `60_mutation` read installed packages and binaries on `PATH`, so a
+   generator that pip-installs something changes four checks' verdicts with nothing in the
+   repository moving at all. Neither residue is closable by a comparison; both belong to an
+   executor the generator cannot reach (#145). Naming the scope is the fix, because the
+   list of things a check might read will never be complete.
+
 8. **The retry bound is anchored to the gate's append-only history as well as to the
    counter file.** The counter is one small file in the agent's own working tree. In the
    headless driver a write to it is caught; in `stop_gate.sh` — the adapter most runs
@@ -151,17 +165,30 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    detect it. That is the one failure a human cannot un-spend, sitting behind a file
    anyone in the tree can delete.
 
-   Both adapters now take the attempt number as `max(counter + 1, history)`, where
-   `history` is the trailing run of failures attributed to *this generator label* since
-   its last green, read from `.meta-harness/verdict_history.jsonl`. That file is
-   append-only, it is what the effectiveness ledger reports (ADR-0047), and truncating it
-   destroys a record a human reads — so the cheap attack stops working and the expensive
-   one is loud. It is still not unforgeable; nothing file-based can be against a process
-   running as the same user. It is strictly better than one deletable integer, and the
-   claim is now sized to what it does.
+   `stop_gate.sh` now takes the attempt number as `max(counter + 1, history)`, where
+   `history` is the trailing run of failures attributed to *this session's label* since
+   its last green, read from `.meta-harness/verdict_history.jsonl`.
 
-   The driver also *resumes* rather than restarts: a counter left behind by a killed run
-   means the key has spent attempts, and N5 bounds the key, not the invocation.
+   **The claim is a speed bump, and calling it more than that would be the worse error.**
+   A review defeated it three ways, one command each: delete the history; **append one
+   forged green row for the label**; relabel the rows. Appending is the quietest, because
+   appending is what an append-only file is *for*, and the label is not a secret — it is
+   the filename under `stop_attempts/` and plaintext in every row. What the anchor buys is
+   that `rm .meta-harness/stop_attempts/*` — the one-command reset, and the one an agent
+   tidying up might do by accident — no longer works. That is worth having and it is not a
+   bound. A bound needs the count where the generator cannot reach it, or the substrate
+   enforcing the cap; both are larger than this change, and the hole is filed as **#218**
+   for both adapters.
+
+   **It is in one adapter, not two.** The headless driver's label is
+   `headless:<command>`, shared by every run key driving the same command, so counting the
+   history there would make two run keys share one bound and break the independence N5
+   promises. The driver's bound is the counter file plus a resume — a counter left behind
+   by a killed run means the key has spent attempts, and N5 bounds the key, not the
+   invocation. Anchoring the driver needs the run key recorded in the verdict; that is
+   #218's scope too. A first version of this change shipped the helper without the call —
+   dead code carrying a claim the code did not make, which is how the report came to say
+   "both adapters".
 
 9. **Both adapters call `next_action`.** The first implementation shared only `CAP` and
    left `stop_gate.sh` with the loop transcribed in shell. The two agreed — a review
@@ -229,11 +256,21 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    it". Neither `init.sh` nor `adopt.sh` writes a `.gitignore`, so that was the default
    configuration, and every fixture in the suite pre-created the file that hid it.
 
-   Two fixes, because either alone would leave the other half standing: the evidence area
-   is excluded from the tree OID outright (`git rm --cached` against the temporary index),
-   and the capture lives outside it until the comparison is over. The driver also warns
-   when `.meta-harness/` is not ignored — it no longer depends on that, but a project
-   whose gate scans its own receipts wants to know.
+   Two fixes: the evidence area is excluded from the tree OID outright (`git rm --cached`
+   against the temporary index), and the capture lives outside `.meta-harness/` until
+   **both** comparison windows have closed. The second half is ordering, and the first
+   version got it wrong — the capture was moved into place after the evidence guard's
+   window but *before* the change-detection window, so it was not independent of the
+   first half at all. A review's A/B table showed it. The `mv` now runs after
+   `snapshot_identity`, and each half was re-tested alone: with either one present the
+   inert generator escalates, with both removed it goes back to reporting `green`.
+
+   Independence is worth the ordering fiddle for a reason beyond redundancy: the two halves
+   close *different* holes (one, the driver's own write counting as the generator's change;
+   the other, an exception in the guard that the generator could compute), and defence in
+   depth that is really one layer is worse than one layer honestly described, because it
+   stops anyone looking. The driver also warns when `.meta-harness/` is not ignored — it no
+   longer depends on that, but a project whose gate scans its own receipts wants to know.
 
 ## Alternatives considered
 
@@ -282,13 +319,20 @@ doing so forces the loop's rules out of both scripts and into one tested place.
   `generator: str = ""` to `evidence.Intent`, emit and read it in `to_dict`/`parse_intent`,
   and delete `Verdict.generator` and `_parse_generator` from `verdict.py`. Persisted
   records survive it — the JSON shape is the same — but the code does not merge itself.
+  Six edits, not three: deleting `Verdict.generator` also breaks `verify.sh`'s
+  `Verdict(..., generator=read_generator(...))` with a `TypeError`, and both `generate.sh`
+  and `.claude/hooks/stop_gate.sh` read `v.generator` off history rows — the retry bound's
+  own anchor — and become `v.intent.generator`. Three of the six are in the shell drivers,
+  where no mutant can reach them, which is this change's own lesson applied to its
+  follow-up.
 - (−) The headless driver duplicates the hook's loop *shape* in a second thin script, as
   ADR-0071 predicted. Two places to keep correct; the decision and the cap are not among
   them.
 - (−) The evidence guard is a **two-point diff**, so a generator that creates a file under
   `.meta-harness/` and deletes it again before exiting, or that edits one and restores its
   exact bytes, is invisible to it. (Restoring the *timestamps* no longer suffices — that
-  hole is closed.) Closing the rest would need a filesystem watcher (inotify is Linux-only
+  hole is closed, and so is the one a review added to this list: the snapshot records every
+  *entry*, directories and symlinks included, not regular files only.) Closing the rest would need a filesystem watcher (inotify is Linux-only
   and may not be installed) or an executor the generator cannot reach at all — #201's and
   #144's job, not a `local` executor's. Named rather than papered over: the guard catches a
   generator that *leaves* the gate's evidence changed, which is what a generator trying to

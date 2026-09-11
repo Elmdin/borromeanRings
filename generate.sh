@@ -179,7 +179,19 @@ dirty_tree_oid() {
 #     checks look at while the file sits unchanged on disk and `add -A` re-adds it.
 #
 # Under a narrower comparison a generator that fixes any of those is told it did nothing
-# and the run escalates with the fix already in place. See ADR-0078.
+# and the run escalates with the fix already in place.
+#
+# SCOPE, because this list has been narrowed and corrected three times and the honest move
+# is to say what it covers rather than to keep adding to it: these five facts are a GIT
+# identity. They cover everything the gate reads that git can see and does not ignore.
+# Outside them, by construction: gitignored paths (this repo ignores `mutants/`,
+# `.mutmut-cache`, `.pytest_cache/`, `.venv/`, which 60_mutation and 40_test read —
+# `.meta-harness/` is the one exception, force-excluded above AND separately guarded), and
+# ambient machine state (installed packages and binaries on PATH, which 70_pip_audit,
+# 72_licenses, 40_test and 60_mutation read). A generator that pip-installs a package or
+# shadows a binary changes five checks' verdicts with all five facts byte-identical. That
+# residue belongs to an executor the generator cannot reach (#145), not to a comparison.
+# See ADR-0078.
 snapshot_identity() {
   local tree refs index
   tree="$(dirty_tree_oid)" || return 1
@@ -247,19 +259,12 @@ print(",".join(failing_check_ids(verdict.checks)))
 PY
 }
 
-# How many attempts this key has already spent, anchored to the gate's append-only
-# verdict history as well as to the counter file (see meta_harness.generator).
-attempts_spent() {
-  PYTHONPATH="$PY" python3 - "$PROJECT_ROOT" "$1" 2>/dev/null <<'PY' || echo 0
-import sys
-
-from meta_harness.generator import attempts_from_history
-from meta_harness.verdict import read_history
-
-rows = [(v.generator, v.ok) for v in read_history(sys.argv[1])]
-print(attempts_from_history(rows, sys.argv[2]))
-PY
-}
+# NOT anchored to the verdict history, unlike stop_gate.sh. The history is keyed by the
+# provenance label, which for this adapter is `headless:<command>` — shared by every run
+# key driving the same command — so counting it here would make two run keys share one
+# bound and break the independence N5 promises. This adapter's bound is the counter file
+# plus the resume below, and that is weaker; closing it needs the run key recorded in the
+# verdict, which is #218's scope, not this change's.
 
 # The decision itself — the pure function, nothing more.
 decide() {
@@ -348,8 +353,18 @@ while :; do
 
   violations="$(evidence_writes "$before")" ||
     violations="the evidence area could not be re-read (fail-closed)"
+  # Both windows close before the capture is moved into place. The evidence guard's window
+  # closed on the line above; the change-detection window closes on the line below. Moving
+  # the log in between would put the driver's own write inside the tree it is about to
+  # compare — which is exactly the fail-open this ordering exists to prevent, and is why
+  # the exclusion in dirty_tree_oid and this ordering are two fixes for two holes rather
+  # than two layers over one. `state_after` is read into a variable rather than aborting
+  # here, so a failure still leaves the generator's output on disk for a human.
+  state_after="$(snapshot_identity)" || state_after=""
   mv -f "$capture" "$log" 2>/dev/null || cp -f "$capture" "$log" 2>/dev/null
   rm -rf "$scratch"
+  [ -n "$state_after" ] ||
+    abort "cannot read the state of $PROJECT_ROOT after the generator ran."
   if [ -n "$violations" ]; then
     {
       echo "GENERATOR WROTE UNDER .meta-harness/ — the gate's evidence is not the generator's:"
@@ -357,9 +372,6 @@ while :; do
     } | tee -a "$log" >&2
     gen_code=125 # "could not be trusted to have run honestly", not "it exited 125"
   fi
-
-  state_after="$(snapshot_identity)" ||
-    abort "cannot read the state of $PROJECT_ROOT after the generator ran."
   # next_action's `tree_changed` means "did anything the gate can see move?" — see
   # snapshot_identity for why that is five things and not one.
   tree_changed=0

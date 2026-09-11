@@ -566,11 +566,17 @@ def test_untracking_a_file_is_a_change(tmp_path: Path) -> None:
 # --- the retry bound survives a deleted counter ---------------------------------------
 
 
-def test_the_stop_hook_bound_survives_a_deleted_counter(tmp_path: Path) -> None:
+def test_deleting_the_counter_alone_no_longer_resets_the_hooks_bound(tmp_path: Path) -> None:
     """The shipped adapter's hole: the counter is one small file in the agent's own tree,
     and deleting it used to hand back a fresh set of three — an unbounded retry loop with
-    nothing to detect it. The bound is now anchored to the gate's append-only verdict
-    history as well, picked out by this session's provenance label."""
+    nothing to detect it. The bound is anchored to the gate's append-only verdict history
+    as well, picked out by this session's provenance label.
+
+    Read the name literally: this covers the ONE sabotage the anchor defeats. Deleting the
+    history, appending a forged green row for the label, or relabelling the rows each still
+    defeat it, because the anchor is a second file in the same tree rather than a second
+    authority. A real bound is issue #218. A test named for the property rather than for
+    the case would be a claim this suite cannot support."""
     project = _project(
         tmp_path / "hooked-bound", _LAYOUT_TOML, {"BAD.md": "disallowed\n"}, "inert.sh"
     )

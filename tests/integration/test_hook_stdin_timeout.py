@@ -42,6 +42,9 @@ def _assert_hook_exits(project: Path, hook: str, wait: float) -> None:
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(project)
     env["BORROMEANRINGS_HOOK_STDIN_TIMEOUT"] = "1"
+    # stop_gate.sh keeps its retry count under XDG_STATE_HOME (ADR-0079).
+    env["XDG_STATE_HOME"] = str(project / ".state")
+    env["HOME"] = str(project / ".home")
     proc = subprocess.Popen(
         ["bash", str(HOOKS / hook)],
         stdin=subprocess.PIPE,  # held open: never written to, never closed

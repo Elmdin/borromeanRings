@@ -12,6 +12,21 @@ queue is merged.
 
 ## [Unreleased]
 
+### Fixed
+- The Stop hook's retry bound could be reset by the agent it governs (#218, ADR-0079).
+  The count lived in `.meta-harness/stop_attempts/`, inside the project, and a missing
+  file read as `0`, so one `rm` bought unlimited attempts. It now lives under
+  `${XDG_STATE_HOME:-$HOME/.local/state}/borromeanrings/<project-digest>/`, keyed by the
+  project's resolved path, via the new `meta_harness.retry_state` (pure, 100% unit-tested).
+  This defeats a **same-tree** adversary: deleting the counter or its directory, writing
+  `0`, and writing `0` with the mtime restored no longer reset the bound, and a
+  `meta_harness/` package planted in the project cannot replace the helper. It does
+  **not** defeat a **same-user** adversary, since anything running as the user can still
+  write the state directory. Keyless. Fails closed: when the count cannot be kept, the hook
+  escalates to the human instead of counting from zero. An in-tree count left by the old
+  hook is carried over with `max()` and then removed, so it can raise a count but never
+  lower one. The headless driver from #217 must adopt the same module when it lands.
+
 ### Added
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"

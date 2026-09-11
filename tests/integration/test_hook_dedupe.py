@@ -189,6 +189,10 @@ def test_stop_gate_reruns_after_a_fast_retry(tmp_path: Path) -> None:
     )
     env = dict(os.environ)
     env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+    # The retry count lives outside the tree (ADR-0079); never the real home.
+    state = tmp_path / ".state"
+    env["XDG_STATE_HOME"] = str(state)
+    env["HOME"] = str(tmp_path / ".home")
     payload = json.dumps({"session_id": "fast-retry", "stop_hook_active": False})
 
     for expected_attempts in ("1", "2"):
@@ -201,5 +205,5 @@ def test_stop_gate_reruns_after_a_fast_retry(tmp_path: Path) -> None:
             env=env,
         )
         assert result.returncode == 2, f"gate should have run and blocked: {result.stderr}"
-        counter = tmp_path / ".meta-harness" / "stop_attempts" / "fast-retry"
+        (counter,) = state.glob("borromeanrings/*/stop_attempts/fast-retry")
         assert counter.read_text() == expected_attempts

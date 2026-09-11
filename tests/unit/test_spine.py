@@ -241,3 +241,21 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_generator_command_loaded_and_absent_by_default(tmp_path: Path) -> None:
+    """[generator].command selects the headless generator; absent ⇒ there is none.
+
+    Never a silent default to some built-in fixer: the driver refuses to run when
+    nothing is declared (SPEC-generator.md §3.2).
+    """
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[generator]\n'
+        'command = "bash tests/fixtures/generators/apply_patch.sh"\n',
+    )
+    expected = "bash tests/fixtures/generators/apply_patch.sh"
+    assert load_config(declared).generator_command == expected
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).generator_command == ""

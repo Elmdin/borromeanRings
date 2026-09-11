@@ -1,11 +1,14 @@
 # SPEC — generator (who produces the next change; one loop, two generators)
 
-**Status:** Specified, not built — the hook-driven agent (`claude-code`) is the only
-generator (issue #143; build phase #202, on an explicit go) ·
-**Decision:** ADR-0071 · **Sibling:** `SPEC-executor.md` (where the checks run),
-`SPEC-substrate-adapter.md` (where the hooks fire) ·
-**Loop today:** `.claude/hooks/stop_gate.sh` · **Verdict:** `src/meta_harness/verdict.py`,
-ADR-0046, ADR-0056 (`intent`, on `feat/verdict-evidence`)
+**Status:** **Built** (#202, ADR-0078) — both generators exist: the hook-driven agent
+(`claude-code`) and the headless driver (`generate.sh`). The loop's decision and cap are
+one tested place, `src/meta_harness/generator.py` ·
+**Decision:** ADR-0071 (the seam), ADR-0078 (the build) · **Sibling:** `SPEC-executor.md`
+(where the checks run), `SPEC-substrate-adapter.md` (where the hooks fire) ·
+**Loop:** `.claude/hooks/stop_gate.sh` (events) and `generate.sh` (a process loop) ·
+**Verdict:** `src/meta_harness/verdict.py`, ADR-0046, ADR-0056 (`intent`, on
+`feat/verdict-evidence`; `intent.generator` ships here and moves into `Intent` when that
+lands — ADR-0078)
 
 ## Three axes (see `SPEC-executor.md` for the table)
 
@@ -14,7 +17,7 @@ substrate (which fires hook events) and not the executor (which runs checks). To
 "whatever agent the Stop hook is attached to" and nothing records who that was. This spec
 says what borromeanRings needs from a generator, what it will never take from one, and how
 a scripted generator with no model behind it plugs into the same loop — so the loop can be
-tested end to end (#202) and driven without a Stop hook (#144).
+tested end to end (#202, done) and driven without a Stop hook (#144).
 
 ## User story
 
@@ -59,10 +62,10 @@ digest* — the *what*, not the *who*.
 |---|---|---|---|---|
 | **N1 Deliver the verdict** | the gate's summary text and the receipt bundle location reach the generator after every failed attempt | gate → generator | stderr + exit 2 from the Stop hook; the bundle is under `.meta-harness/receipts/<run_id>/` and `last_verdict.json` names `run_id` | argv 2 = path to `last_verdict.json` (`""` on the first attempt); the bundle path is inside it |
 | **N2 Request a retry, naming the failing checks** | "attempt n of CAP; these checks failed" | gate → generator | the same stderr text (check names come from the summary rows) | env `BORROMEANRINGS_FAILING_CHECKS` (comma-separated ids), `BORROMEANRINGS_ATTEMPT`, `BORROMEANRINGS_CAP` |
-| **N3 "I have written a change"** | the signal that the tree is ready to gate | generator → gate | the Stop event | process exit 0 **with the tree changed** (the gate compares the dirty-tree OID before and after, `SPEC-executor.md` §2.2) |
+| **N3 "I have written a change"** | the signal that the tree is ready to gate | generator → gate | the Stop event | process exit 0 **with the project changed** — the driver compares the executor's full snapshot identity `(branch, head, dirty tree)` before and after (`SPEC-executor.md` §2.2). **Corrected in #202:** the dirty-tree OID alone is not enough — 08_branch, 09_commits, 11_changelog and 13_adr read the branch and the history, so a generator that amends a commit message or renames a branch has changed what the gate sees while leaving the tree byte-identical, and a tree-only comparison tells it that it did nothing (ADR-0078) |
 | **N4 "I cannot / will not"** | the generator gives up | generator → gate | none — the agent can only stop; the cap does the giving up | exit 0 with the tree **unchanged** ⇒ escalate now (retrying an idempotent generator is wasted attempts); non-zero exit ⇒ `generator-failed`, escalate now |
 | **N5 Bounded retry, then a human** | at most CAP attempts per attempt key, then escalation | gate-owned | `CAP=3`, counter in `.meta-harness/stop_attempts/<session_id>`, reset on green or at escalation | same CAP, same counter directory keyed by the driver's run key; the driver's exit is one of `green` / `escalated` / `generator-failed` |
-| **N6 Identity in the verdict** | which generator produced the judged change | generator → verdict | `stop_gate.sh` would export `BORROMEANRINGS_GENERATOR=claude-code:<session_id>` before running the gate — **not built; an acceptance criterion of #202** | the driver exports `headless:<basename of command>` |
+| **N6 Identity in the verdict** | which generator produced the judged change | generator → verdict | `stop_gate.sh` exports `BORROMEANRINGS_GENERATOR=claude-code:<session_id>` before running the gate | the driver exports `headless:<basename of command>` |
 
 **N6 is provenance, not evidence.** `intent.generator` (extends ADR-0056's `Intent`; default
 `""` with the same fail-soft parsing, so old verdicts read unchanged) is self-declared by
@@ -74,11 +77,17 @@ adapter under a different event source.
 
 ### 2.3 What the gate owns and the generator cannot touch
 
-- **CAP** — one constant, one place (today `CAP=3` in `stop_gate.sh`; #202 moves it where
-  both adapters read it). A generator cannot raise it.
+- **CAP** — one constant, one place: `meta_harness.generator.CAP`, read by both adapters
+  (a test asserts neither carries a literal). A generator cannot raise it; an adapter that
+  cannot read it falls back to **one** attempt, because the smallest bound still reaches a
+  human.
 - **The attempt counter** — lives under `.meta-harness/`, which the generator must not
   write. A generator that resets its counter has forged an attempt, and the retry bound is
-  the only thing standing between a looping agent and a human's afternoon.
+  the only thing standing between a looping agent and a human's afternoon. Enforced, not
+  requested: a write anywhere under `.meta-harness/` during the generator's run ends the
+  run as `generator-failed` (ADR-0078). "Not readable" is by construction rather than by
+  permission — the attempt arrives as a *number*, no path into `stop_attempts/` is handed
+  over, and the driver's own in-memory count is what the loop acts on.
 - **The no-op skip** — the gate's, keyed on the gated-input hash. A generator cannot
   declare "nothing changed"; the hash says.
 - **When it is done** — the gate says green; the generator's "done" is a Stop event or an
@@ -102,6 +111,14 @@ second adapter appears:
 
 ### 3.2 `headless` — a scripted generator (for tests and for #144's orchestrator)
 
+**Driver.** `generate.sh` at the repo root, beside `verify.sh`. Exit codes: `0` green,
+`1` escalated, `2` generator-failed, `3` **refused** — nothing to drive (no config, no
+declared command, no git repository, an unwritable evidence area). Refusing is not
+escalating: nothing was attempted. **Refusal is pre-flight only** — once an attempt is
+under way, any failure that stops the driver escalates instead, because an orchestrator
+may reasonably skip a worktree that reports "nothing to drive" and must never skip one
+where something was attempted (ADR-0078).
+
 **Configuration.** `[generator] command = "<path or argv string>"` in `borromeanrings.toml`.
 Absent ⇒ there is no headless generator and the driver refuses to run (never a silent
 default to some built-in fixer).
@@ -111,7 +128,9 @@ default to some built-in fixer).
 `BORROMEANRINGS_GENERATOR` in the environment, `cwd = <project_path>`, stdin closed, stdout
 and stderr captured to `.meta-harness/generator/<run_key>/<attempt>.log` (a non-`.json`
 path outside any receipt dir). Bounded by `BORROMEANRINGS_GENERATOR_TIMEOUT` (default equal
-to the gate's 540 s); a timeout is `generator-failed`.
+to the gate's 540 s); a timeout is `generator-failed`. `BORROMEANRINGS_GENERATOR` is
+`headless:<basename of the program executed>` — a command written as `bash x.sh` therefore
+records `headless:bash`; point `command` at the script to be named by it.
 
 **Obligations on the command.** May edit the tree and may commit on the current branch; must
 **never** push (draft-before-push is a standing rule, and pushing is not a generating act);
@@ -127,7 +146,9 @@ GeneratorFailed` and a thin shell driver around it:
 ```
 attempt = 1
 loop:
+  snapshot .meta-harness/ and (branch, head, dirty tree)
   run <command>                         (N3/N4)
+  wrote under .meta-harness/ -> report it as exit 125 (untrusted)
   exit != 0            -> GeneratorFailed, escalate, stop
   tree unchanged       -> Escalate now, stop
   run the gate (through the configured executor, SPEC-executor.md §2.5)
@@ -137,8 +158,11 @@ loop:
 ```
 
 **Fixture generator** `tests/fixtures/generators/apply_patch.sh`: on attempt N applies
-`patches/N.diff` with `git apply`; a missing patch file ⇒ exit 0 with no change. Four
-scenarios, each an integration test that is shown to fail when the loop regresses:
+`patches/N.diff` with `git apply`; a missing patch file ⇒ exit 0 with no change; a
+malformed one ⇒ `git apply`'s non-zero exit. It reports what it was handed on **stdout**
+(which the driver captures), so a test can assert N1/N2 delivery without the fixture
+touching the tree to say so. Four scenarios, each an integration test that is shown to
+fail when the loop regresses:
 
 | Scenario | Patches | Expected driver result | Also asserts |
 |---|---|---|---|
@@ -146,9 +170,21 @@ scenarios, each an integration test that is shown to fail when the loop regresse
 | never-fixed | `1..3.diff` each keep the error | `escalated` after attempt 3 | exactly 3 gate runs; 3 receipt bundles; counter cleared |
 | no-change | no patch files | `escalated` after attempt 1 | exactly 0 gate runs beyond the baseline |
 | crash | `1.diff` is malformed ⇒ `git apply` exits 1 | `generator-failed` | the generator's log is captured; no receipt bundle for the failed attempt |
+| commit-only (added by #202) | `commit_only.sh` commits without touching a file | the gate runs | the dirty-tree OID is unchanged, the snapshot identity is not — the discriminating case for N3's correction |
 
-A fifth, negative fixture edits a receipt in a prior bundle: the next verdict over that
-bundle is `!TAMPERED` — the §4 property, demonstrated rather than asserted.
+Two further negative fixtures, both caught:
+
+| Fixture | What it does | What must happen |
+|---|---|---|
+| `reset_counter.sh` | reads and rewrites `.meta-harness/stop_attempts/<run_key>` after writing a real change | `generator-failed`, the violation named, no gate run — resetting buys no attempts |
+| `edit_receipt.sh` | flips a recorded `fail` to `pass` in an earlier bundle | `generator-failed` **and** the edited receipt no longer matches its own content hash (ADR-0026) |
+
+The receipt fixture's second half is the §4 property demonstrated rather than asserted.
+Note the correction it forced: a *later* verdict never reads an earlier bundle (every gate
+run writes a fresh `receipt_dir`), so "the next verdict over that bundle is `!TAMPERED`"
+is not reachable. What is real, and is what the test shows, is that the edited bundle
+stops verifying — `verify_receipt` over it is false, which is exactly what a verdict
+reports as `!TAMPERED` when the bundle it is judging has been edited.
 
 ## 4. What is NOT a generator concern (and what the gate never takes from it)
 
@@ -183,8 +219,10 @@ bundle is `!TAMPERED` — the §4 property, demonstrated rather than asserted.
 5. No file under `.meta-harness/` is written by the generator command (the driver
    snapshots the directory listing before and after).
 
-For `claude-code` the existing hook tests already cover 3 and the exit-2/exit-0 split; #202
-adds 2 and 4 when N6 lands.
+For `claude-code` the existing hook tests cover 3 and the exit-2/exit-0 split; #202 added
+2 and 4. All five hold for `headless` in `tests/integration/test_generator_loop.py`, and
+each was shown to fail against a deliberately regressed loop before being trusted
+(ADR-0078 decision 7).
 
 ## 6. Honest limits
 
@@ -203,5 +241,6 @@ adds 2 and 4 when N6 lands.
 
 Any model-calling generator beyond the user's own agent (ADR-0030; no keys); a critic or
 second model (#68); the orchestrator that runs N headless generators in N worktrees (#144);
-the substrate that fires the Stop event (`SPEC-substrate-adapter.md`); building the headless
-driver or fixture (#202).
+the substrate that fires the Stop event (`SPEC-substrate-adapter.md`). The headless driver
+and fixture were #202's scope and are built; what remains deferred there is folding
+`intent.generator` into ADR-0056's `Intent` once #134 merges.

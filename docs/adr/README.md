@@ -33,6 +33,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0021](0021-gitflow-lite-branching.md) | Gitflow-lite branching: feature → `dev` (default) → `main` | Accepted |
 | [0069](0069-multi-harness-substrate.md) | Multi-harness substrates: one gate, one hook set, per-substrate wiring adapters (spec-first; phase 1 = #194) | Accepted |
 | [0071](0071-executor-and-generator-interfaces.md) | Executor and generator interfaces: one gate, pluggable where-it-runs and who-generates (spec-first; build = #201, #202) | Accepted |
+| [0078](0078-headless-generator-and-loop-conformance.md) | The headless generator: one decision, two thin drivers, and provenance in the verdict (builds ADR-0071 for #202) | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

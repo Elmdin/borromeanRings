@@ -88,6 +88,7 @@ keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 ## Layout
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
+- `generate.sh` — the **headless generator** loop: runs `[generator].command`, gates the change it wrote, retries up to the shared cap, then hands over to the human. No model, no substrate — the loop the Stop hook drives, drivable from a script or CI (ADR-0078)
 - `status.sh` — **this project's** status by default: governed? enforcement actually on (hooks wired vs. disabled)? last verdict, and how many of those checks inspected **nothing** (ADR-0049). `--all` opts into the portfolio table across every governed project; `--run` re-gates, `--list` prints paths (ADR-0046)
 - `ledger.sh` — the **effectiveness view**: per project, gate runs / failures caught / pass-fail streak from the recorded verdict history — is the gate actually catching anything (ADR-0047)
 - `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set); catalogued in `docs/CHECKS.md`

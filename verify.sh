@@ -77,6 +77,7 @@ import sys
 from pathlib import Path
 
 from meta_harness.change_detect import record_green
+from meta_harness.generator import read_generator
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
@@ -144,12 +145,17 @@ print()
 # the effectiveness-ledger history (best-effort: a write failure must never turn a real
 # PASS into a FAIL). See ADR-0046 (status) and ADR-0047 (ledger).
 try:
+    # WHO produced the change this verdict judged — self-declared by the generator
+    # adapter that ran the gate (claude-code:<session>, headless:<command>). Provenance
+    # for the ledger, never evidence: it is read AFTER `ok` is decided and can only be
+    # recorded, never consulted. Unset ⇒ "" — an unattributed run says so (ADR-0071 §4).
     _verdict = Verdict(
         ok=ok,
         checks=tuple((cid, status.lower()) for cid, status in rows),
         run_id=os.path.basename(receipt_dir),
         digest=digest,
         harness_version=harness_version,
+        generator=read_generator(os.environ.get("BORROMEANRINGS_GENERATOR")),
     )
     write_last_verdict(Path(project_root), _verdict)
     append_history(Path(project_root), _verdict)

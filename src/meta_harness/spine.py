@@ -84,6 +84,9 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [generator] — the headless generator's command (ADR-0071/ADR-0078). Empty ⇒ there
+    # is no headless generator and `generate.sh` refuses to run; never a silent default.
+    generator_command: str = ""
 
 
 def load_config(path: str | Path = "borromeanrings.toml") -> Config:
@@ -172,4 +175,5 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        generator_command=str(raw.get("generator", {}).get("command", "")),
     )

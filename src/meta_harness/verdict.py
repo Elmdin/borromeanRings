@@ -54,6 +54,14 @@ class Verdict:
     ``git describe`` of ``BORROMEANRINGS_HOME``, or the ``VERSION`` file) — so a governed
     project's evidence answers "what version verified me?", not just "did it pass?".
     Absent in records written before versioning ⇒ defaults to ``""`` (back-compatible).
+
+    ``generator`` records *who* produced the change the run judged — the self-declared
+    ``<kind>:<id>`` label the adapter running the gate exported (``claude-code:<session>``
+    from the Stop hook, ``headless:<command>`` from ``generate.sh``). It is persisted
+    under ``intent``, the home ADR-0056 gives the gated *what* (branch, head, digest), so
+    the two land in one object once both are in the tree. Provenance, never evidence: the
+    gate makes no decision on it, absent reads ``""``, and nothing here can loosen ``ok``
+    (ADR-0071 §4, ADR-0049).
     """
 
     ok: bool
@@ -61,6 +69,7 @@ class Verdict:
     run_id: str = ""
     digest: str = ""
     harness_version: str = ""
+    generator: str = ""
 
     def to_dict(self) -> dict[str, object]:
         """A JSON-serialisable view (tuples become lists)."""
@@ -69,8 +78,22 @@ class Verdict:
             "run_id": self.run_id,
             "digest": self.digest,
             "harness_version": self.harness_version,
+            "intent": {"generator": self.generator},
             "checks": [list(pair) for pair in self.checks],
         }
+
+
+def _parse_generator(raw: object) -> str:
+    """The ``intent.generator`` label from a persisted record; anything else ⇒ ``""``.
+
+    Fail-soft in both directions: a record written before the field existed, and a record
+    whose ``intent`` is not an object carrying a string, both read as "no generator
+    recorded". Never a guess — an unattributed run says so.
+    """
+    if not isinstance(raw, dict):
+        return ""
+    value = raw.get("generator")
+    return value if isinstance(value, str) else ""
 
 
 def _parse(data: object) -> Verdict | None:
@@ -94,6 +117,7 @@ def _parse(data: object) -> Verdict | None:
         run_id=str(data.get("run_id", "")),
         digest=str(data.get("digest", "")),
         harness_version=str(data.get("harness_version", "")),
+        generator=_parse_generator(data.get("intent")),
     )
 
 

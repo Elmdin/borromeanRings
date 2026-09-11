@@ -120,7 +120,12 @@ def test_read_history_skips_blank_and_malformed_lines(tmp_path: Path) -> None:
 
 def test_to_dict_is_json_shaped() -> None:
     v = Verdict(
-        ok=True, checks=(("00_build", "pass"),), run_id="r", digest="d", harness_version="v1.2.3"
+        ok=True,
+        checks=(("00_build", "pass"),),
+        run_id="r",
+        digest="d",
+        harness_version="v1.2.3",
+        generator="claude-code:s1",
     )
     d = v.to_dict()
     assert d == {
@@ -128,6 +133,7 @@ def test_to_dict_is_json_shaped() -> None:
         "run_id": "r",
         "digest": "d",
         "harness_version": "v1.2.3",
+        "intent": {"generator": "claude-code:s1"},
         "checks": [["00_build", "pass"]],
     }
 
@@ -181,3 +187,52 @@ def test_status_matching_is_exact_not_fuzzy() -> None:
 def test_non_failing_allowlist_is_immutable_and_minimal() -> None:
     assert isinstance(NON_FAILING_STATUSES, frozenset)
     assert sorted(NON_FAILING_STATUSES) == ["noop", "pass"]
+
+
+# --- intent.generator: who produced the change this verdict judged (ADR-0071 §4) ------
+# Provenance, not evidence. Self-declared by the adapter that ran the gate; the gate
+# makes no decision on it, and a record that carries none reads "" — never a guess.
+
+
+def test_generator_round_trips_under_intent(tmp_path: Path) -> None:
+    """The persisted shape is ``intent.generator`` — the home ADR-0056's Intent gives it."""
+    verdict = Verdict(ok=True, checks=(("20_lint", "pass"),), generator="headless:apply_patch.sh")
+    assert verdict.to_dict()["intent"] == {"generator": "headless:apply_patch.sh"}
+    write_last_verdict(tmp_path, verdict)
+    got = read_last_verdict(tmp_path)
+    assert got is not None
+    assert got.generator == "headless:apply_patch.sh"
+
+
+def test_generator_defaults_to_empty_not_guessed() -> None:
+    """A gate run with nothing declared records nothing, and says so as ``""``."""
+    assert Verdict(ok=True).generator == ""
+    assert Verdict(ok=True).to_dict()["intent"] == {"generator": ""}
+
+
+def test_records_without_an_intent_read_unchanged(tmp_path: Path) -> None:
+    """Fail-soft: every verdict written before this field parses as before."""
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text('{"ok": true, "checks": [["20_lint", "pass"]]}', encoding="utf-8")
+    got = read_last_verdict(tmp_path)
+    assert got is not None
+    assert (got.ok, got.generator) == (True, "")
+
+
+def test_a_malformed_intent_yields_no_generator(tmp_path: Path) -> None:
+    """Anything that is not an object carrying a string is not provenance."""
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    for intent in ('"claude-code"', "[]", "17", "null", '{"generator": 17}', '{"branch": "dev"}'):
+        path.write_text(f'{{"ok": true, "checks": [], "intent": {intent}}}', encoding="utf-8")
+        got = read_last_verdict(tmp_path)
+        assert got is not None, intent
+        assert got.generator == "", intent
+
+
+def test_history_carries_the_generator_too(tmp_path: Path) -> None:
+    """The ledger's rows attribute their change like the last-verdict record does."""
+    append_history(tmp_path, Verdict(ok=False, generator="claude-code:s1"))
+    append_history(tmp_path, Verdict(ok=True, generator="claude-code:s1"))
+    assert [v.generator for v in read_history(tmp_path)] == ["claude-code:s1", "claude-code:s1"]

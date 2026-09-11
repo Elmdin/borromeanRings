@@ -162,6 +162,14 @@ toolchain; G4 only with coreutils `timeout` present.
    `17_prior_art` also reads the name but lands with #131, so the set grows to three then.
 2. `git read-tree --reset -u <tree>` in the worktree — the dirty tree, including untracked
    files, is now present; ignored paths are not.
+
+   > **Corrected while building #201 (PR #212).** `read-tree --reset -u` alone is not
+   > enough: it leaves every untracked file *tracked* in the worktree, so `12_secrets`
+   > and `01_source_coherence` — which scan git-tracked files — would see a different
+   > project than `local` does, and the worktree run would be silently **stricter**.
+   > That is a conformance failure dressed as extra rigour. The primary's index must be
+   > restored after the `read-tree`, after which `git status -uall` and `git ls-files`
+   > match the primary exactly. #212 implements it and proves it.
 3. Run the checks with `PROJECT_ROOT=<dir>` and `RECEIPT_DIR=<dir>/.meta-harness/receipts/<run_id>`.
 4. Copy the bundle to `<primary>/.meta-harness/receipts/<run_id>/`, write `executor.txt`,
    then `git worktree remove --force <dir>`. On an executor failure keep the worktree for
@@ -263,6 +271,10 @@ even `local`-vs-`local`: `log` and `run_id` differ per run and test logs carry t
 |---|---|---|---|
 | D1 | the uncommitted edit introduces a lint error | `20_lint` = `fail` | tracked dirty state is transported |
 | D2 | the untracked file contains a fake credential from the ADR-0025 corpus | `12_secrets` = `fail` | untracked-not-ignored files are transported |
+  > **Corrected while building #201 (PR #212):** this fixture expects `12_secrets` to flag an
+  > untracked credential, but that check scans tracked files only, so with conformance holding it
+  > flags it under *neither* executor. The honest property to assert is that the file is
+  > materialised *and* still untracked; #212's test does that.
 | D3 | the ignored file is a forged `pass` receipt at `.meta-harness/receipts/old/20_lint.json` | absent from both bundles; `20_lint` unaffected | ignored paths are **not** in the snapshot |
 | D4 | the fixture's package is installed editable from the *primary* path; the worktree/sandbox copy alone carries a failing test | `40_test` = `fail` in B | the toolchain resolves the executor's tree, not the primary's (§3.2 hazard) |
 

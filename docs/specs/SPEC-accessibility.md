@@ -25,7 +25,10 @@ rules `[a11y].require`.
    missing. Matrix row U1; axe-core `html-has-lang`.
 2. **`img_alt`** — every `<img>` anywhere must have an `alt` attribute (SC 1.1.1).
    `alt=""` is accepted (correct marking for a decorative image); the attribute must be
-   *present*, not non-empty. The finding reports how many `<img>` lack it. Row U2;
+   *present*, not non-empty. The finding reports how many `<img>` lack it. An image that
+   is **out of the accessibility tree** (`hidden`, or `aria-hidden="true"` on it or an
+   ancestor) is not counted, for the same reason as in `control_label` and `link_text`:
+   there is no alternative to give for something assistive tech is never handed. Row U2;
    axe-core `image-alt`.
 3. **`page_title`** — a **full document** must have a non-empty `<title>` (SC 2.4.2).
    Row U3; axe-core `document-title`.
@@ -59,6 +62,11 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
    - `placeholder` and `title` are **not** accepted as names. A hint that vanishes on
      input, or a tooltip that never reaches a touch user, is not a label. This is
      deliberately stricter than axe-core's `label` rule, which tolerates both.
+     **Unsettled:** axe-core lists `non-empty-title` among that rule's passing checks, so
+     `<input title="Search">` may well pass there and be reported here. Nothing was
+     installed to settle it (no npm, no axe-core), and it is recorded as an open question
+     rather than guessed at; if axe does pass it, this rule is stricter than its sibling
+     on purpose and the divergence should be stated, not quietly aligned.
    - A control that is **out of the accessibility tree is not checked**: `hidden`, or
      `aria-hidden="true"` on it or on any ancestor, removes the element and its subtree
      from what assistive tech is given, and a real a11y tool judges nothing there. See
@@ -148,7 +156,12 @@ The rules answer what a *browser* would build, not what the text looks like:
   rest; the list is **derived from html5lib**, like the breakout list. Only the
   element's own end tag ends the run of text (`</plaintext>` ends nothing — that element
   runs to end of file), and in a foreign subtree none of this applies, because there the
-  tag is not the HTML element of that name. `<noscript>` is deliberately **not** in the
+  tag is not the HTML element of that name. Tag-shaped text stays **text**: a browser
+  shows `<title><b></b></title>` as the literal string `<b></b>`, so that title is not
+  empty and `page_title` does not fire. A `<script src="a.js"/>` written in the
+  self-closing form starts its run of text here too — `html.parser` skips its own
+  raw-text switch on that form, and an element left open to end of file silently drops
+  the rest of the document. `<noscript>` is deliberately **not** in the
   list: a browser with scripting on reads it as raw text but then renders none of it, and
   the reader who does see the content is the one with scripting off, for whom it is
   ordinary markup — so an `<img>` there really does need an `alt`.
@@ -164,14 +177,20 @@ The rules answer what a *browser* would build, not what the text looks like:
   instead of two, and can only *reduce* false positives; the violations it now misses are
   listed under "What these rules do not catch".
 - **`hidden` and `aria-hidden="true"` take an element and its subtree out of the
-  accessibility tree**, so `control_label` and `link_text` do not judge what is inside
-  one. The other four rules are unchanged by it (an `<img>` in a `hidden` panel still
-  needs an `alt` for when the panel is shown).
+  accessibility tree**, so the three rules that judge **one element** — `img_alt`,
+  `control_label`, `link_text` — do not judge what is inside one. The document-shape
+  rules (`page_title`, `heading_structure`) deliberately *do*: those read a **sequence**,
+  and dropping elements out of one can **invent** a violation — a hidden `<h2>` between a
+  visible `h1` and `h3` would become a skipped level, and a page whose `<h1>` sits in a
+  collapsed panel would become a page with no `<h1>`. Skipping an element can only
+  suppress a finding; skipping it out of a sequence can create one. That is the line.
 - **A self-closing flag on an HTML element means nothing.** The parsing spec
   acknowledges `<x/>` only in foreign content, where `<rect/>` really does close;
   `html.parser` closes every one, which made `<a href="/x" />Read the docs</a>` an empty
   link. In an `.xhtml` file the flag *is* meaningful, and treating it as HTML there is a
-  deliberate missed violation rather than an invented one.
+  deliberate missed violation rather than an invented one. A **void** element written
+  `<br/>` was already closed when it opened, and a **foreign** one (`<rect/>`) really does
+  self-close.
 - **Inside an `<svg>`/`<math>` subtree a familiar tag name is usually not an HTML
   element** — but the parsing spec has a **breakout list** of tags a browser refuses to
   keep there: it closes the foreign element and parses them as HTML. The list is
@@ -210,7 +229,8 @@ The rules answer what a *browser* would build, not what the text looks like:
   - **One deliberate departure:** an SVG `<a href>` stays in the SVG namespace, and
     `link_text` checks it anyway. That is a **judgement about user-facing links** — it is
     a link a user clicks and a screen reader announces — not a claim about HTML element
-    classification.
+    classification. It is **SVG only**: MathML has no anchor element, so `<math><a href>`
+    is nothing a user can click and is not checked.
 
 ### Reporting
 Each violation is one line:
@@ -257,20 +277,30 @@ Stated so the green is never read as more than it is:
   stamp (see "Parser fidelity"): a real image with a real `alt` missing from a row
   template passes. A project that ships most of its markup through templates should know
   that this check is nearly silent about it.
-- **Nothing marked `hidden` or `aria-hidden="true"` is judged by `control_label` or
-  `link_text`.** A field in a `<div hidden>` panel that is shown later by script does
-  need a label, and this check will not say so. The alternative — flagging it — fails the
-  markup axe-core passes, which is the error that gets a rule switched off.
+- **Nothing marked `hidden` or `aria-hidden="true"` is judged by `img_alt`,
+  `control_label` or `link_text`.** A field in a `<div hidden>` panel that is shown later
+  by script does need a label, and an image in one does need an `alt`; this check will not
+  say so. The alternative — flagging it — fails the markup axe-core passes, which is the
+  error that gets a rule switched off. Note that html5lib *does* build those elements:
+  this is a departure from the **accessibility tree**, not from the DOM, so a differential
+  against a tree builder will report it as a difference. It is the intended one.
 - **Content inside an `aria-hidden` subtree still counts as an enclosing element's
   name.** The accessible-name algorithm excludes it, so
   `<a href="/x"><span aria-hidden="true">Icon</span></a>` really is an unnamed link and
   this check stays quiet. Crediting it is the missed-violation direction, chosen over
   modelling name computation's exclusions.
-- **A `<select>`'s or `<textarea>`'s insertion-mode quirks are not modelled.**
-  `html.parser` is a tokenizer, not a tree builder: a browser silently discards an
-  `<img>` written inside a `<select>`, and this check counts it. The markup is invalid
-  either way, and the alternative is carrying the "in select" insertion mode — where
-  `<input>`/`<textarea>` *close* the `<select>` — for no accessibility fact.
+- **A `<select>`'s insertion-mode quirks are not modelled — and this one runs the wrong
+  way.** `html.parser` is a tokenizer, not a tree builder: a browser silently discards an
+  `<img>` written inside a `<select>`, and this check counts it. That is an **invented
+  finding**, not a missed one, and it is recorded here as such rather than filed with the
+  safe departures. It is tolerated because the markup is invalid either way and the
+  alternative is carrying the "in select" insertion mode — where `<input>`/`<textarea>`
+  *close* the `<select>` — whose subtleties would trade this false positive for several
+  false negatives on valid markup.
+- **`<image>` is not rewritten to `<img>`, and that one runs the wrong way too** — in the
+  other direction: a browser renames the obsolete `<image>` tag, so `<image src="x">`
+  needs an `alt` and this check never asks for one. A missed violation, listed here with
+  the `<select>` case so both known non-conformances are visible in one place.
 - **Text a browser shows inside a `<textarea>` still names an enclosing `<label>`.**
   `<label><textarea>draft</textarea></label>` is announced as unnamed by a real tool
   (the embedded control's value is excluded when naming that control) and passes here.
@@ -345,6 +375,13 @@ scope this — the reasoning above is from the specifications, which is all it n
   cannot be probed (a browser drops it outside a `<colgroup>`) and is asserted in a
   table instead. The review that prompted this showed the cost of leaving one unguarded:
   adding `iframe` to the void list passed the entire suite.
+- **The oracle is not total, and the check outlives it.** html5lib 1.1 raises
+  `AssertionError` inside its own `resetInsertionMode` on some `<svg><select>` shapes.
+  It is a dev-only test dependency, so nothing shipped is affected — but the module is
+  tested to parse that markup and return findings, because a gate that raises is a gate
+  that blocks. A differential is evidence about the classes its generator can express and
+  nothing more; the fixtures here name the classes, and the two non-conformances above
+  are the ones a wider generator keeps finding.
 
 ## Dogfood
 - **fire** (Electron; raw renderer HTML) — five pages, *every one* missing

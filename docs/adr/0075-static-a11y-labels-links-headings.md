@@ -116,7 +116,18 @@ rules turn on exemptions, id matching and text content, which do):
   errors" never covered.
 - **The self-closing flag means nothing on an HTML element.** The spec acknowledges it
   only in foreign content; `html.parser` closes every `<x/>`, which made
-  `<a href="/x" />Read the docs</a>` an empty link.
+  `<a href="/x" />Read the docs</a>` an empty link. Verification of that fix found its
+  own tail: `html.parser` skips its raw-text switch on the `/>` form too, so a
+  `<script src="a.js"/>` that no longer self-closed stayed open to end of file and
+  swallowed the document. An element whose content is text starts that run explicitly now.
+- **`hidden`/`aria-hidden` is applied to `img_alt` as well as to the two name rules, and
+  deliberately *not* to the document-shape rules.** The rules that judge one element can
+  only lose a finding by skipping what is out of the accessibility tree; `page_title` and
+  `heading_structure` read a **sequence**, where dropping an element **invents** one — a
+  hidden `<h2>` between a visible `h1` and `h3` would read as a skipped level. That
+  asymmetry has a reason, unlike the `<template>` one it replaces.
+- **MathML has no anchor.** The SVG `<a href>` departure is about links a user clicks;
+  `<math><a href>` is not one, and is not checked.
 - **Inside an `<svg>`/`<math>` subtree, a familiar tag name is usually not an HTML
   element** — an `<svg><title>` names an icon and must never satisfy the (default-on)
   `page_title` rule, and an `<svg><input>` is not a form control. But the parsing spec

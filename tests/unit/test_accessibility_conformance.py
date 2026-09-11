@@ -490,6 +490,12 @@ DIFFERENTIAL_CASES = [
     "<a href='/x' />text</a><h1>Real</h1><img src='y'>",
     "<math><annotation-xml encoding=' text/html '><input></annotation-xml></math><h1>Real</h1>",
     "<svg><desc><svg><mtext><input></mtext></svg></desc></svg><h1>Real</h1>",
+    # Found by the #211 verification: html.parser skips its raw-text switch on `/>`.
+    "<script src='a.js'/><a href='/x'>Home</a><img src='y'>",
+    "<style/><h1>Swallowed</h1><input>",
+    "<script src='a.js'/>x</script><h1>Real</h1><a href='/x'>Docs</a>",
+    "<h1>Real</h1><title><b></b></title>",
+    "<h1>Real</h1><math><a href='/x'></a></math>",
 ]
 
 

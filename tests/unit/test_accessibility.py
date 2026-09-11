@@ -816,3 +816,68 @@ def test_a_script_written_inside_a_textarea_does_not_eat_the_textarea() -> None:
     # the parser into raw-text mode and loses the </textarea> that ends it.
     html = '<a href="/x"><textarea><script></textarea>Docs</a>'
     assert a11y_findings(html, require=LINK) == []
+
+
+def test_a_self_closing_script_still_runs_to_its_end_tag() -> None:
+    # The regression the #211 verification caught: `html.parser` skips its raw-text
+    # switch on the `/>` form, so a <script src="a.js"/> that no longer self-closes
+    # stayed open to end of file and dropped the rest of the document — turning silence
+    # into an invented link_text. A browser reads everything after it as script source.
+    assert a11y_findings('<script src="a.js"/><a href="/x">Home</a>', require=ALL_RULES) == []
+    assert a11y_findings('<style/><a href="/x">Home</a>', require=ALL_RULES) == []
+    assert a11y_findings('<script src="a.js"/><img src="y">', require=ALL_RULES) == []
+    # ...and its own end tag still ends it, so the link after that one is judged.
+    resumed = '<script src="a.js"/>x</script><a href="/x"></a>'
+    assert _located(a11y_findings(resumed, require=LINK)) == [("link_text", 1)]
+    # In foreign content the flag is meaningful, so this one really does close.
+    assert a11y_findings('<svg><script/></svg><a href="/x">Home</a>', require=LINK) == []
+    # A void element written `/>` was already closed and must not be closed twice.
+    assert a11y_findings('<a href="/x"><img src="h.svg" alt="Home"/></a>', require=LINK) == []
+    assert _located(a11y_findings('<br/><a href="/x"><br/></a>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+
+
+def test_tag_shaped_text_inside_a_text_only_element_is_still_text() -> None:
+    # A browser shows the source verbatim, so this <title> is not empty and page_title
+    # must not fire. Dropping it invented a violation on a *default* rule.
+    page = '<html lang="en"><head><title>{}</title></head><body><h1>H</h1></body></html>'
+    assert a11y_findings(page.format("<b></b>")) == []
+    # Each shape on its own, so no one of them can stand in for the others.
+    assert a11y_findings(page.format('<img src="x">')) == []  # a start tag alone
+    assert a11y_findings(page.format("</b>")) == []  # an end tag alone
+    assert a11y_findings(page.format("<!-- x -->")) == []  # a comment alone
+    # A genuinely empty <title> is still a violation.
+    assert _located(a11y_findings(page.format(""))) == [("page_title", None)]
+    # Elsewhere a comment is not markup and contributes nothing.
+    assert _located(a11y_findings('<a href="/x"><!-- Home --></a>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+
+
+def test_mathml_has_no_anchor_so_there_is_nothing_to_click() -> None:
+    # The SVG <a href> departure is a judgement about links a user clicks. MathML has
+    # no anchor element at all, so there is no link there to judge.
+    assert a11y_findings('<math><a href="/x"></a></math>', require=LINK) == []
+    assert _located(a11y_findings('<svg><a href="/x"></a></svg>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+
+
+def test_an_image_out_of_the_accessibility_tree_needs_no_alt() -> None:
+    # Same rule as control_label and link_text, for the same reason: `hidden` and
+    # `aria-hidden` remove the element and its subtree from what assistive tech is
+    # given, and axe-core does not judge an image that is not in the tree.
+    assert a11y_findings('<div hidden><img src="x"></div>', require=("img_alt",)) == []
+    assert a11y_findings('<div aria-hidden="true"><img src="x"></div>', require=("img_alt",)) == []
+    assert _rules(a11y_findings('<div aria-hidden="false"><img src="x"></div>')) == {"img_alt"}
+    assert _rules(a11y_findings('<img src="x">')) == {"img_alt"}
+
+
+def test_the_check_survives_markup_that_makes_the_oracle_itself_crash() -> None:
+    # html5lib 1.1 raises AssertionError in resetInsertionMode on this shape
+    # (`<svg><select>` then `</select>`). The oracle is a dev-only test dependency, so
+    # the shipped check is unaffected — but it must be shown to survive what the thing
+    # we measure it against cannot, because a gate that raises is a gate that blocks.
+    html = '<ruby><div><svg><select><title><select><img src="x"></select>'
+    assert _rules(a11y_findings(html, require=ALL_RULES)) == {"img_alt", "control_label"}

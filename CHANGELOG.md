@@ -33,6 +33,25 @@ queue is merged.
   ("click here") list either: link purpose *in context* is a judgement, not a fact.
 
 ### Fixed
+- `15_a11y` treated `<script src="a.js"/>` as an element that never ends, so everything
+  after it was dropped and an `<a href>` past it was reported as an unnamed link where a
+  browser has no link at all. A regression introduced by the self-closing fix below and
+  caught by verification: `html.parser` skips its raw-text switch on the `/>` form, so
+  the run of text is now started explicitly. A void `<br/>` is still closed once, and a
+  foreign `<rect/>` still self-closes.
+- `15_a11y` reported an empty `<title>` for `<title><b></b></title>`, where a browser
+  shows the literal string `<b></b>` and the title is not empty. Tag-shaped text inside a
+  text-only element is now kept as text (start tags via `get_starttag_text()`, end tags
+  and comments reconstructed), instead of being dropped as markup that was never there.
+- `15_a11y` checked `<math><a href>` for link text. The SVG-anchor departure is a
+  judgement about links a user clicks; MathML has no anchor element, so there is nothing
+  there to click and nothing to judge.
+- `15_a11y` counted an `<img>` with no `alt` inside a `hidden` or `aria-hidden` subtree,
+  while `control_label` and `link_text` skipped one. `img_alt` now skips it too. The line
+  is drawn deliberately and stated in the SPEC: the rules that judge **one element** skip
+  what is out of the accessibility tree, and the document-shape rules (`page_title`,
+  `heading_structure`) do not, because dropping an element out of a **sequence** can
+  invent a skipped level or a missing `<h1>` where neither exists.
 - `15_a11y` **failed correct markup** in four ways, each found by an adversarial review of
   PR #211 and each now pinned against html5lib:
   - **A text-only element's content was read as markup.** The HTML tokenizer reads

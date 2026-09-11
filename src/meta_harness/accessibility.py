@@ -36,16 +36,21 @@ duplicate attributes resolve **first-wins** (the HTML parsing spec); ``<script>`
 ``<style>`` content is source rather than text; the content of a ``<textarea>``,
 ``<title>``, ``<iframe>``, ``<xmp>``, ``<noembed>``, ``<noframes>`` or ``<plaintext>`` is
 **text, not markup**, so an ``<img>`` written there is a string a browser shows and not
-an image; a ``<template>`` is a stamp rather than a page and **no** rule judges what is
-inside one; ``hidden`` and ``aria-hidden`` remove an element and its subtree from the
-accessibility tree, so nothing there is judged either; and inside an ``<svg>``/``<math>``
-subtree a familiar tag name is **not** an HTML element (an ``<svg><title>`` names an icon,
-not the page), until an HTML integration point **of that same language** —
-``<foreignObject>`` in SVG, ``<mtext>`` in MathML — resumes HTML.
+an image — and tag-shaped text stays text, so ``<title><b></b></title>`` has a title; a
+``<template>`` is a stamp rather than a page and **no** rule judges what is inside one;
+``hidden`` and ``aria-hidden`` take an element and its subtree out of the accessibility
+tree, so the three rules that judge **one element** (``img_alt``, ``control_label``,
+``link_text``) skip it, while the document-shape rules do **not** — dropping an element
+out of a *sequence* could invent a skipped level or a missing ``<h1>``; and inside an
+``<svg>``/``<math>`` subtree a familiar tag name is **not** an HTML element (an
+``<svg><title>`` names an icon, not the page), until an HTML integration point **of that
+same language** — ``<foreignObject>`` in SVG, ``<mtext>`` in MathML — resumes HTML.
 
 Where the source cannot answer honestly the module prefers a **missed violation to an
 invented one**: a gate that fails correct markup is worse than no gate, because it gets
-switched off. Every such choice is written down in the SPEC.
+switched off. Every such choice is written down in the SPEC — including the two places
+where the error still runs the *other* way (``<select>`` content, and ``<image>``), which
+are named there as what they are rather than filed with the safe ones.
 
 Names are **resolved, not merely present**: every element accumulates the text of its own
 subtree plus the names contributed by descendants, so a reference or a wrapping
@@ -390,7 +395,11 @@ class _Collector(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Open this element's name scope, credit its own naming attributes, dispatch."""
         if self._text_only is not None:
-            return  # inside <textarea>/<title>/<xmp>… this is literal text, not markup
+            # Inside <textarea>/<title>/<xmp>… this is not markup: a browser shows the
+            # source verbatim, so <title><b></b></title> has a title and must not be
+            # reported as empty. get_starttag_text() gives back exactly what was written.
+            self.handle_data(self.get_starttag_text() or "")
+            return
         values = _attr_map(attrs)
         if self._namespace() is not None and _breaks_out_of_foreign_content(tag, values):
             self._exit_foreign_content()  # the browser closes the <svg>; so do we
@@ -412,20 +421,39 @@ class _Collector(HTMLParser):
         after it — treating it as empty invented a ``link_text`` violation. In an
         ``.xhtml`` file the flag is meaningful, and there this is a deliberate false
         negative (SPEC-accessibility).
+
+        ``html.parser`` skips ``set_cdata_mode`` on this form, so a ``<script src="a.js"/>``
+        that no longer self-closes would stay open to end of file and drop everything
+        after it — silence turned into an invented ``link_text``. Its content is text
+        either way, so the run of text is started here instead.
         """
         self.handle_starttag(tag, attrs)
-        if self._scopes and self._scopes[-1].tag == tag and self._scopes[-1].foreign:
-            self.handle_endtag(tag)
+        if not self._scopes or self._scopes[-1].tag != tag:
+            return  # a void element; ``handle_starttag`` has already closed it
+        if self._scopes[-1].foreign:
+            self.handle_endtag(tag)  # <rect/> in an <svg> really does close
+        elif tag in _RAW_TEXT_TAGS:
+            self._text_only = tag
 
     def handle_endtag(self, tag: str) -> None:
         """Close the innermost matching element, and anything left open inside it."""
         if self._text_only is not None:
             if tag != self._text_only or tag in _UNCLOSABLE_TEXT_TAGS:
+                self.handle_data(f"</{tag}>")  # text, not a tag — and not empty
                 return  # only this element's own end tag ends its run of text
             self._text_only = None
         if tag == "title":
             self._in_title = False
         self._pop_to(tag)
+
+    def handle_comment(self, data: str) -> None:
+        """A comment is not markup — but inside a text-only element it is not a comment.
+
+        ``<title><!-- x --></title>`` has the literal title ``<!-- x -->``; everywhere
+        else a comment contributes nothing, which is why this is otherwise a no-op.
+        """
+        if self._text_only is not None:
+            self.handle_data(f"<!--{data}-->")
 
     def handle_data(self, data: str) -> None:
         """Route rendered text to the ``<title>`` and to the elements it names."""
@@ -582,7 +610,8 @@ class _Collector(HTMLParser):
 
     def _start_img(self, tag: str, values: dict[str, str]) -> None:
         if "alt" not in values:
-            self.facts.imgs_missing_alt += 1
+            if not self._scopes[-1].hidden:
+                self.facts.imgs_missing_alt += 1  # hidden: no alternative to give
             return
         alt = values["alt"].strip()
         if alt:
@@ -592,6 +621,8 @@ class _Collector(HTMLParser):
     def _start_anchor(self, tag: str, values: dict[str, str]) -> None:
         if "href" not in values:
             return  # an <a> without one is a named target, not a link
+        if self._scopes[-1].namespace == "math":
+            return  # MathML has no anchor element: <math><a href> is nothing to click
         scope = self._scopes[-1]
         # HTML-AAM's last-resort name source, which axe-core's `link-name` accepts too:
         # an icon link named only by `title="RSS feed"` is conformant markup.

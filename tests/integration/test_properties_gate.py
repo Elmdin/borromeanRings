@@ -47,6 +47,48 @@ BAD_PROPERTY = (
 # runner-absent case, without uninstalling anything on the machine.
 HYPOTHESIS_STUB = 'raise ImportError("hypothesis is not installed on this machine")\n'
 
+# Its mirror, the runner-PRESENT case, without installing anything on the machine. The
+# check's whole contract with Hypothesis is "importable, then pytest runs the suite", so
+# every verdict here is decided against a runner this file controls. Relying on the real
+# one made these tests pass wherever Hypothesis happened to be installed and fail on the
+# CI runner, whose `.[dev]` toolchain has none: the check noop'd there, correctly (#208).
+# It runs each property over fixed examples and reports a failure as the marker plus the
+# example — so the test can prove the counterexample reached the log without asserting
+# Hypothesis's own wording, which is not ours to pin.
+COUNTEREXAMPLE = "FAKE-RUNNER COUNTEREXAMPLE"
+HYPOTHESIS_FAKE = f'''"""Deterministic stand-in for Hypothesis: fixed examples, no search."""
+
+
+class _Strategy:
+    def __init__(self, examples):
+        self.examples = examples
+
+
+class strategies:
+    @staticmethod
+    def integers():
+        return _Strategy([0, 1, -1, 7, -1000])
+
+    @staticmethod
+    def lists(inner):
+        return _Strategy([[], list(inner.examples), list(reversed(inner.examples))])
+
+
+def given(strategy):
+    def decorate(prop):
+        def run_property():
+            for example in strategy.examples:
+                try:
+                    prop(example)
+                except AssertionError as exc:
+                    raise AssertionError(f"{COUNTEREXAMPLE}: {{example!r}}") from exc
+
+        run_property.__name__ = prop.__name__
+        return run_property
+
+    return decorate
+'''
+
 
 def _project(root: Path, files: dict[str, str]) -> Path:
     """Materialize ``{relpath: content}`` under ``root`` and return it."""
@@ -65,6 +107,10 @@ def _run_gate(project: Path) -> tuple[int, str, str, str]:
     """Run the real gate; return (exit code, stdout, 27_properties status, its log)."""
     env = dict(os.environ)
     env["BORROMEANRINGS_PROJECT"] = str(project)
+    # The fixture's pytest must see the fixture's runner and nothing of this machine's:
+    # an installed Hypothesis registers a pytest plugin that would import its internals
+    # from HYPOTHESIS_FAKE and break, and no other plugin belongs in the verdict either.
+    env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
     proc = subprocess.run(
         ["bash", str(VERIFY)],
         env=env,
@@ -98,6 +144,7 @@ def test_declared_passing_suite_is_a_real_pass(tmp_path: Path) -> None:
         {
             "borromeanrings.toml": _declaring("tests/properties"),
             "tests/properties/test_sorting.py": GOOD_PROPERTY,
+            "hypothesis.py": HYPOTHESIS_FAKE,
         },
     )
     code, stdout, status, _ = _run_gate(project)
@@ -113,12 +160,15 @@ def test_falsified_property_fails_the_gate(tmp_path: Path) -> None:
         {
             "borromeanrings.toml": _declaring("tests/properties"),
             "tests/properties/test_positive.py": BAD_PROPERTY,
+            "hypothesis.py": HYPOTHESIS_FAKE,
         },
     )
     code, stdout, status, log = _run_gate(project)
     assert code != 0, f"a falsified property must FAIL the gate:\n{stdout}"
     assert status == "fail", stdout
-    assert "Falsifying example" in log, log
+    # The marker WITH the value: pytest also echoes the fake's source line, which holds
+    # the marker but only the placeholder, so the bare marker would prove nothing.
+    assert f"{COUNTEREXAMPLE}: 0" in log, log
     assert "PROPERTY FAILED" in log
 
 
@@ -163,6 +213,7 @@ def test_test_files_that_collect_no_tests_fail(tmp_path: Path) -> None:
         {
             "borromeanrings.toml": _declaring("tests/properties"),
             "tests/properties/test_nothing.py": "PLANNED = 'a property, some day'\n",
+            "hypothesis.py": HYPOTHESIS_FAKE,
         },
     )
     code, stdout, status, log = _run_gate(project)

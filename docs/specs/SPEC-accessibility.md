@@ -204,6 +204,28 @@ The rules answer what a *browser* would build, not what the text looks like:
   `<div hidden><h1>Dup</h1></div><h1>Real</h1>` used to be reported and no longer is.
   Each of the three is pinned by a test.
 
+  **This is the one place the check knowingly inverts its own governing principle**, and it
+  is worth stating next to the principle it breaks. Everywhere else, skipping a hidden
+  subtree can only *suppress* a finding — the safe direction. In `heading_structure`'s
+  presence half alone, skipping **creates** a finding out of an absence: a page whose only
+  `<h1>` sits in a `hidden` container is reported as having none. That is correct for the
+  document a screen reader is handed, and it is still a report on markup that may render
+  correctly a moment later, because `hidden` is a common script-managed toggle and a shell
+  revealed on hydration looks exactly like this. The inversion is deliberate, it is the
+  only one, and a reader who finds it surprising has understood the rest of the SPEC
+  correctly.
+
+  **`hidden="until-found"` is treated as ordinary `hidden`, which is defensible but not
+  identical.** `_is_hidden` tests for the token, so every value of the attribute is the
+  boolean `hidden` — right for `hidden=""` and for `hidden="hidden"`. `until-found` is the
+  one value where the user agent reveals the content **without script**, through
+  find-in-page or fragment navigation, and the rendering spec gives it
+  `content-visibility: hidden` rather than `display: none`. So
+  `<div hidden="until-found"><h1>Only</h1></div>` is reported as a page with no `<h1>`,
+  where a browser would reveal that heading on a find. Recorded rather than special-cased:
+  the content is genuinely out of the tree until the reveal happens, and distinguishing the
+  two states is a question about a moment in time, which a source-only check cannot see.
+
   **`page_title` and `html_lang` are untouched by this**, and not because they read no
   sequence: a `<title>` and the `<html>` element are **document metadata**, never rendered
   content, so there is nothing for `hidden` to remove from the accessibility tree.

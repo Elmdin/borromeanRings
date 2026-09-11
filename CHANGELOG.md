@@ -46,12 +46,18 @@ queue is merged.
 - `15_a11y` checked `<math><a href>` for link text. The SVG-anchor departure is a
   judgement about links a user clicks; MathML has no anchor element, so there is nothing
   there to click and nothing to judge.
-- `15_a11y` counted an `<img>` with no `alt` inside a `hidden` or `aria-hidden` subtree,
-  while `control_label` and `link_text` skipped one. `img_alt` now skips it too. The line
-  is drawn deliberately and stated in the SPEC: the rules that judge **one element** skip
-  what is out of the accessibility tree, and the document-shape rules (`page_title`,
-  `heading_structure`) do not, because dropping an element out of a **sequence** can
-  invent a skipped level or a missing `<h1>` where neither exists.
+- `15_a11y` judged some rules against the accessibility tree and others against the DOM.
+  **Every rule that judges rendered content now skips `hidden`/`aria-hidden` subtrees**,
+  the heading outline included. The outline was exempted at first on the argument that
+  dropping an element out of a *sequence* could invent a finding; verification showed the
+  argument inverted. `<h1><h2><div hidden><h3></div><h4>` and `<h1><h2><h4>` are the same
+  document to a screen reader and were given opposite verdicts — counting the hidden
+  heading **masked** a real skipped level rather than preventing an invented one. It also
+  ran the other way: `<div hidden><h1>Dup</h1></div><h1>Real</h1>` reported "a further
+  `<h1>`" on a page where nothing can perceive two. `page_title` and `html_lang` are
+  unaffected, and for a different reason than the one first given: a `<title>` and the
+  `<html>` element are *document metadata*, which `hidden` cannot remove. Each case is
+  pinned by a test, including one that fails if the rule ever spreads to `page_title`.
 - `15_a11y` **failed correct markup** in four ways, each found by an adversarial review of
   PR #211 and each now pinned against html5lib:
   - **A text-only element's content was read as markup.** The HTML tokenizer reads

@@ -881,3 +881,67 @@ def test_the_check_survives_markup_that_makes_the_oracle_itself_crash() -> None:
     # we measure it against cannot, because a gate that raises is a gate that blocks.
     html = '<ruby><div><svg><select><title><select><img src="x"></select>'
     assert _rules(a11y_findings(html, require=ALL_RULES)) == {"img_alt", "control_label"}
+
+
+# --------------------------------------------------------------------------
+# The outline is the one a screen reader navigates — PR #211 verification
+# --------------------------------------------------------------------------
+
+
+def test_two_documents_a_screen_reader_cannot_tell_apart_get_the_same_verdict() -> None:
+    # This is the case that settled it. To assistive technology these are the same
+    # document, and the check used to give them opposite verdicts: counting the hidden
+    # <h3> did not prevent an invented finding, it MASKED a real one.
+    with_hidden = DOC.format("<h1>H</h1><h2>A</h2><div hidden><h3>Hid</h3></div><h4>B</h4>")
+    without = DOC.format("<h1>H</h1><h2>A</h2><h4>B</h4>")
+    assert _located(a11y_findings(with_hidden, require=HEADING)) == _located(
+        a11y_findings(without, require=HEADING)
+    )
+    assert [f.rule for f in a11y_findings(with_hidden, require=HEADING)] == ["heading_structure"]
+
+
+def test_a_page_whose_only_h1_is_hidden_has_no_h1() -> None:
+    # Presence. Nothing perceives that heading, so reporting its absence is *correct* —
+    # the opposite of the fear that first exempted the outline from the hidden rule.
+    html = DOC.format("<div hidden><h1>Only</h1></div><h2>Section</h2>")
+    assert _located(a11y_findings(html, require=HEADING)) == [("heading_structure", None)]
+    aria = DOC.format('<div aria-hidden="true"><h1>Only</h1></div><h2>Section</h2>')
+    assert _located(a11y_findings(aria, require=HEADING)) == [("heading_structure", None)]
+
+
+def test_a_hidden_h1_is_not_the_second_of_two() -> None:
+    # Duplication. One perceivable top-level heading is not two, whatever the source says.
+    assert (
+        a11y_findings(DOC.format("<div hidden><h1>Dup</h1></div><h1>Real</h1>"), require=HEADING)
+        == []
+    )
+
+
+def test_skipping_a_hidden_heading_never_invents_a_level_skip() -> None:
+    # The case the old rationale feared: a hidden heading *bridging* two visible ones.
+    # It does not invent anything — with the <h2> hidden, h1 then h3 is what the user
+    # actually navigates, which is a real skip and what axe-core's heading-order reports.
+    bridging = DOC.format("<h1>A</h1><div hidden><h2>B</h2></div><h3>C</h3>")
+    assert _located(a11y_findings(bridging, require=HEADING)) == [("heading_structure", 1)]
+    # A self-contained hidden subtree removes a whole run of levels and changes nothing.
+    contained = DOC.format("<h1>A</h1><h2>S</h2><div hidden><h3>x</h3><h4>y</h4></div>")
+    assert a11y_findings(contained, require=HEADING) == []
+    # An entirely hidden outline is an outline nobody navigates.
+    assert a11y_findings("<div hidden><h1>a</h1><h3>b</h3></div>", require=HEADING) == []
+
+
+def test_a_title_is_document_metadata_that_hidden_cannot_remove() -> None:
+    # `hidden` styles *rendered content*; a <title> and the <html> element are neither
+    # rendered nor in the accessibility tree to begin with, so page_title and html_lang
+    # are untouched by the rule every other check now applies.
+    titled = (
+        '<html lang="en"><head><title hidden>Dashboard</title></head><body><h1>H</h1></body></html>'
+    )
+    assert a11y_findings(titled) == []
+    in_hidden_head = (
+        '<html lang="en"><head hidden><title>D</title></head><body><h1>H</h1></body></html>'
+    )
+    assert a11y_findings(in_hidden_head) == []
+    assert _rules(
+        a11y_findings("<html hidden><head><title>D</title></head><body><h1>H</h1></body></html>")
+    ) == {"html_lang"}

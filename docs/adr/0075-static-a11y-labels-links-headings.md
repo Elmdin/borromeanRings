@@ -120,12 +120,26 @@ rules turn on exemptions, id matching and text content, which do):
   own tail: `html.parser` skips its raw-text switch on the `/>` form too, so a
   `<script src="a.js"/>` that no longer self-closed stayed open to end of file and
   swallowed the document. An element whose content is text starts that run explicitly now.
-- **`hidden`/`aria-hidden` is applied to `img_alt` as well as to the two name rules, and
-  deliberately *not* to the document-shape rules.** The rules that judge one element can
-  only lose a finding by skipping what is out of the accessibility tree; `page_title` and
-  `heading_structure` read a **sequence**, where dropping an element **invents** one — a
-  hidden `<h2>` between a visible `h1` and `h3` would read as a skipped level. That
-  asymmetry has a reason, unlike the `<template>` one it replaces.
+- **`hidden`/`aria-hidden` is applied by every rule that judges rendered content**, the
+  outline included. The first cut exempted `heading_structure`, arguing that dropping an
+  element out of a *sequence* could invent a finding. Verification showed the argument
+  inverted: `<h1><h2><div hidden><h3></div><h4>` and `<h1><h2><h4>` are the same document
+  to a screen reader, and counting the hidden heading gave them opposite verdicts —
+  **masking** a real skip rather than preventing an invented one. With the `<h3>` hidden,
+  `h1 → h2 → h4` *is* the sequence the user navigates, which is why axe-core's
+  `heading-order` reads the accessibility tree. Presence and duplication point the same
+  way: a page whose only `<h1>` is hidden has no perceivable top-level heading, and a
+  hidden `<h1>` cannot be the second of two (that one was an invented finding).
+  `page_title` and `html_lang` stay out of it for a different reason than the one first
+  given — a `<title>` and the `<html>` element are *document metadata*, never rendered
+  content, so there is nothing for `hidden` to remove. The two-category boundary collapses
+  into one rule, which is both simpler and the correct one.
+- **`hidden` and `aria-hidden` are kept together here deliberately.** They are not the
+  same thing — `aria-hidden` leaves the element rendered and focusable — but for rules
+  that ask "is this in the accessibility tree" the answer is no for both. The place they
+  part company is a fact this check does not carry: a focusable element inside an
+  `aria-hidden` subtree is axe-core's `aria-hidden-focus`, about focus order, which needs
+  the rendered lane (#210) and is disclosed rather than approximated.
 - **MathML has no anchor.** The SVG `<a href>` departure is about links a user clicks;
   `<math><a href>` is not one, and is not checked.
 - **Inside an `<svg>`/`<math>` subtree, a familiar tag name is usually not an HTML

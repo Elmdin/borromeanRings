@@ -39,9 +39,10 @@ duplicate attributes resolve **first-wins** (the HTML parsing spec); ``<script>`
 an image — and tag-shaped text stays text, so ``<title><b></b></title>`` has a title; a
 ``<template>`` is a stamp rather than a page and **no** rule judges what is inside one;
 ``hidden`` and ``aria-hidden`` take an element and its subtree out of the accessibility
-tree, so the three rules that judge **one element** (``img_alt``, ``control_label``,
-``link_text``) skip it, while the document-shape rules do **not** — dropping an element
-out of a *sequence* could invent a skipped level or a missing ``<h1>``; and inside an
+tree, so **every rule that judges rendered content skips it** — including the outline,
+because the sequence a screen reader navigates is the one with those headings gone;
+``page_title`` and ``html_lang`` are unaffected, since a ``<title>`` and the ``<html>``
+element are document metadata that ``hidden`` cannot remove; and inside an
 ``<svg>``/``<math>`` subtree a familiar tag name is **not** an HTML element (an
 ``<svg><title>`` names an icon, not the page), until an HTML integration point **of that
 same language** — ``<foreignObject>`` in SVG, ``<mtext>`` in MathML — resumes HTML.
@@ -538,6 +539,18 @@ class _Collector(HTMLParser):
         """True when an element opened here is already outside the accessibility tree."""
         return bool(self._scopes) and self._scopes[-1].hidden
 
+    def _out_of_tree(self) -> bool:
+        """True when the element just opened is not in the accessibility tree at all.
+
+        One rule, applied by every rule that judges **rendered content**: ``hidden`` and
+        ``aria-hidden="true"`` take an element and its subtree out of what assistive
+        technology is handed, so there is nothing there to name, to describe, or to
+        navigate. ``page_title`` and ``html_lang`` are untouched by it — a ``<title>`` and
+        the ``<html>`` element are *document metadata*, never rendered content, so there
+        is nothing for the attribute to remove.
+        """
+        return self._scopes[-1].hidden
+
     def _namespace(self) -> str | None:
         """The foreign namespace an element opened *here* belongs to, or ``None``.
 
@@ -610,8 +623,8 @@ class _Collector(HTMLParser):
 
     def _start_img(self, tag: str, values: dict[str, str]) -> None:
         if "alt" not in values:
-            if not self._scopes[-1].hidden:
-                self.facts.imgs_missing_alt += 1  # hidden: no alternative to give
+            if not self._out_of_tree():
+                self.facts.imgs_missing_alt += 1  # no alternative to give for the unseen
             return
         alt = values["alt"].strip()
         if alt:
@@ -627,7 +640,7 @@ class _Collector(HTMLParser):
         # HTML-AAM's last-resort name source, which axe-core's `link-name` accepts too:
         # an icon link named only by `title="RSS feed"` is conformant markup.
         scope.text += " " + values.get("title", "")
-        if not scope.hidden:
+        if not self._out_of_tree():
             self.facts.links.append(scope)
 
     def _start_label(self, tag: str, values: dict[str, str]) -> None:
@@ -638,6 +651,8 @@ class _Collector(HTMLParser):
             self.facts.label_targets.setdefault(target, self._scopes[-1])
 
     def _start_heading(self, tag: str, values: dict[str, str]) -> None:
+        if self._out_of_tree():
+            return  # not in the outline anyone navigates, so not in the one we check
         # No namespace test: h1-h6 break out of foreign content, so a heading written
         # inside an <svg> is a real heading (and closes the <svg> on its way out).
         self.facts.headings.append(_Heading(_HEADING_LEVELS[tag], self.getpos()[0]))
@@ -645,7 +660,7 @@ class _Collector(HTMLParser):
     def _start_control(self, tag: str, values: dict[str, str]) -> None:
         if self._scopes[-1].foreign:
             return  # an <svg><input> is an SVG element, not a form control
-        if self._scopes[-1].hidden:
+        if self._out_of_tree():
             return  # hidden from assistive tech: not a control anyone has to name
         self.facts.controls.append(
             _Control(

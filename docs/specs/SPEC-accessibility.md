@@ -26,10 +26,8 @@ rules `[a11y].require`.
 2. **`img_alt`** — every `<img>` anywhere must have an `alt` attribute (SC 1.1.1).
    `alt=""` is accepted (correct marking for a decorative image); the attribute must be
    *present*, not non-empty. The finding reports how many `<img>` lack it. An image that
-   is **out of the accessibility tree** (`hidden`, or `aria-hidden="true"` on it or an
-   ancestor) is not counted, for the same reason as in `control_label` and `link_text`:
-   there is no alternative to give for something assistive tech is never handed. Row U2;
-   axe-core `image-alt`.
+   is **out of the accessibility tree** is not counted — see "Hidden content" below, the
+   one rule every content check applies. Row U2; axe-core `image-alt`.
 3. **`page_title`** — a **full document** must have a non-empty `<title>` (SC 2.4.2).
    Row U3; axe-core `document-title`.
 
@@ -117,6 +115,10 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
      not increase by more than one (`h2` → `h4` is a violation at the `h4`). Checked in
      fragments too, since it needs no document context; a fragment that legitimately
      *starts* at `h3` is not flagged, because only the deltas are examined.
+   - Headings that are **out of the accessibility tree** (`hidden`, `aria-hidden="true"`)
+     do not count, in *either* half of the rule: a hidden `<h1>` is neither the document's
+     top-level heading nor a second one, and a hidden heading is not a step in the
+     sequence. See "Hidden content" below.
    - Headings inside `<template>` do **not** count — nor does anything else in one; see
      "`<template>` content is inert, for every rule" below. Headings inside comments do
      not count either (they are not markup). An `<h1>` inside an `<svg>`/`<math>` **does**
@@ -176,14 +178,46 @@ The rules answer what a *browser* would build, not what the text looks like:
   "a name travels with the element". Judging none of it is uniform, states one rule
   instead of two, and can only *reduce* false positives; the violations it now misses are
   listed under "What these rules do not catch".
-- **`hidden` and `aria-hidden="true"` take an element and its subtree out of the
-  accessibility tree**, so the three rules that judge **one element** — `img_alt`,
-  `control_label`, `link_text` — do not judge what is inside one. The document-shape
-  rules (`page_title`, `heading_structure`) deliberately *do*: those read a **sequence**,
-  and dropping elements out of one can **invent** a violation — a hidden `<h2>` between a
-  visible `h1` and `h3` would become a skipped level, and a page whose `<h1>` sits in a
-  collapsed panel would become a page with no `<h1>`. Skipping an element can only
-  suppress a finding; skipping it out of a sequence can create one. That is the line.
+- **Hidden content: one rule, everywhere.** `hidden` and `aria-hidden="true"` take an
+  element **and its subtree** out of the accessibility tree, and **every rule that judges
+  rendered content skips it** — `img_alt`, `control_label`, `link_text` *and*
+  `heading_structure`. The rule the check enforces is the one assistive technology
+  experiences, so the document it judges is the document a screen reader is handed.
+
+  An earlier version of this SPEC exempted the outline, arguing that dropping an element
+  out of a **sequence** could *invent* a violation. That argument is wrong, and the
+  example it led with argued against it. These two documents are identical to a screen
+  reader:
+
+  ```html
+  <h1>H</h1><h2>A</h2><div hidden><h3>Hid</h3></div><h4>B</h4>
+  <h1>H</h1><h2>A</h2><h4>B</h4>
+  ```
+
+  Counting the hidden `<h3>` gave them opposite verdicts. It did not prevent an invented
+  finding — it **masked a real one**: with the `<h3>` hidden, `h1 → h2 → h4` *is* the
+  sequence the user navigates, and the skip is a fact about the page, which is why
+  axe-core's `heading-order` reads the accessibility tree. Working the other two cases
+  points the same way. **Presence:** if the only `<h1>` is inside a `hidden` container the
+  page has no perceivable top-level heading, so reporting its absence is correct.
+  **Duplication:** a hidden `<h1>` is not perceived, so it cannot be the second of two —
+  `<div hidden><h1>Dup</h1></div><h1>Real</h1>` used to be reported and no longer is.
+  Each of the three is pinned by a test.
+
+  **`page_title` and `html_lang` are untouched by this**, and not because they read no
+  sequence: a `<title>` and the `<html>` element are **document metadata**, never rendered
+  content, so there is nothing for `hidden` to remove from the accessibility tree.
+  `<title hidden>Dashboard</title>` still names the page, exactly as it does in a browser.
+  Pinned by a test, so the rule cannot quietly spread to them.
+
+  **`hidden` and `aria-hidden` are not the same thing, and are treated the same here on
+  purpose.** `hidden` is not rendered at all; `aria-hidden="true"` leaves the element
+  visible and potentially focusable. For these four rules the question is only "is this in
+  the accessibility tree", and the answer is no for both. The difference matters for a
+  fact this check does **not** carry: a *focusable* element inside an `aria-hidden`
+  subtree can be tabbed to while announcing nothing, which is axe-core's separate
+  `aria-hidden-focus` rule — listed under "What these rules do not catch" with
+  `empty-heading` and `valid-lang`, not silently folded in here.
 - **A self-closing flag on an HTML element means nothing.** The parsing spec
   acknowledges `<x/>` only in foreign content, where `<rect/>` really does close;
   `html.parser` closes every one, which made `<a href="/x" />Read the docs</a>` an empty
@@ -277,13 +311,19 @@ Stated so the green is never read as more than it is:
   stamp (see "Parser fidelity"): a real image with a real `alt` missing from a row
   template passes. A project that ships most of its markup through templates should know
   that this check is nearly silent about it.
-- **Nothing marked `hidden` or `aria-hidden="true"` is judged by `img_alt`,
-  `control_label` or `link_text`.** A field in a `<div hidden>` panel that is shown later
-  by script does need a label, and an image in one does need an `alt`; this check will not
-  say so. The alternative — flagging it — fails the markup axe-core passes, which is the
-  error that gets a rule switched off. Note that html5lib *does* build those elements:
-  this is a departure from the **accessibility tree**, not from the DOM, so a differential
-  against a tree builder will report it as a difference. It is the intended one.
+- **Nothing marked `hidden` or `aria-hidden="true"` is judged at all** (except by
+  `page_title`/`html_lang`, which read metadata). A field in a `<div hidden>` panel that
+  is shown later by script does need a label, and an image in one does need an `alt`; this
+  check judges the page as delivered, and will not say so. The alternative — flagging it —
+  fails the markup axe-core passes, which is the error that gets a rule switched off. Note
+  that html5lib *does* build those elements: this is a departure from the **accessibility
+  tree**, not from the DOM, so a differential against a tree builder reports it as a
+  difference. It is the intended one.
+- **A focusable element inside an `aria-hidden` subtree is not reported.** It can be
+  tabbed to while announcing nothing, which is a real defect — and a *different* one:
+  axe-core's `aria-hidden-focus`, about focus order rather than about names or outlines.
+  It needs the resolved focus order (`tabindex`, `inert`, shadow roots), which is the
+  rendered lane's job (#210), so it is named here rather than approximated.
 - **Content inside an `aria-hidden` subtree still counts as an enclosing element's
   name.** The accessible-name algorithm excludes it, so
   `<a href="/x"><span aria-hidden="true">Icon</span></a>` really is an unnamed link and

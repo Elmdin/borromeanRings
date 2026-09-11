@@ -563,7 +563,9 @@ def test_untracking_a_file_is_a_change(tmp_path: Path) -> None:
     assert _result(proc) in {"green", "escalated"}
 
 
-# --- the retry bound survives a deleted counter ---------------------------------------
+# --- a DELETED counter alone no longer resets the bound (and nothing more) ------------
+# Not a bound against intent: delete the history, relabel its rows, or append one forged
+# green row and this is defeated. The test below is named for what it proves. See #218.
 
 
 def test_deleting_the_counter_alone_no_longer_resets_the_hooks_bound(tmp_path: Path) -> None:

@@ -253,7 +253,9 @@ def test_an_edit_that_restores_the_timestamps_is_still_caught(tmp_path: Path) ->
     assert evidence_writes(before, snapshot_evidence(tmp_path)) == ("modified: counter",)
 
 
-# --- the retry bound survives a deleted counter (the ledger is append-only) ---
+# --- a DELETED counter alone no longer resets the bound (and nothing more) -----
+# The ledger being append-only is not a guarantee: appending a forged green row is
+# its sanctioned operation and defeats this. See ADR-0078 decision 8 and #218.
 
 
 def _rows(*pairs: tuple[str, bool]) -> tuple[tuple[str, bool], ...]:

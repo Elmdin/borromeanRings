@@ -33,11 +33,19 @@ presuppose a full page (``html_lang``, ``page_title``, the "has an ``<h1>``" hal
 
 The tree is read the way a browser would build it, not the way the text looks:
 duplicate attributes resolve **first-wins** (the HTML parsing spec); ``<script>`` and
-``<style>`` content is source rather than text; ``<template>`` content is inert — scanned
-on its own terms, but never the outline, the document title, or an enclosing link's name;
-and inside an ``<svg>``/``<math>`` subtree a familiar tag name is **not** an HTML element
-(an ``<svg><title>`` names an icon, not the page), until an HTML integration point such
-as ``<foreignObject>`` resumes HTML.
+``<style>`` content is source rather than text; the content of a ``<textarea>``,
+``<title>``, ``<iframe>``, ``<xmp>``, ``<noembed>``, ``<noframes>`` or ``<plaintext>`` is
+**text, not markup**, so an ``<img>`` written there is a string a browser shows and not
+an image; a ``<template>`` is a stamp rather than a page and **no** rule judges what is
+inside one; ``hidden`` and ``aria-hidden`` remove an element and its subtree from the
+accessibility tree, so nothing there is judged either; and inside an ``<svg>``/``<math>``
+subtree a familiar tag name is **not** an HTML element (an ``<svg><title>`` names an icon,
+not the page), until an HTML integration point **of that same language** —
+``<foreignObject>`` in SVG, ``<mtext>`` in MathML — resumes HTML.
+
+Where the source cannot answer honestly the module prefers a **missed violation to an
+invented one**: a gate that fails correct markup is worse than no gate, because it gets
+switched off. Every such choice is written down in the SPEC.
 
 Names are **resolved, not merely present**: every element accumulates the text of its own
 subtree plus the names contributed by descendants, so a reference or a wrapping
@@ -51,6 +59,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from typing import Any
 
 #: The rules a project gets without asking — the U1–U3 presence facts (ADR-0045).
 DEFAULT_RULES: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
@@ -73,21 +82,59 @@ _SELF_NAMING_INPUT_TYPES: frozenset[str] = frozenset(
     {"hidden", "submit", "button", "reset", "image"}
 )
 
-#: Elements whose content is source code, not text anyone reads or hears.
-_RAW_TEXT_TAGS: frozenset[str] = frozenset({"script", "style"})
+#: Elements whose content is source code, not text anyone reads or hears. Read off
+#: ``html.parser`` rather than recited, because it is that parser's switch this module
+#: has to model: these are exactly the tags whose content arrives as verbatim source.
+_RAW_TEXT_TAGS: frozenset[str] = frozenset(HTMLParser.CDATA_CONTENT_ELEMENTS)
+
+#: Elements whose content the HTML tokenizer reads as **text, not markup** (raw text and
+#: RCDATA): an ``<img>`` written inside a ``<textarea>`` is a literal string a browser
+#: shows, not an image. ``html.parser`` knows this for :data:`_RAW_TEXT_TAGS` only, so
+#: the module has to apply it to the rest — otherwise a "paste your markup here" textarea
+#: fails a gate that every browser renders correctly. Derived from html5lib by
+#: tests/unit/test_accessibility_conformance.py, not recited.
+_TEXT_ONLY_TAGS: frozenset[str] = frozenset(
+    {
+        "iframe",
+        "noembed",
+        "noframes",
+        "plaintext",
+        "script",
+        "style",
+        "textarea",
+        "title",
+        "xmp",
+    }
+)
+
+#: The text-only elements the module has to handle itself. ``html.parser`` already
+#: switches to raw text for :data:`_RAW_TEXT_TAGS`, and does it more carefully than
+#: re-tokenizing would — a ``<script>`` whose source contains ``<!--`` or ``"</div>"``
+#: is its business, not this module's.
+_SELF_MANAGED_TEXT_TAGS: frozenset[str] = _TEXT_ONLY_TAGS - _RAW_TEXT_TAGS
+
+#: The text-only elements that no end tag closes: ``<plaintext>`` runs to end of file,
+#: so a ``</plaintext>`` written after it is part of the text, not a tag.
+_UNCLOSABLE_TEXT_TAGS: frozenset[str] = frozenset({"plaintext"})
 
 #: Elements that never have content: they close the moment they open, so an unclosed
-#: one can't swallow the rest of the document.
+#: one can't swallow the rest of the document. Derived from html5lib by the conformance
+#: suite, with one addition it cannot reach: ``<col>`` is legal only inside a
+#: ``<colgroup>``, and a browser ignores it anywhere a probe could put a child next to
+#: it — so it is asserted separately, in a table.
 _VOID_TAGS: frozenset[str] = frozenset(
     {
         "area",
         "base",
+        "basefont",
+        "bgsound",
         "br",
         "col",
         "embed",
         "hr",
         "img",
         "input",
+        "keygen",
         "link",
         "meta",
         "param",
@@ -158,12 +205,14 @@ _BREAKOUT_TAGS: frozenset[str] = frozenset(
 #: ``<font>`` breaks out only when it carries one of these presentational attributes.
 _FONT_BREAKOUT_ATTRS: frozenset[str] = frozenset({"color", "face", "size"})
 
-#: SVG elements whose children are HTML again (HTML integration points). Tag names
-#: arrive lower-cased, so ``<foreignObject>`` is ``foreignobject``.
-_SVG_INTEGRATION_TAGS: frozenset[str] = frozenset({"foreignobject", "desc", "title"})
-
-#: MathML text integration points — their children are HTML too.
-_MATHML_TEXT_INTEGRATION_TAGS: frozenset[str] = frozenset({"mi", "mo", "mn", "ms", "mtext"})
+#: Foreign namespace → the elements *in that namespace* whose children are HTML again
+#: (SVG's HTML integration points; MathML's text integration points). A point belongs to
+#: one language only: ``<desc>`` resumes HTML inside an ``<svg>``, never inside a
+#: ``<math>``. Tag names arrive lower-cased, so ``<foreignObject>`` is ``foreignobject``.
+_INTEGRATION_TAGS: dict[str, frozenset[str]] = {
+    "svg": frozenset({"foreignobject", "desc", "title"}),
+    "math": frozenset({"mi", "mo", "mn", "ms", "mtext"}),
+}
 
 #: ``<annotation-xml>`` is an integration point only for these ``encoding`` values.
 _HTML_ENCODINGS: frozenset[str] = frozenset({"text/html", "application/xhtml+xml"})
@@ -199,13 +248,21 @@ class _NameScope:
     tag: str
     line: int
     template_depth: int
-    #: True when this element is inside an ``<svg>``/``<math>`` subtree, so its tag
-    #: name does not make it an HTML element.
-    foreign: bool = False
+    #: The foreign namespace this element belongs to (``"svg"``/``"math"``), or ``None``
+    #: when it is an HTML element. Inherited from the parent, not read off the tag name:
+    #: the ``<svg>`` in ``<math><svg>`` is a *MathML* element.
+    namespace: str | None = None
     #: True when this element's *children* are HTML again (an integration point).
     integration: bool = False
+    #: True when this element or an ancestor is hidden from the accessibility tree.
+    hidden: bool = False
     text: str = ""
     refs: list[str] = field(default_factory=list)
+
+    @property
+    def foreign(self) -> bool:
+        """True when a familiar tag name here is **not** an HTML element."""
+        return self.namespace is not None
 
 
 @dataclass(frozen=True)
@@ -273,15 +330,35 @@ def _breaks_out_of_foreign_content(tag: str, values: dict[str, str]) -> bool:
     return tag == "font" and any(name in values for name in _FONT_BREAKOUT_ATTRS)
 
 
-def _is_integration_point(tag: str, values: dict[str, str]) -> bool:
-    """True when this foreign element's children are HTML again.
+def _is_integration_point(tag: str, values: dict[str, str], namespace: str) -> bool:
+    """True when this foreign element's children are HTML again, in *its own* namespace.
 
-    ``<annotation-xml>`` qualifies only when its ``encoding`` says the content is HTML;
-    with any other encoding it is an ordinary MathML element.
+    Scoped deliberately: testing the union of the two sets makes ``<svg><mtext><input>``
+    an HTML form control and lets ``<math><desc><title>`` pass for the page's title,
+    neither of which any browser agrees with. ``<annotation-xml>`` is MathML's, and
+    qualifies only when its ``encoding`` says the content is HTML — compared **whole and
+    untrimmed**, as the spec's ASCII case-insensitive match requires, so
+    ``encoding=" text/html "`` is an ordinary MathML element.
     """
-    if tag in _SVG_INTEGRATION_TAGS or tag in _MATHML_TEXT_INTEGRATION_TAGS:
+    if tag in _INTEGRATION_TAGS[namespace]:
         return True
-    return tag == "annotation-xml" and values.get("encoding", "").strip().lower() in _HTML_ENCODINGS
+    return (
+        namespace == "math"
+        and tag == "annotation-xml"
+        and values.get("encoding", "").lower() in _HTML_ENCODINGS
+    )
+
+
+def _is_hidden(values: dict[str, str]) -> bool:
+    """True when this element is out of the accessibility tree: ``hidden``/``aria-hidden``.
+
+    Both remove the element **and its subtree** from what assistive tech is given, so a
+    real a11y tool does not judge what is inside one. Neither does this gate: the
+    decorative chevron in ``<a href="#main" aria-hidden="true" tabindex="-1">`` and the
+    control in a ``<div hidden>`` panel are correct markup, and a check that failed them
+    would teach a team to switch the rule off.
+    """
+    return "hidden" in values or values.get("aria-hidden", "").strip().lower() == "true"
 
 
 def _id_tokens(value: str) -> tuple[str, ...]:
@@ -296,6 +373,7 @@ class _Collector(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.facts = _Facts()
         self._in_title = False
+        self._text_only: str | None = None
         self._scopes: list[_NameScope] = []
         self._open_tags: dict[str, int] = {}
         self._starters: dict[str, Callable[[str, dict[str, str]], None]] = {
@@ -311,18 +389,40 @@ class _Collector(HTMLParser):
     # -- parser callbacks --------------------------------------------------
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Open this element's name scope, credit its own naming attributes, dispatch."""
+        if self._text_only is not None:
+            return  # inside <textarea>/<title>/<xmp>… this is literal text, not markup
         values = _attr_map(attrs)
-        if self._foreign_context() and _breaks_out_of_foreign_content(tag, values):
+        if self._namespace() is not None and _breaks_out_of_foreign_content(tag, values):
             self._exit_foreign_content()  # the browser closes the <svg>; so do we
         self._push(tag, values)
         starter = self._starters.get(tag)
-        if starter is not None:
+        if starter is not None and not self._inert():
             starter(tag, values)
         if tag in _VOID_TAGS:
             self._pop_to(tag)  # no content to accumulate; never left hanging open
+        elif tag in _SELF_MANAGED_TEXT_TAGS and not self._scopes[-1].foreign:
+            self._text_only = tag  # its content is a string, whatever it looks like
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """``<a href="/x" />`` does **not** close an HTML element; ``<rect/>`` does.
+
+        ``html.parser`` treats every ``<x/>`` as an empty element. The HTML parsing spec
+        acknowledges the self-closing flag only in foreign content and *ignores* it on
+        HTML elements, so ``<a href="/x" />Read the docs</a>`` is a link with the text
+        after it — treating it as empty invented a ``link_text`` violation. In an
+        ``.xhtml`` file the flag is meaningful, and there this is a deliberate false
+        negative (SPEC-accessibility).
+        """
+        self.handle_starttag(tag, attrs)
+        if self._scopes and self._scopes[-1].tag == tag and self._scopes[-1].foreign:
+            self.handle_endtag(tag)
 
     def handle_endtag(self, tag: str) -> None:
         """Close the innermost matching element, and anything left open inside it."""
+        if self._text_only is not None:
+            if tag != self._text_only or tag in _UNCLOSABLE_TEXT_TAGS:
+                return  # only this element's own end tag ends its run of text
+            self._text_only = None
         if tag == "title":
             self._in_title = False
         self._pop_to(tag)
@@ -342,13 +442,14 @@ class _Collector(HTMLParser):
         depth = self._open_tags.get("template", 0)
         if tag == "template":
             depth += 1  # the template's own content sits one level in
-        foreign = self._foreign_context()
+        namespace = self._element_namespace(tag)
         scope = _NameScope(
             tag=tag,
             line=self.getpos()[0],
             template_depth=depth,
-            foreign=foreign,
-            integration=foreign and _is_integration_point(tag, values),
+            namespace=namespace,
+            integration=namespace is not None and _is_integration_point(tag, values, namespace),
+            hidden=self._inherited_hidden() or _is_hidden(values),
         )
         self._scopes.append(scope)
         self._open_tags[tag] = self._open_tags.get(tag, 0) + 1
@@ -381,8 +482,36 @@ class _Collector(HTMLParser):
         """True inside ``<script>``/``<style>``, whose content is source, not text."""
         return any(self._open_tags.get(tag, 0) for tag in _RAW_TEXT_TAGS)
 
-    def _foreign_context(self) -> bool:
-        """True when an element opened *here* would not be an HTML element.
+    def set_cdata_mode(self, elem: str, *args: Any, **kwargs: Any) -> None:
+        """Enter ``html.parser``'s raw-text mode only where a browser would.
+
+        ``<script>``/``<style>`` are raw text in the **HTML** namespace only: a browser
+        parses the content of an ``<svg><script>`` as markup, so an ``<h1>`` written
+        there is a real heading that closes the ``<svg>`` on its way out. ``html.parser``
+        switches on any ``script``/``style``, which lost that heading — and, worse, with
+        no ``</script>`` to come back at, swallowed the rest of the document and invented
+        "document has no ``<h1>``" on a page that has one. Inside a ``<textarea>`` there
+        is no element at all, only text, so nothing there switches mode either. The
+        parser calls this *after* ``handle_starttag``, so the element just pushed decides.
+        """
+        if self._text_only is None and not self._scopes[-1].foreign:
+            super().set_cdata_mode(elem, *args, **kwargs)  # forwarded: the signature grows
+
+    def _inert(self) -> bool:
+        """True inside a ``<template>``: a stamp to be cloned, not part of this document.
+
+        Its text, ``href``, ``alt`` and ids are supplied by whatever clones it, so the
+        source cannot tell an unfinished stamp from a finished element — and every rule
+        declines to judge it, rather than half of them (SPEC-accessibility).
+        """
+        return bool(self._open_tags.get("template", 0))
+
+    def _inherited_hidden(self) -> bool:
+        """True when an element opened here is already outside the accessibility tree."""
+        return bool(self._scopes) and self._scopes[-1].hidden
+
+    def _namespace(self) -> str | None:
+        """The foreign namespace an element opened *here* belongs to, or ``None``.
 
         Inside an ``<svg>``/``<math>`` subtree a familiar tag name belongs to that
         language — an ``<svg><title>`` names an icon, not the page — until an HTML
@@ -390,12 +519,22 @@ class _Collector(HTMLParser):
         ``<annotation-xml>`` carrying an HTML ``encoding``) resumes HTML. Asked of the
         current stack, before the new element is pushed, so it answers for that element.
         """
-        for scope in reversed(self._scopes):
-            if scope.integration:
-                return False
-            if scope.tag in _FOREIGN_ROOT_TAGS:
-                return True
-        return False
+        if not self._scopes:
+            return None
+        top = self._scopes[-1]
+        return None if top.integration else top.namespace
+
+    def _element_namespace(self, tag: str) -> str | None:
+        """The namespace of an element with this tag name opened here.
+
+        A foreign subtree keeps its language rather than re-reading it off the tag name:
+        html5lib confirms that the ``<svg>`` in ``<math><svg>`` is a MathML element, so
+        a ``<desc>`` inside it is MathML's ``desc``, not SVG's integration point.
+        """
+        enclosing = self._namespace()
+        if enclosing is not None:
+            return enclosing
+        return tag if tag in _FOREIGN_ROOT_TAGS else None
 
     def _exit_foreign_content(self) -> None:
         """Close the foreign subtree the way a breakout tag makes a browser close it.
@@ -404,7 +543,7 @@ class _Collector(HTMLParser):
         breakout is HTML too — which is why a second ``<h1>`` written after one inside
         an ``<svg>`` is a duplicate the outline rule can see.
         """
-        while self._foreign_context():
+        while self._namespace() is not None:
             scope = self._scopes.pop()
             self._open_tags[scope.tag] -= 1
 
@@ -437,8 +576,6 @@ class _Collector(HTMLParser):
         self.facts.html_has_lang = bool(values.get("lang", "").strip())
 
     def _start_title(self, tag: str, values: dict[str, str]) -> None:
-        if self._open_tags.get("template", 0):
-            return  # inert until cloned — not this document's title
         if self._scopes[-1].foreign:
             return  # an <svg>/<math> <title> names an icon, not the page
         self._in_title = True
@@ -453,8 +590,14 @@ class _Collector(HTMLParser):
                 scope.text += f" {alt}"
 
     def _start_anchor(self, tag: str, values: dict[str, str]) -> None:
-        if "href" in values:  # an <a> without one is a named target, not a link
-            self.facts.links.append(self._scopes[-1])
+        if "href" not in values:
+            return  # an <a> without one is a named target, not a link
+        scope = self._scopes[-1]
+        # HTML-AAM's last-resort name source, which axe-core's `link-name` accepts too:
+        # an icon link named only by `title="RSS feed"` is conformant markup.
+        scope.text += " " + values.get("title", "")
+        if not scope.hidden:
+            self.facts.links.append(scope)
 
     def _start_label(self, tag: str, values: dict[str, str]) -> None:
         if self._scopes[-1].foreign:
@@ -464,8 +607,6 @@ class _Collector(HTMLParser):
             self.facts.label_targets.setdefault(target, self._scopes[-1])
 
     def _start_heading(self, tag: str, values: dict[str, str]) -> None:
-        if self._open_tags.get("template", 0):
-            return  # inert until cloned — not part of this document's outline
         # No namespace test: h1-h6 break out of foreign content, so a heading written
         # inside an <svg> is a real heading (and closes the <svg> on its way out).
         self.facts.headings.append(_Heading(_HEADING_LEVELS[tag], self.getpos()[0]))
@@ -473,6 +614,8 @@ class _Collector(HTMLParser):
     def _start_control(self, tag: str, values: dict[str, str]) -> None:
         if self._scopes[-1].foreign:
             return  # an <svg><input> is an SVG element, not a form control
+        if self._scopes[-1].hidden:
+            return  # hidden from assistive tech: not a control anyone has to name
         self.facts.controls.append(
             _Control(
                 tag=tag,

@@ -340,13 +340,13 @@ def test_stray_end_template_cannot_hide_a_later_heading() -> None:
     assert a11y_findings(html, require=HEADING) == []
 
 
-def test_controls_and_links_inside_a_template_are_still_checked() -> None:
-    # Unlike the outline, a control's name and a link's text travel with the element.
-    html = '<template><input><a href="/"></a></template>'
-    assert _rules(a11y_findings(html, require=("control_label", "link_text"))) == {
-        "control_label",
-        "link_text",
-    }
+def test_nothing_inside_a_template_is_judged_by_any_rule() -> None:
+    # A <template> is a stamp, not a page: its text, href, alt and ids are supplied by
+    # whatever clones it, so the source cannot tell an unfinished stamp from a finished
+    # element. Every rule declines to judge it — the outline and the title always did,
+    # and since PR #211's review so do the element rules, rather than half of them.
+    html = '<template id="row"><input><a href=""><span></span></a><img src="x"></template>'
+    assert a11y_findings(html, require=ALL_RULES) == []
 
 
 def test_fragment_heading_rules_check_only_the_deltas() -> None:
@@ -424,9 +424,12 @@ def test_template_content_inside_a_link_does_not_name_it() -> None:
     assert _located(a11y_findings(with_img, require=LINK)) == [("link_text", 1)]
 
 
-def test_a_link_inside_a_template_still_collects_its_own_text() -> None:
-    # The link and its content sit at the same depth — this one is fine.
+def test_a_template_does_not_leak_out_of_itself() -> None:
+    # Inert inside, but the elements around it are judged normally: an unbalanced
+    # </template> must not re-open the document, and a real link after one is checked.
     assert a11y_findings('<template><a href="/docs">Docs</a></template>', require=LINK) == []
+    after = '<template><input></template><a href="/x"></a>'
+    assert _located(a11y_findings(after, require=LINK)) == [("link_text", 1)]
 
 
 def test_script_and_style_source_is_not_link_text() -> None:
@@ -659,3 +662,157 @@ def test_a_label_inside_svg_is_not_an_html_label() -> None:
     assert _located(a11y_findings(associated, require=CONTROL)) == [("control_label", 1)]
     wrapping = "<svg><label><foreignObject><input></foreignObject></label></svg>"
     assert _located(a11y_findings(wrapping, require=CONTROL)) == [("control_label", 1)]
+
+
+# --------------------------------------------------------------------------
+# Correct markup this used to fail — the PR #211 adversarial review
+# --------------------------------------------------------------------------
+
+
+def test_an_integration_point_only_resumes_html_in_its_own_namespace() -> None:
+    # <desc>/<title>/<foreignObject> are SVG's; <mtext> and friends are MathML's.
+    # Testing the union made <svg><mtext><input> a form control, which no browser agrees
+    # with — and, in the other direction, let <math><desc><title> pass for the page's.
+    assert a11y_findings("<svg><mtext><input></mtext></svg>", require=CONTROL) == []
+    assert a11y_findings("<math><desc><input></desc></math>", require=CONTROL) == []
+    assert _located(a11y_findings("<math><mtext><input></mtext></math>", require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+    assert _located(a11y_findings("<svg><desc><input></desc></svg>", require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+
+
+def test_a_foreign_subtree_keeps_its_language_rather_than_reading_the_tag_name() -> None:
+    # html5lib confirms the <svg> inside a <math> is a *MathML* element, so the <desc>
+    # in it is MathML's `desc`, not SVG's integration point. Walking up to the nearest
+    # <svg>/<math> tag name would get this backwards.
+    assert a11y_findings("<math><svg><desc><input></desc></svg></math>", require=CONTROL) == []
+    assert a11y_findings("<svg><math><mtext><input></mtext></math></svg>", require=CONTROL) == []
+    resumed = "<svg><foreignObject><math><mtext><input></mtext></math></foreignObject></svg>"
+    assert _located(a11y_findings(resumed, require=CONTROL)) == [("control_label", 1)]
+
+
+def test_a_foreign_title_past_the_wrong_integration_point_is_not_the_pages_title() -> None:
+    # The same defect read through a default-gated rule: a <title> that is still foreign
+    # must not silence page_title.
+    icon = '<html lang="en"><body><h1>H</h1><math><desc><title>Icon</title></desc></math>'
+    assert _located(a11y_findings(icon)) == [("page_title", None)]
+    real = '<html lang="en"><body><h1>H</h1><svg><desc><title>Real</title></desc></svg>'
+    assert a11y_findings(real) == []
+
+
+def test_an_annotation_xml_encoding_is_matched_whole_and_untrimmed() -> None:
+    # The spec asks for an ASCII case-insensitive match of the *whole* value. Trimming
+    # it made a padded encoding an integration point, where a browser keeps MathML.
+    padded = '<math><annotation-xml encoding=" text/html "><input></annotation-xml></math>'
+    assert a11y_findings(padded, require=CONTROL) == []
+    upper = '<math><annotation-xml encoding="TEXT/HTML"><input></annotation-xml></math>'
+    assert _located(a11y_findings(upper, require=CONTROL)) == [("control_label", 1)]
+
+
+def test_markup_shown_inside_a_textarea_is_a_string_not_elements() -> None:
+    # "Paste your markup here" is correct markup that renders correctly, and the gate
+    # used to fail it on a *default* rule. html.parser only knows script/style are raw
+    # text; the HTML tokenizer says textarea/title/iframe/xmp/noembed/noframes/plaintext
+    # are too.
+    page = '<html lang="en"><head><title>Snippets</title></head><body><h1>Demo</h1>{}</body>'
+    assert a11y_findings(page.format('<textarea><img src="cat.png"></textarea>')) == []
+    assert (
+        a11y_findings(page.format("<textarea><h1>Example</h1></textarea>"), require=HEADING) == []
+    )
+    assert a11y_findings(page.format('<iframe><img src="x"></iframe>')) == []
+    assert a11y_findings(page.format('<xmp><img src="x"></xmp>')) == []
+
+
+def test_a_text_only_element_ends_at_its_own_end_tag_and_nothing_else() -> None:
+    # An end tag written inside one is text too, so it must not close an outer element:
+    # </a> inside the textarea leaves the link open to collect the text after it.
+    assert a11y_findings('<a href="/x"><textarea></a></textarea>Docs</a>', require=LINK) == []
+    # ...and the element's own end tag does end it.
+    assert _located(a11y_findings('<textarea>v</textarea><a href="/x"></a>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+
+
+def test_plaintext_runs_to_the_end_of_the_file() -> None:
+    # No end tag closes it, so everything after one is text a browser shows verbatim.
+    page = '<html lang="en"><head><title>T</title></head><body><h1>H</h1>{}</body></html>'
+    assert a11y_findings(page.format('<plaintext></plaintext><img src="x">')) == []
+
+
+def test_a_script_inside_an_svg_is_markup_the_way_a_browser_reads_it() -> None:
+    # <script>/<style> are raw text only in the HTML namespace. Entering CDATA anyway
+    # lost the hoisted heading and, with no end tag to return at, swallowed the rest of
+    # the document — inventing "no <h1>" on a page that has one.
+    page = '<html lang="en"><head><title>T</title></head><body><h1>Real</h1>{}</body></html>'
+    assert _located(
+        a11y_findings(page.format("<math><style><h1>Hoisted</h1>"), require=HEADING)
+    ) == [("heading_structure", 1)]
+    assert a11y_findings(page.format("<script><h1>Not markup</h1></script>"), require=HEADING) == []
+
+
+def test_a_link_named_only_by_its_title_attribute_is_named() -> None:
+    # HTML-AAM's last-resort name source, which axe-core's `link-name` accepts. An icon
+    # link carrying title="RSS feed" is conformant markup and must not be flagged.
+    assert a11y_findings('<a href="/rss" title="RSS feed"><i></i></a>', require=LINK) == []
+    assert _located(a11y_findings('<a href="/rss" title=" "><i></i></a>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+    # A control's `title` is still not a label — a tooltip never reaches a touch user.
+    assert _located(a11y_findings('<input title="Search">', require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+
+
+def test_nothing_hidden_from_assistive_tech_is_judged() -> None:
+    # `hidden` and `aria-hidden` remove the element *and its subtree* from the tree a
+    # screen reader is given, so a real a11y tool does not judge what is inside one.
+    skip = '<a href="#main" aria-hidden="true" tabindex="-1"><span class="chev"></span></a>'
+    assert a11y_findings(skip, require=LINK) == []
+    assert a11y_findings('<div hidden><input type="text"></div>', require=CONTROL) == []
+    assert a11y_findings('<div aria-hidden="TRUE"><a href="/x"></a></div>', require=LINK) == []
+    # ...and everything else still is.
+    assert _located(a11y_findings('<div aria-hidden="false"><input></div>', require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+    assert _located(a11y_findings('<div><a href="/x"></a></div>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+
+
+def test_a_self_closing_html_element_does_not_close_itself() -> None:
+    # The HTML parsing spec acknowledges the self-closing flag only in foreign content
+    # and ignores it on HTML elements, so the text after <a href="/x" /> is the link's.
+    assert a11y_findings('<a href="/x" />Read the docs</a>', require=LINK) == []
+    assert a11y_findings('<label for="q"/>Name<input id="q">', require=CONTROL) == []
+    assert _located(a11y_findings('<a href="/x" />', require=LINK)) == [("link_text", 1)]
+    # In foreign content the flag *is* meaningful, so the SVG link really is empty.
+    assert _located(a11y_findings('<svg><a href="/x"/>text</svg>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+
+
+def test_void_elements_close_before_the_text_that_follows_them() -> None:
+    # Observable through a name reference: a void element cannot contain the text
+    # written after it, so `aria-labelledby` pointing at one resolves to nothing.
+    for tag in ("keygen", "basefont", "bgsound", "col", "img"):
+        html = f'<input aria-labelledby="k"><{tag} id="k">Following text'
+        assert _located(a11y_findings(html, require=CONTROL)) == [("control_label", 1)], tag
+    # A non-void element in the same shape does hold the text, and does name the control.
+    assert a11y_findings('<input aria-labelledby="k"><span id="k">Text', require=CONTROL) == []
+
+
+def test_a_script_still_gets_the_parsers_own_raw_text_handling() -> None:
+    # `html.parser` reads a <script>'s source more carefully than re-tokenizing it
+    # would: the legacy `// <!--` idiom must not swallow the rest of the document.
+    page = '<html lang="en"><head><title>T</title></head><body><h1>H</h1>{}</body></html>'
+    legacy = page.format('<script>// <!-- legacy</script><img src="x">')
+    assert _rules(a11y_findings(legacy)) == {"img_alt"}
+
+
+def test_a_script_written_inside_a_textarea_does_not_eat_the_textarea() -> None:
+    # There are no elements inside a <textarea>, only text — so nothing in there puts
+    # the parser into raw-text mode and loses the </textarea> that ends it.
+    html = '<a href="/x"><textarea><script></textarea>Docs</a>'
+    assert a11y_findings(html, require=LINK) == []

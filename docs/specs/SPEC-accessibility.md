@@ -59,6 +59,10 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
    - `placeholder` and `title` are **not** accepted as names. A hint that vanishes on
      input, or a tooltip that never reaches a touch user, is not a label. This is
      deliberately stricter than axe-core's `label` rule, which tolerates both.
+   - A control that is **out of the accessibility tree is not checked**: `hidden`, or
+     `aria-hidden="true"` on it or on any ancestor, removes the element and its subtree
+     from what assistive tech is given, and a real a11y tool judges nothing there. See
+     "What these rules do not catch" for the missed-violation this accepts.
 5. **`link_text`** — every `<a href>` has **discernible text** (SC 2.4.4 Link Purpose;
    axe-core `link-name`). Matrix row U5. A link is discernible when its **name from
    content** is non-empty after stripping whitespace — that is, when any of the
@@ -74,6 +78,15 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
      the same accessible-name computation, and rejecting it would flag conformant
      markup. (#159 enumerated only the first three sources; this is a deliberate,
      recorded widening — it can only *reduce* false positives.)
+   - **A `title` attribute on the `<a>` itself names the link** — HTML-AAM's last-resort
+     name source, which axe-core's `link-name` (the rule this one is a sibling of)
+     accepts. `<a href="/rss" title="RSS feed"><i class="fa fa-rss"></i></a>` is
+     conformant markup and flagging it taught nobody anything. This is *not* symmetric
+     with `control_label`, and deliberately so: a tooltip is a poor label for a field the
+     user must fill in, and the only name a purely decorative icon link ever has.
+   - A link that is **out of the accessibility tree is not checked**: `hidden`, or
+     `aria-hidden="true"` on it or on an ancestor. The decorative chevron in
+     `<a href="#main" aria-hidden="true" tabindex="-1">` is the common case.
    - **There is no banned-phrase list.** "Click here", "read more", "link" are
      *discernible*; whether they are *meaningful* is a judgement about context, not a
      fact about the document. A gate that guessed would be enforcing an opinion. Link
@@ -96,14 +109,12 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
      not increase by more than one (`h2` → `h4` is a violation at the `h4`). Checked in
      fragments too, since it needs no document context; a fragment that legitimately
      *starts* at `h3` is not flagged, because only the deltas are examined.
-   - Headings inside `<template>` do **not** count: template content is inert until
-     cloned, so it is not part of this document's outline. Headings inside comments do
+   - Headings inside `<template>` do **not** count — nor does anything else in one; see
+     "`<template>` content is inert, for every rule" below. Headings inside comments do
      not count either (they are not markup). An `<h1>` inside an `<svg>`/`<math>` **does**
      count: `h1`–`h6` are in the parsing spec's breakout list, so a browser hoists the
      heading out into HTML — and closes the `<svg>` doing it, which is why a second `<h1>`
-     written after one inside an `<svg>` is a duplicate this rule can see. `control_label` and `link_text` *do* apply
-     inside `<template>` — a control's name and a link's text are properties of the
-     element wherever it is finally inserted.
+     written after one inside an `<svg>` is a duplicate this rule can see.
 
 The document-level rules (`html_lang`, `page_title`, and the one-`<h1>` half of
 `heading_structure`) apply **only when an `<html>` tag is present**, so HTML *fragments*
@@ -126,11 +137,41 @@ The rules answer what a *browser* would build, not what the text looks like:
   reports every occurrence; taking the last would both invent violations and miss them.
 - **`<script>`/`<style>` content is source, not text.** `html.parser` hands it to the
   same callback as prose; a link whose only content is code renders empty and is
-  flagged.
-- **`<template>` content is inert until cloned**: it is not part of the outline, a
-  `<title>` inside one is not the document's title, and it cannot name an enclosing
-  link. It *is* still scanned in its own right (a control inside a template still needs
-  a name).
+  flagged. That list is read off `html.parser`'s own `CDATA_CONTENT_ELEMENTS` rather
+  than recited, because it is that switch the module has to model.
+- **A text-only element's content is a string, not elements.** The HTML tokenizer reads
+  `<textarea>`, `<title>`, `<iframe>`, `<xmp>`, `<noembed>`, `<noframes>` and
+  `<plaintext>` as raw text or RCDATA, so `<textarea><img src="cat.png"></textarea>` has
+  **no image in it** — a "paste your markup here" box is correct markup that renders
+  correctly, and reading it as elements failed it on the *default* `img_alt` rule.
+  `html.parser` knows this only for `script`/`style`, so the module applies it to the
+  rest; the list is **derived from html5lib**, like the breakout list. Only the
+  element's own end tag ends the run of text (`</plaintext>` ends nothing — that element
+  runs to end of file), and in a foreign subtree none of this applies, because there the
+  tag is not the HTML element of that name. `<noscript>` is deliberately **not** in the
+  list: a browser with scripting on reads it as raw text but then renders none of it, and
+  the reader who does see the content is the one with scripting off, for whom it is
+  ordinary markup — so an `<img>` there really does need an `alt`.
+- **`<template>` content is inert, for every rule.** It is not part of the outline, a
+  `<title>` inside one is not the document's title, it cannot name an enclosing link —
+  and since the #211 review, no rule judges what is inside one at all. A template is a
+  *stamp*: its text, `href`, `alt` and ids are supplied by whatever clones it, so the
+  source cannot tell an unfinished placeholder from a finished element, and
+  `<template id="row"><li><a href=""><span></span></a></li></template>` is exactly what
+  templates are for. The earlier split — inert for the outline and the title, live for
+  `control_label` and `link_text` — flagged that placeholder, and had no defence beyond
+  "a name travels with the element". Judging none of it is uniform, states one rule
+  instead of two, and can only *reduce* false positives; the violations it now misses are
+  listed under "What these rules do not catch".
+- **`hidden` and `aria-hidden="true"` take an element and its subtree out of the
+  accessibility tree**, so `control_label` and `link_text` do not judge what is inside
+  one. The other four rules are unchanged by it (an `<img>` in a `hidden` panel still
+  needs an `alt` for when the panel is shown).
+- **A self-closing flag on an HTML element means nothing.** The parsing spec
+  acknowledges `<x/>` only in foreign content, where `<rect/>` really does close;
+  `html.parser` closes every one, which made `<a href="/x" />Read the docs</a>` an empty
+  link. In an `.xhtml` file the flag *is* meaningful, and treating it as HTML there is a
+  deliberate missed violation rather than an invented one.
 - **Inside an `<svg>`/`<math>` subtree a familiar tag name is usually not an HTML
   element** — but the parsing spec has a **breakout list** of tags a browser refuses to
   keep there: it closes the foreign element and parses them as HTML. The list is
@@ -148,7 +189,24 @@ The rules answer what a *browser* would build, not what the text looks like:
     `<template>`, `<script>`, `<style>`, and `<a>`. HTML resumes at an integration point
     — `<foreignObject>`, `<desc>`, `<title>`'s children, the MathML text points
     (`<mtext>`, `<mi>`, `<mo>`, `<mn>`, `<ms>`), and `<annotation-xml>` **only** when its
-    `encoding` is `text/html` or `application/xhtml+xml`.
+    `encoding` is `text/html` or `application/xhtml+xml`, matched whole and untrimmed.
+  - **An integration point only resumes HTML in its own language.** `<foreignObject>`,
+    `<desc>` and `<title>` are SVG's; the text points and `<annotation-xml>` are MathML's.
+    Testing the union of the two made `<svg><mtext><input>` a form control, and let
+    `<math><desc><title>` pass for the page's title — the same shape of defect in both
+    directions, one of them on a default-gated rule.
+  - **The language is inherited, not read off the tag name.** html5lib confirms the
+    `<svg>` inside a `<math>` is a *MathML* element, so a `<desc>` in it is MathML's
+    `desc` and not an integration point at all.
+  - **A `<script>`/`<style>` is raw text only in HTML.** A browser parses the content of
+    an `<svg><script>` as markup, so an `<h1>` there is a real heading that closes the
+    `<svg>`. `html.parser` switched to CDATA on any `script`/`style`, which lost that
+    heading and — with no `</script>` to come back at — swallowed the rest of the
+    document, *inventing* "document has no `<h1>`" on a page that has one. The module
+    now overrides `set_cdata_mode` so a foreign one stays in markup mode. That reaches
+    into an implementation detail of `html.parser` deliberately, with eyes open: the
+    conformance suite pins the behaviour against html5lib, so a future Python that
+    changes it fails the suite instead of drifting.
   - **One deliberate departure:** an SVG `<a href>` stays in the SVG namespace, and
     `link_text` checks it anyway. That is a **judgement about user-facing links** — it is
     a link a user clicks and a screen reader announces — not a claim about HTML element
@@ -194,13 +252,33 @@ Stated so the green is never read as more than it is:
   fact from SC 3.1.1's "has a language".
 - **An SVG link that uses only the deprecated `xlink:href` is not seen as a link**, so it
   is never checked for a name.
-- **Markup written inside an `<svg><script>`/`<style>` is invisible.** A `<script>` is a
-  raw-text element only in the HTML namespace, so a browser parses the *content* of an
-  SVG one as markup and an `<h1>` there becomes a real heading. Python's `html.parser`
-  switches to CDATA on any `script`/`style` tag, namespace or not, so that tag never
-  reaches this module and no tree-level rule can recover it. Suppressing the text anyway
-  is the better of the two errors — crediting raw JS/CSS source as an accessible name
-  would be a false *positive*, and a browser renders none of it. Pinned by a test.
+- **Nothing inside a `<template>` is judged** — not a missing `alt`, not an unnamed
+  control, not an empty link. This is the deliberate cost of treating a template as a
+  stamp (see "Parser fidelity"): a real image with a real `alt` missing from a row
+  template passes. A project that ships most of its markup through templates should know
+  that this check is nearly silent about it.
+- **Nothing marked `hidden` or `aria-hidden="true"` is judged by `control_label` or
+  `link_text`.** A field in a `<div hidden>` panel that is shown later by script does
+  need a label, and this check will not say so. The alternative — flagging it — fails the
+  markup axe-core passes, which is the error that gets a rule switched off.
+- **Content inside an `aria-hidden` subtree still counts as an enclosing element's
+  name.** The accessible-name algorithm excludes it, so
+  `<a href="/x"><span aria-hidden="true">Icon</span></a>` really is an unnamed link and
+  this check stays quiet. Crediting it is the missed-violation direction, chosen over
+  modelling name computation's exclusions.
+- **A `<select>`'s or `<textarea>`'s insertion-mode quirks are not modelled.**
+  `html.parser` is a tokenizer, not a tree builder: a browser silently discards an
+  `<img>` written inside a `<select>`, and this check counts it. The markup is invalid
+  either way, and the alternative is carrying the "in select" insertion mode — where
+  `<input>`/`<textarea>` *close* the `<select>` — for no accessibility fact.
+- **Text a browser shows inside a `<textarea>` still names an enclosing `<label>`.**
+  `<label><textarea>draft</textarea></label>` is announced as unnamed by a real tool
+  (the embedded control's value is excluded when naming that control) and passes here.
+  Missed violation, safe direction.
+- **A self-closing non-void element in an `.xhtml` file is read as HTML.** `<a href="/x"
+  />` really is an empty link in XHTML; here it stays open and takes the text after it,
+  so the violation is missed rather than invented. `.xhtml` is in scope for the scan and
+  the check does not otherwise distinguish it.
 - **`id` resolution is document-wide and does not model `<template>` scope.** A
   `<label for="x">` or `aria-labelledby="x"` outside a template is accepted when the
   only `id="x"` lives *inside* one, though a browser would not resolve it. This is a
@@ -260,9 +338,13 @@ scope this — the reasoning above is from the specifications, which is all it n
 - **Conformance is derived, not recited** — `tests/unit/test_accessibility_conformance.py`
   parses every namespace fixture twice, once with **html5lib** (a spec-conformant tree
   builder; a dev-only test oracle, never a runtime dependency) and once with this module,
-  and requires the two to agree on where each element lands. The breakout list is
-  *computed* from html5lib and compared to the one the module implements, so the next
-  Python or html5lib that disagrees fails the suite instead of silently drifting.
+  and requires the two to agree on where each element lands. **All three** recited lists
+  are now *computed* from html5lib and compared to the ones the module implements — the
+  breakout tags, the text-only (raw text / RCDATA) tags, and the void tags — plus a
+  differential over adversarial documents that cross every seam at once. Only `<col>`
+  cannot be probed (a browser drops it outside a `<colgroup>`) and is asserted in a
+  table instead. The review that prompted this showed the cost of leaving one unguarded:
+  adding `iframe` to the void list passed the entire suite.
 
 ## Dogfood
 - **fire** (Electron; raw renderer HTML) — five pages, *every one* missing

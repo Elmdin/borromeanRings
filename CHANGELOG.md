@@ -33,6 +33,48 @@ queue is merged.
   ("click here") list either: link purpose *in context* is a judgement, not a fact.
 
 ### Fixed
+- `15_a11y` **failed correct markup** in four ways, each found by an adversarial review of
+  PR #211 and each now pinned against html5lib:
+  - **A text-only element's content was read as markup.** The HTML tokenizer reads
+    `<textarea>`, `<title>`, `<iframe>`, `<xmp>`, `<noembed>`, `<noframes>` and
+    `<plaintext>` as raw text or RCDATA; `html.parser` knows this for `script`/`style`
+    only. So `<textarea><img src="cat.png"></textarea>` — a "paste your markup here" box
+    that every browser renders correctly — raised `img_alt`, a **default-gated** rule,
+    where html5lib finds no image at all.
+  - **HTML integration points were tested as the union of both namespaces.**
+    `<foreignObject>`/`<desc>`/`<title>` are SVG's and `<mtext>`/`<mi>`/`<mo>`/`<mn>`/
+    `<ms>`/`<annotation-xml>` are MathML's, so `<svg><mtext><input>` was a form control
+    and `<math><desc><title>Icon</title></desc></math>` silenced `page_title` — the same
+    defect the previous commit set out to retire, in both directions. The namespace is
+    also **inherited** now rather than read off the nearest `<svg>`/`<math>` tag name
+    (html5lib confirms the `<svg>` in `<math><svg>` is a MathML element), and
+    `<annotation-xml encoding>` is matched whole and untrimmed.
+  - **A `<script>`/`<style>` inside an `<svg>` swallowed the document.** A browser parses
+    the content of a foreign one as markup; `html.parser` switched to CDATA regardless,
+    and with no `</script>` to return at it lost the rest of the page — *inventing*
+    "document has no `<h1>`". Disclosed as an unfixable departure in the previous commit;
+    it was neither unfixable nor purely a missed violation. `_Collector` now overrides
+    `set_cdata_mode` so a foreign `<script>`/`<style>` stays in markup mode.
+  - **A self-closing HTML element closed itself.** The parsing spec acknowledges the flag
+    only in foreign content, so `<a href="/x" />Read the docs</a>` is a link *with* that
+    text; `html.parser` closed it and the check reported an empty link.
+- `15_a11y` flagged three more shapes that axe-core passes: a link named only by a `title`
+  attribute (HTML-AAM's last-resort source, now accepted for `link_text` — though still
+  **not** for `control_label`, where a tooltip is a poor label); anything marked `hidden`
+  or `aria-hidden="true"`, which is out of the accessibility tree entirely and is now
+  skipped by `control_label` and `link_text`; and placeholder links and controls inside a
+  `<template>`. **`<template>` content is now inert for every rule**, resolving an
+  asymmetry (inert for the outline and the title, live for the element rules) that had no
+  defence: a template is a stamp whose text, `href` and `alt` arrive at clone time, and
+  the source cannot tell an unfinished stamp from a finished element. Each of these
+  trades a missed violation for not failing conformant markup, and each is stated in
+  SPEC-accessibility.md under "What these rules do not catch".
+- `15_a11y`'s remaining recited constants are now **derived from html5lib** like the
+  breakout list. The review showed that adding `iframe` to `_VOID_TAGS` passed all 211
+  tests — nothing guarded it — and that `_RAW_TEXT_TAGS` was the recited list that was
+  actually wrong. The void list gained `basefont`, `bgsound` and `keygen` from the
+  derivation; `<col>` is asserted separately because a browser drops it outside a
+  `<colgroup>`, where no probe can reach it.
 - `15_a11y` suppressed headings inside `<svg>`/`<math>`, which is the **opposite** of what
   a browser does (PR #211 follow-up review). `h1`–`h6` are in the HTML parsing spec's
   foreign-content *breakout* list: a browser hoists `<svg><h1>` out into a genuine

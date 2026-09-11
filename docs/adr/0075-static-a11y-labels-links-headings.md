@@ -60,16 +60,18 @@ one at a time:
   `aria-labelledby` was not in #159's
   enumeration; it is accepted here because it is the same accessible-name computation as
   U4 and rejecting it would flag conformant markup — a widening that can only *reduce*
-  false positives, recorded rather than silent.
+  false positives, recorded rather than silent. The #211 review added a second such
+  widening for the same reason: a `title` attribute **on the `<a>` itself** names the
+  link (HTML-AAM's last-resort source, which axe-core's `link-name` accepts), even though
+  `title` is still refused for `control_label` — a tooltip is a poor label for a field
+  the user must fill in, and often the only name a decorative icon link has.
 - **`heading_structure`** (SC 1.3.1; axe-core `page-has-heading-one`, `heading-order`) —
   a **full document** has exactly one `<h1>` (zero and every extra are violations), and
   in any document or fragment no heading may descend more than one level below the
   heading before it. Headings inside `<template>` are excluded (inert until cloned, so
   not part of this outline); headings inside comments are not markup, and neither is an
   `<h1>` inside an `<svg>`/`<math>` subtree unless an HTML integration point has resumed
-  HTML. `control_label`
-  and `link_text` *do* apply inside `<template>`, because a name and a link's text
-  travel with the element wherever it is inserted.
+  HTML.
 
 The defaults are unchanged: `[a11y].require` still defaults to
 `["html_lang", "img_alt", "page_title"]` (`DEFAULT_RULES`), and `ALL_RULES` now
@@ -89,9 +91,32 @@ rules turn on exemptions, id matching and text content, which do):
 - **`<script>`/`<style>` content is source, not text.** `html.parser` delivers it
   through the same callback as prose, so `<a href="/"><script>go()</script></a>` looked
   like a named link while rendering completely empty.
-- **`<template>` content cannot name an enclosing element**: it never renders in place,
-  so it is not the outline, not the document `<title>`, and not a link's text — while a
-  link or control *inside* a template is still checked on its own terms.
+- **`<template>` content is inert, for every rule.** It never renders in place, so it is
+  not the outline, not the document `<title>`, and not a link's text. The first cut kept
+  `control_label` and `link_text` *live* inside a template, on the grounds that a name
+  travels with the element. The #211 review showed what that costs:
+  `<template id="row"><li><a href=""><span></span></a></li></template>` — a placeholder
+  whose text and `href` are filled in at clone time, which is precisely what templates
+  are **for** — was flagged. A template is a stamp, not a page, and the source cannot
+  tell an unfinished stamp from a finished element. So no rule judges what is inside one.
+  The asymmetry is resolved by *narrowing*: one rule instead of two, and it can only
+  reduce false positives. The cost — a genuinely missing `alt` inside a row template goes
+  unreported — is stated in the SPEC rather than left implicit.
+- **`hidden` and `aria-hidden="true"` remove an element and its subtree from the
+  accessibility tree**, so `control_label` and `link_text` do not judge what is inside
+  one; a real a11y tool does not either. `<a href="#main" aria-hidden="true"
+  tabindex="-1"><span class="chev"></span></a>` is correct markup. The other four rules
+  are unaffected: an `<img>` in a `hidden` panel still needs an `alt` for when it shows.
+- **A text-only element's content is a string, not elements.** The tokenizer reads
+  `<textarea>`, `<title>`, `<iframe>`, `<xmp>`, `<noembed>`, `<noframes>` and
+  `<plaintext>` as raw text or RCDATA; `html.parser` knows this for `script`/`style`
+  only. So `<textarea><img src="cat.png"></textarea>` — a "paste your markup here" box,
+  correct markup that renders correctly — failed the **default** `img_alt` rule. That is
+  a false positive on a default-gated rule, the one direction "the better of the two
+  errors" never covered.
+- **The self-closing flag means nothing on an HTML element.** The spec acknowledges it
+  only in foreign content; `html.parser` closes every `<x/>`, which made
+  `<a href="/x" />Read the docs</a>` an empty link.
 - **Inside an `<svg>`/`<math>` subtree, a familiar tag name is usually not an HTML
   element** — an `<svg><title>` names an icon and must never satisfy the (default-on)
   `page_title` rule, and an `<svg><input>` is not a form control. But the parsing spec
@@ -111,10 +136,27 @@ oracle**: `tests/unit/test_accessibility_conformance.py` parses each fixture wit
 html5lib and this module and requires them to agree on where every element lands, and it
 *computes* the breakout list from html5lib and compares it with the one the module
 implements. It is in the `dev` extra only and never imported by the harness — the gate
-must keep running on the stdlib alone. Where the two genuinely cannot agree — Python's
-tokenizer enters CDATA for an `<svg><script>`, which a conformant one does not, so markup
-written there never reaches us — the departure is pinned by a test and stated in the SPEC
-rather than left to be rediscovered.
+must keep running on the stdlib alone.
+
+The #211 review showed the discipline had been applied to **one** list: `_RAW_TEXT_TAGS`
+and `_VOID_TAGS` were still recited and unguarded — adding `iframe` to the void list
+passed all 211 tests, and the raw-text list was the one that was actually wrong. Both are
+now derived the same way, with a differential over adversarial documents on top. The same
+review found the integration points tested as a **union** of the two namespaces, so
+`<svg><mtext><input>` was a form control and `<math><desc><title>` passed for the page's
+title: a point belongs to one language, and the language is *inherited* rather than read
+off the nearest `<svg>`/`<math>` tag name (html5lib confirms the `<svg>` in `<math><svg>`
+is a MathML element).
+
+Where Python's tokenizer disagreed with a conformant one — it entered CDATA for an
+`<svg><script>`, which a browser parses as markup — the departure was first disclosed and
+then **fixed**, once the review showed it was not merely a missed violation: with no
+`</script>` to return at, the rest of the document was swallowed and the check invented
+"document has no `<h1>`" on a page that has one. `_Collector` overrides
+`set_cdata_mode` so a foreign `<script>`/`<style>` stays in markup mode. That is a
+deliberate reach into an implementation detail of `html.parser`, taken because the
+alternative fails correct pages, and it is pinned against html5lib by the conformance
+suite so a future Python that changes it fails the suite instead of drifting.
 
 **A name is resolved, not merely present.** The first cut asked only whether a naming
 *mechanism* was attached; a second review showed that answers the wrong question in both

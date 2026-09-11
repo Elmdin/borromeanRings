@@ -17,7 +17,7 @@
 
 **Status of this document:** written during a dry-run replay in a throwaway clone
 (`scratchpad/mergerehearsal`). Nothing was pushed, nothing merged on GitHub, the main clone
-at `/home/imaansol/Elmdin/borromeo` was only read from. Every "conflict" and every
+was only read from. Every "conflict" and every
 "gate went red" below was observed, not predicted.
 
 Method: from `gh/dev`, `git merge --squash <headRef>` then `git commit`, then

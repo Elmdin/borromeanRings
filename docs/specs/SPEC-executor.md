@@ -155,11 +155,36 @@ toolchain; G4 only with coreutils `timeout` present.
    past git's "already checked out" safeguard (`--force`), or `--detach` at `head` followed
    by pointing the worktree's `HEAD` symbolic ref at `refs/heads/<branch>` — the builder's
    choice; the **contract** is that `git rev-parse HEAD` and `git rev-parse --abbrev-ref
-   HEAD` inside the worktree equal the primary's (G8). A detached worktree would report
+   HEAD` inside the run equal the primary's *at snapshot time*, **and that neither can
+   change while the run lasts** (G8). A detached worktree would report
    `HEAD` as its branch and change the receipts of the two checks that read the branch
    *name* on this base — `08_branch` and `13_adr`. `06_git_identity`, `09_commits` and
    `11_changelog` resolve `base..HEAD` by commit SHA alone and are unaffected;
    `17_prior_art` also reads the name but lands with #131, so the set grows to three then.
+
+   > **Corrected while building #201 (PR #212).** Neither option in this step can hold
+   > the strengthened contract, and the reason is structural: a linked `git worktree`
+   > **shares the repository's ref namespace**. Reporting the branch *name* (G8) means
+   > pointing the run's `HEAD` at the primary's live `refs/heads/<branch>` — and a
+   > commit in the primary mid-run then drags the run's `HEAD` forward while its
+   > materialised tree stays pinned at the snapshot. `09_commits` and `13_adr` diverge
+   > from `local`, and nothing in the run can notice. Detaching fixes the drift and
+   > loses the branch name. There is no third option *inside one repository*.
+   >
+   > The mechanism is therefore a **snapshot repository**, not a linked worktree:
+   > `git init`, then `objects/info/alternates` pointing at the primary's object store,
+   > then every primary ref copied **verbatim**, then `refs/heads/<branch>` set to the
+   > snapshot's commit. Its ref namespace is its own, so its `HEAD` cannot move and the
+   > primary's refs and reflogs are never written. The mode keeps the name `worktree`
+   > because that is its name in the executor interface, not its implementation.
+   >
+   > `git clone --shared` was considered and **rejected**: clone rewrites the source's
+   > local branches as `refs/remotes/origin/*`, so the clone's `origin/main` resolves to
+   > the primary's *local* `main` rather than its real remote-tracking ref. Every check
+   > that resolves a merge base — `06_git_identity`, `09_commits`, `11_changelog`,
+   > `13_adr` — would silently compare against a different base. Verbatim ref-copy has
+   > no such rewrite. Verified by experiment on a primary whose local `main` was ahead
+   > of its own `origin/main`.
 2. `git read-tree --reset -u <tree>` in the worktree — the dirty tree, including untracked
    files, is now present; ignored paths are not.
 
@@ -175,8 +200,13 @@ toolchain; G4 only with coreutils `timeout` present.
    then `git worktree remove --force <dir>`. On an executor failure keep the worktree for
    inspection and name its path in the `error` receipt's log.
 
-**Shared:** the object store and refs (read; the executor never commits, never moves a
-ref, never `prune`s another worktree), `$BORROMEANRINGS_HOME`, the host `PATH` and
+**Shared:** the object store, via `objects/info/alternates` (read-only; the executor
+never commits, never moves a ref, never `prune`s another worktree). Refs are **copied,
+not shared** — see the correction in step 1. Sharing objects has one disclosed limit:
+a `git gc --prune=now` in the primary can collect an object a live run still needs.
+That hazard is inherited from `alternates` and is shared with linked worktrees
+generally; it is recorded in ADR-0076 and was reproduced deliberately during review.
+Also shared: `$BORROMEANRINGS_HOME`, the host `PATH` and
 toolchain, the wall clock.
 
 **Not shared:** the working tree, the index, `.meta-harness/` (receipts, `last_verdict.json`,

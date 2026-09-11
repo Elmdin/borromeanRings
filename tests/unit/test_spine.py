@@ -241,3 +241,26 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_branch_patterns == ()
     assert off.collaboration_commit_types == ()
     assert off.collaboration_subject_max_length == 0
+
+
+def test_shell_source_paths_loaded_and_default_resolves_sources(tmp_path: Path) -> None:
+    """The defaults are load-bearing: they are what stops 16_shellcheck drowning in
+    "cannot follow sourced file" notes, which is why they are resolution paths rather
+    than a blanket suppression (ADR-0050)."""
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[shell]\nsource_paths = ["SCRIPTDIR/lib"]\n',
+    )
+    assert load_config(declared).shell_source_paths == ("SCRIPTDIR/lib",)
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).shell_source_paths == ("SCRIPTDIR", "SCRIPTDIR/..")
+
+
+def test_shell_exclude_loaded_and_defaults_empty(tmp_path: Path) -> None:
+    """Empty by default on purpose: a code is excluded only with a written reason."""
+    declared = _write(
+        tmp_path, '[checks]\nrequired = ["00_build"]\n[shell]\nexclude = ["SC2154"]\n'
+    )
+    assert load_config(declared).shell_exclude == ("SC2154",)
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).shell_exclude == ()

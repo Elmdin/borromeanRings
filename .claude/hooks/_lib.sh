@@ -3,6 +3,33 @@
 # BORROMEANRINGS_HOME and PROJECT_DIR before calling them; the other helpers
 # need neither.
 
+# Every hook runs with the governed project as its working directory, and
+# `python3 -c` / `python3 -` put the working directory FIRST on sys.path. A
+# json.py (or meta_harness/) planted in the project would be imported in place
+# of the real module: #221 review D2 used a json.py to hand the Stop hook a fresh
+# session id on every Stop, resetting its retry count.
+#
+# borromeanrings_py [python3 args...] is therefore the only way a hook starts
+# Python: it changes to `/` first (root-owned, so nothing can be planted there)
+# and leaves PYTHONPATH alone, which is how the hooks find meta_harness.
+#
+# Do NOT "simplify" this with the interpreter's -P or -I flag instead. -P exists
+# only from Python 3.11, and requires-python is 3.10, where it is an unknown
+# option; CI runs 3.12 only, so the break would be invisible. -I also discards
+# PYTHONPATH. tests/integration/test_retry_bound_reset.py bans both flags, and
+# bans any hook naming the interpreter outside this function.
+borromeanrings_py() {
+  (cd / && python3 "$@")
+}
+
+# Paths handed to Python must survive that `cd /`: make PROJECT_DIR absolute.
+if [ -n "${PROJECT_DIR:-}" ]; then
+  case "$PROJECT_DIR" in
+    /*) ;;
+    *) PROJECT_DIR="$PWD/$PROJECT_DIR" ;;
+  esac
+fi
+
 # borromeanrings_bounded <secs> <command...>
 # Run <command> under a wall-clock bound via coreutils `timeout` (or `gtimeout`).
 # If neither exists, or <secs> is 0, run unbounded — no worse than before, never
@@ -42,7 +69,7 @@ borromeanrings_read_stdin() {
 # marker dir unwritable, crash) means "proceed", never "skip governance".
 borromeanrings_claim() {
   local verdict
-  verdict="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" "$1" "$2" \
+  verdict="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR" "$1" "$2" \
     "${BORROMEANRINGS_HOOK_DEDUPE_WINDOW:-5}" 2>/dev/null <<'PY'
 import sys
 from pathlib import Path
@@ -64,7 +91,7 @@ PY
 # next legitimate occurrence starts fresh (see hook_dedupe.release). Call it
 # ONLY after winning the claim; best-effort, never fails the hook.
 borromeanrings_release() {
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" "$1" "$2" 2>/dev/null <<'PY' || true
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR" "$1" "$2" 2>/dev/null <<'PY' || true
 import sys
 from pathlib import Path
 

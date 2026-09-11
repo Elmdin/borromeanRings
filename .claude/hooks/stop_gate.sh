@@ -16,7 +16,7 @@ CAP=3   # max retry attempts before escalating to the human
 
 input="$(borromeanrings_read_stdin)"
 read -r stop_active session_id <<EOF
-$(printf '%s' "$input" | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('stop_hook_active', False)).lower(), d.get('session_id','default'))" 2>/dev/null || echo "false default")
+$(printf '%s' "$input" | borromeanrings_py -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('stop_hook_active', False)).lower(), d.get('session_id','default'))" 2>/dev/null || echo "false default")
 EOF
 
 if [ "$stop_active" = "true" ]; then
@@ -37,7 +37,7 @@ trap 'borromeanrings_release stop "$session_id"' EXIT TERM INT
 # state (e.g. the agent only answered a question), skip the full gate — re-running
 # it adds no assurance and wastes compute/tokens. Fail-closed: any error or change
 # ⇒ fall through and run the gate.
-if PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" <<'PY'
+if PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR" <<'PY'
 import sys
 from pathlib import Path
 
@@ -55,20 +55,19 @@ then
   exit 0
 fi
 
-# The retry count lives OUTSIDE the governed tree, under
+# The retry count lives outside the governed tree, under
 # $XDG_STATE_HOME/borromeanrings/<project-digest>/ (ADR-0079, #218): kept in the
-# tree, one `rm` by the agent it governs bought unlimited attempts. The decisions
-# (where, how much, retry or escalate, legacy migration) are in
-# meta_harness.retry_state; this adapter only dispatches on its one-line verdict.
-# That defeats a same-TREE adversary. A same-USER one can still write there.
+# tree, one `rm` bought unlimited attempts. The decisions (where, how much, retry
+# or escalate, legacy migration) are in meta_harness.retry_state; this adapter
+# only dispatches on its one-line verdict. This resists accident and a naive
+# reset, and fails closed on a broken state directory. It is NOT a bound against
+# intent: the gate below runs the project's own code (its tests) as the user, and
+# that code can reach the state directory like any same-user process.
 borromeanrings_retry_state() {
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$@" 2>/dev/null <<'PY'
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$@" 2>/dev/null <<'PY'
 import os
 import sys
 
-# `python3 -` puts the working directory -- the governed project -- first on
-# sys.path, so an in-tree `meta_harness/` package would replace this logic.
-sys.path[:] = [p for p in sys.path if p not in ("", ".")]
 from meta_harness.retry_state import main
 
 sys.exit(main(sys.argv[1:], os.environ))

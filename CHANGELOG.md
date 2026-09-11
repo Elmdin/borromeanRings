@@ -13,19 +13,24 @@ queue is merged.
 ## [Unreleased]
 
 ### Fixed
-- The Stop hook's retry bound could be reset by the agent it governs (#218, ADR-0079).
-  The count lived in `.meta-harness/stop_attempts/`, inside the project, and a missing
-  file read as `0`, so one `rm` bought unlimited attempts. It now lives under
-  `${XDG_STATE_HOME:-$HOME/.local/state}/borromeanrings/<project-digest>/`, keyed by the
-  project's resolved path, via the new `meta_harness.retry_state` (pure, 100% unit-tested).
-  This defeats a **same-tree** adversary: deleting the counter or its directory, writing
-  `0`, and writing `0` with the mtime restored no longer reset the bound, and a
-  `meta_harness/` package planted in the project cannot replace the helper. It does
-  **not** defeat a **same-user** adversary, since anything running as the user can still
-  write the state directory. Keyless. Fails closed: when the count cannot be kept, the hook
-  escalates to the human instead of counting from zero. An in-tree count left by the old
-  hook is carried over with `max()` and then removed, so it can raise a count but never
-  lower one. The headless driver from #217 must adopt the same module when it lands.
+- The Stop hook's retry count could be reset by deleting a file (#218, ADR-0079). It lived
+  in `.meta-harness/stop_attempts/`, inside the project, and a missing file read as `0`. It
+  now lives under `${XDG_STATE_HOME:-$HOME/.local/state}/borromeanrings/<project-digest>/`,
+  keyed by the project's resolved path, via the new `meta_harness.retry_state` (pure, 100%
+  unit-tested). This resists accident and a naive reset: tidying `.meta-harness/`, deleting
+  the counter or writing `0` into it no longer buys attempts. It is **not** a bound against
+  intent: the gate runs the project's own tests as the user, so a `conftest.py` can still
+  delete the count, as can any same-user process; only an isolated test run closes that.
+  Keyless. Fails closed: a broken or unusable state directory, one that resolves inside the
+  project, or a symlink on the old in-tree path now escalates to the human instead of
+  silently counting from zero. The old in-tree count is carried over with `max()`, walked
+  without following symlinks, then removed. The headless driver from #217 must adopt the
+  same module when it lands.
+- Hooks no longer import modules from the governed project. They run from the project
+  directory, where `python3 -c` put a planted `json.py` ahead of the standard library; the
+  Stop hook's payload parse imported one and got a fresh session id on every Stop. Every
+  hook now starts Python through `borromeanrings_py` (`.claude/hooks/_lib.sh`), which runs
+  it from `/`. Not `-P`, which needs Python 3.11 against `requires-python = ">=3.10"`.
 
 ### Added
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only

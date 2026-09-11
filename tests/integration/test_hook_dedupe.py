@@ -182,17 +182,21 @@ def test_stop_gate_reruns_after_a_fast_retry(tmp_path: Path) -> None:
     winner now releases its claim on exit, so back-to-back Stops each run the
     gate; only the concurrent duplicate registration is shadowed.
     """
-    (tmp_path / "borromeanrings.toml").write_text(
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "borromeanrings.toml").write_text(
         '[project]\nlanguage = "none"\npackage = "x"\n\n'
         '[checks]\nrequired = ["05_hygiene"]\n\n'
         '[hygiene]\nrequires = ["does-not-exist.md"]\n'  # gate fails, fast
     )
     env = dict(os.environ)
-    env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
-    # The retry count lives outside the tree (ADR-0079); never the real home.
-    state = tmp_path / ".state"
+    env["CLAUDE_PROJECT_DIR"] = str(project)
+    # The retry count lives outside the tree (ADR-0079), never in the real home,
+    # and never inside the project either (the hook refuses that).
+    state = tmp_path / "state"
     env["XDG_STATE_HOME"] = str(state)
-    env["HOME"] = str(tmp_path / ".home")
+    env["HOME"] = str(tmp_path / "home")
+    env["CLAUDE_CONFIG_DIR"] = str(tmp_path / "claude-config")
     payload = json.dumps({"session_id": "fast-retry", "stop_hook_active": False})
 
     for expected_attempts in ("1", "2"):

@@ -1,4 +1,4 @@
-"""The Stop hook's retry bound must survive every reset an in-tree agent can make.
+"""The Stop hook's retry bound must survive the resets an in-tree agent can make directly.
 
 Regression for #218. ``stop_gate.sh`` kept its retry counter at
 ``.meta-harness/stop_attempts/<session_id>`` inside the governed project and
@@ -14,6 +14,11 @@ the out-of-tree state directory. They show the bound *breaking*, which is the
 documented limit (anything running as the same user can still write there) and
 is also what proves the routes are real attacks rather than no-ops.
 
+What this file does NOT prove: that an in-tree agent cannot reset the count.
+The gate runs the project's own code (its tests, its conftest.py) as the user,
+and that code can delete the state directory like any same-user process can
+(#221 review, D3). Only an isolated test run closes that; see ADR-0079.
+
 Every test points ``XDG_STATE_HOME``, ``HOME`` and ``CLAUDE_CONFIG_DIR`` at
 ``tmp_path``. None of them may touch the real home directory.
 
@@ -23,8 +28,10 @@ repo-relative path. ``meta_harness.retry_state`` is covered by unit tests alone.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -222,6 +229,105 @@ def test_shadowing_the_helper_module_from_the_tree_does_not_reset(tmp_path: Path
     assert probe.stdout.strip() == str(shadow / "retry_state.py"), probe.stderr
 
     _assert_escalated(_stop(project, env))
+
+
+def test_a_planted_stdlib_module_cannot_reset(tmp_path: Path) -> None:
+    """#221 D2: a ``json.py`` in the project must not replace the hook's parser.
+
+    Every Python the hook starts would otherwise import it: the working
+    directory is the project, and ``python3 -c`` puts it first on ``sys.path``.
+    This one hands out a fresh session id per Stop, so each Stop is attempt 1.
+    """
+    project = _project(tmp_path)
+    env = _env(tmp_path)
+    (project / "json.py").write_text(
+        "import uuid\n"
+        "def load(fp):\n    return {'session_id': uuid.uuid4().hex, 'stop_hook_active': False}\n"
+        "def loads(s, **kw):\n    return load(None)\n"
+        "def dumps(o, **kw):\n    return '{}'\n"
+    )
+    probe = subprocess.run(
+        ["python3", "-c", "import json; print(json.__file__)"],
+        capture_output=True,
+        text=True,
+        cwd=project,
+        env=env,
+        timeout=30,
+    )
+    assert probe.stdout.strip() == str(project / "json.py"), probe.stderr  # the attack is live
+
+    _two_failures(project, env)
+    _assert_escalated(_stop(project, env))
+
+
+def _digest_dir(tmp_path: Path, project: Path) -> Path:
+    digest = hashlib.sha256(os.path.realpath(project).encode()).hexdigest()[:32]
+    return tmp_path / "state" / "borromeanrings" / digest
+
+
+@pytest.mark.parametrize("level", ["meta-harness", "stop_attempts"])
+def test_a_symlinked_legacy_dir_cannot_delete_the_real_count(tmp_path: Path, level: str) -> None:
+    """#221 D1: the migration retired the legacy file *through* a planted symlink.
+
+    Planted before the first Stop (dangling until the hook creates the state),
+    ``.meta-harness/stop_attempts -> <state>/stop_attempts`` made every Stop
+    delete the count it had just written. The link must be refused, not followed.
+    """
+    project = _project(tmp_path)
+    env = _env(tmp_path)
+    real = _digest_dir(tmp_path, project)
+    link, target = {
+        "meta-harness": (project / ".meta-harness", real),
+        "stop_attempts": (project / ".meta-harness" / "stop_attempts", real / "stop_attempts"),
+    }[level]
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target, target_is_directory=True)
+    assert link.is_symlink() and os.readlink(link) == str(target)  # planted, points at the count
+
+    for _ in range(3):  # refused every time, never counted from zero
+        result = _stop(project, env)
+        first = result.stderr.splitlines()[:1]
+        assert result.returncode == 0 and "could not record" in result.stderr, first
+        assert "symlink" in result.stderr, first
+    assert link.is_symlink()
+
+
+def test_a_state_root_inside_the_project_fails_closed(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    env = _env(tmp_path, XDG_STATE_HOME=str(tmp_path / "project" / ".state"))
+    result = _stop(project, env)
+    _assert_failed_closed(result, project)
+    assert "inside the project" in result.stderr
+    assert not (project / ".state").exists()
+
+
+HOOKS = STOP_GATE.parent
+_PYTHON = re.compile(r"\bpython3?\b")
+
+
+def test_every_hook_python_runs_through_the_neutral_cwd_helper() -> None:
+    """Fix the class (#221 D2): no hook starts Python from the project directory.
+
+    ``borromeanrings_py`` in ``_lib.sh`` is the only place allowed to name the
+    interpreter. It changes to ``/`` first, which keeps the project off
+    ``sys.path`` on every supported Python and leaves ``PYTHONPATH`` alone.
+
+    ``python3 -P`` (3.11+) and ``-I`` are banned outright: ``requires-python``
+    is 3.10, ``-P`` is an unknown option there, and CI (3.12 only) would never
+    see the break. ``-I`` also discards ``PYTHONPATH``, which is how the hooks
+    find ``meta_harness``.
+    """
+    offenders = []
+    for script in sorted(HOOKS.glob("*.sh")):
+        for number, line in enumerate(script.read_text().splitlines(), 1):
+            code = line.split("#", 1)[0] if not line.lstrip().startswith("#") else ""
+            if re.search(r"python3?\s+-[IP]\b", line):
+                offenders.append(f"{script.name}:{number}: banned flag: {line.strip()}")
+            elif _PYTHON.search(code) and not (
+                script.name == "_lib.sh" and "(cd / && python3" in code
+            ):
+                offenders.append(f"{script.name}:{number}: {line.strip()}")
+    assert not offenders, "\n".join(offenders)
 
 
 # --- where the count lives ------------------------------------------------------

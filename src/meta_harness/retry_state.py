@@ -11,20 +11,22 @@ The count now lives under ``$XDG_STATE_HOME/borromeanrings/<digest>/`` (default
 ``~/.local/state``), where ``<digest>`` names the project by its resolved
 absolute path (ADR-0079). What that buys, stated at its true size:
 
-- It defeats the **same-tree** adversary: a wrapped agent confined to the
-  project directory by its tooling cannot reach the count, whatever it deletes
-  or rewrites there.
-- It does **not** defeat a **same-user** adversary. Anything running as the
-  same user can still write the state directory. The hook holds no secret and
-  no storage the user cannot reach, so nothing it does can close that.
-
-Fail-closed: when the count cannot be read or written, the verdict is
-``unrecorded`` and the hook escalates to the human at once. Treating an
-unrecordable count as zero is exactly the reset this module exists to prevent.
+- Resistance to **accident** and to a **naive reset**: tidying ``.meta-harness/``,
+  deleting the old counter or writing ``0`` into it no longer resets the count.
+- **Failing closed**: when the count cannot be located, read or written, the
+  verdict is ``unrecorded`` and the hook escalates to the human at once, where
+  the old hook silently counted from zero.
+- It is **not a bound against intent**. Anything running as the user can write
+  the state directory, and that includes the agent's own code once the gate
+  runs it: the gate executes the project's tests as the user, so a
+  ``conftest.py`` can delete the count (#221 review, D3). Only a test run
+  isolated from this state (another account, a privileged executor, a sandbox)
+  closes that, and nothing in this module can.
 
 Migration: a counter the pre-ADR-0079 hook left in the tree is read, merged
-with ``max`` and then removed. The in-tree location can therefore only ever
-*raise* a count, never lower it.
+with ``max`` and then removed, reached without following any symlink. A
+symlink anywhere on that path is refused as hostile (``unrecorded``): followed,
+it let the migration delete the real count through the link (#221 review, D1).
 
 Pure path derivation and decisions up top; the filesystem I/O below is thin and
 the one impure input (path resolution) is injected. ``main`` is the hook's
@@ -37,6 +39,7 @@ import contextlib
 import hashlib
 import os
 import re
+import stat
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
@@ -108,14 +111,16 @@ def counter_path(env: Mapping[str, str], resolved_project: str, session_id: str)
     )
 
 
-def legacy_counter_path(project: Path, session_id: str) -> Path | None:
-    """Where the pre-ADR-0079 hook kept this session's count, inside the tree.
+def legacy_name(session_id: str) -> str | None:
+    """The filename the pre-ADR-0079 hook used for this session, inside
+    ``<project>/.meta-harness/stop_attempts/``. ``None`` for an id that was never
+    safe to use as a path component."""
+    return session_id if _VERBATIM_ID.fullmatch(session_id) else None
 
-    ``None`` for an id that was never safe to use as a path component.
-    """
-    if not _VERBATIM_ID.fullmatch(session_id):
-        return None
-    return project.joinpath(*LEGACY_PARTS, session_id)
+
+def is_inside(path: str, root: str) -> bool:
+    """True when ``path`` is ``root`` or below it. Both must already be resolved."""
+    return os.path.commonpath([path, root]) == root
 
 
 def parse_count(text: str) -> int | None:
@@ -150,14 +155,85 @@ def _read_counter(path: Path) -> int:
     return value
 
 
-def _read_legacy(path: Path | None) -> int:
-    """An in-tree count, or ``0``. It can only raise the real count, so be lenient."""
-    if path is None:
+_DIR = os.O_RDONLY | os.O_DIRECTORY
+_LEGACY_READ_BYTES = 64
+"""A count is a handful of digits; never read more of an in-tree file than this."""
+
+
+def _open_nofollow(name: str, flags: int, dir_fd: int) -> int | None:
+    """Open ``name`` under ``dir_fd`` without following a symlink.
+
+    ``None`` when it is absent or unusable. :class:`StateUnavailable` when it is
+    a symlink: the in-tree legacy path is writable by the agent, and a link there
+    could steer a read or a delete at the real count.
+    """
+    try:
+        return os.open(name, flags | os.O_NOFOLLOW, dir_fd=dir_fd)
+    except OSError as exc:
+        try:
+            mode = os.stat(name, dir_fd=dir_fd, follow_symlinks=False).st_mode
+        except OSError:
+            return None
+        if stat.S_ISLNK(mode):
+            raise StateUnavailable(
+                f"refusing to follow a symlink at the legacy counter path ({name})"
+            ) from exc
+        return None
+
+
+def _open_legacy_dirs(project: str, fds: list[int]) -> tuple[int, int] | None:
+    """``(.meta-harness fd, stop_attempts fd)`` opened without following links.
+
+    Every fd opened is appended to ``fds`` for the caller to close. ``None``
+    when the legacy directory does not exist (nothing to migrate).
+    """
+    try:
+        fds.append(os.open(project, _DIR))
+    except OSError:
+        return None
+    for part in LEGACY_PARTS:
+        fd = _open_nofollow(part, _DIR, fds[-1])
+        if fd is None:
+            return None
+        fds.append(fd)
+    return fds[-2], fds[-1]
+
+
+def _read_legacy(dirs: tuple[int, int] | None, name: str | None) -> int:
+    """An in-tree count, or ``0`` when there is none or it is unreadable."""
+    if dirs is None or name is None:
+        return 0
+    fd = _open_nofollow(name, os.O_RDONLY, dirs[1])
+    if fd is None:
         return 0
     try:
-        return parse_count(path.read_text()) or 0
+        data = os.read(fd, _LEGACY_READ_BYTES)
     except OSError:
-        return 0
+        data = b""  # e.g. a directory where the file should be
+    finally:
+        os.close(fd)
+    return parse_count(data.decode("utf-8", "replace")) or 0
+
+
+def _retire_legacy(dirs: tuple[int, int] | None, name: str | None) -> None:
+    """Remove the in-tree counter, and its directory once empty. Best-effort.
+
+    Both removals go through the directory fds opened above, so a link planted
+    after that walk cannot redirect them; ``unlink`` and ``rmdir`` never follow
+    a final symlink.
+    """
+    if dirs is None or name is None:
+        return
+    with contextlib.suppress(OSError):
+        os.unlink(name, dir_fd=dirs[1])
+    with contextlib.suppress(OSError):
+        os.rmdir(LEGACY_PARTS[1], dir_fd=dirs[0])
+
+
+def _close_all(fds: list[int]) -> None:
+    for fd in fds:
+        with contextlib.suppress(OSError):
+            os.close(fd)
 
 
 def _ensure_private_dirs(counter_dir: Path) -> None:
@@ -180,16 +256,6 @@ def _write_counter(path: Path, value: int) -> None:
         raise StateUnavailable(f"cannot write {path}: {exc.strerror or exc}") from exc
 
 
-def _retire_legacy(path: Path | None) -> None:
-    """Remove the in-tree counter, and its directory once empty. Best-effort."""
-    if path is None:
-        return
-    with contextlib.suppress(OSError):
-        path.unlink()
-    with contextlib.suppress(OSError):
-        path.parent.rmdir()
-
-
 def record_failure(
     project: str,
     session_id: str,
@@ -202,19 +268,27 @@ def record_failure(
     ``retry N`` or ``escalate N``; ``unrecorded <reason>`` when the count cannot
     be kept, which the hook treats as an escalation.
     """
-    legacy = legacy_counter_path(Path(project), session_id)
+    name = legacy_name(session_id)
+    fds: list[int] = []
     try:
-        path = counter_path(env, resolve(project), session_id)
-        attempts = max(_read_counter(path), _read_legacy(legacy)) + 1
+        resolved = resolve(project)
+        root = resolve(str(state_root(env)))
+        if is_inside(root, resolved):
+            raise StateUnavailable(f"state root {root} is inside the project")
+        path = counter_path(env, resolved, session_id)
+        dirs = _open_legacy_dirs(project, fds) if name else None
+        attempts = max(_read_counter(path), _read_legacy(dirs, name)) + 1
         verdict = decide(attempts, cap)
         if verdict == "retry":
             _write_counter(path, attempts)
+        else:
+            with contextlib.suppress(OSError):
+                path.unlink()
+        _retire_legacy(dirs, name)
     except StateUnavailable as exc:
         return f"unrecorded {exc}"
-    if verdict == "escalate":
-        with contextlib.suppress(OSError):
-            path.unlink()
-    _retire_legacy(legacy)
+    finally:
+        _close_all(fds)
     return f"{verdict} {attempts}"
 
 
@@ -224,8 +298,15 @@ def clear(
     env: Mapping[str, str],
     resolve: Resolver = os.path.realpath,
 ) -> None:
-    """Forget this session's count after a passing gate. Best-effort, never creates state."""
-    _retire_legacy(legacy_counter_path(Path(project), session_id))
+    """Forget this session's count after a passing gate. Best-effort, never creates state.
+
+    A symlinked legacy path is left alone, not deleted through.
+    """
+    name = legacy_name(session_id)
+    fds: list[int] = []
+    with contextlib.suppress(StateUnavailable):
+        _retire_legacy(_open_legacy_dirs(project, fds) if name else None, name)
+    _close_all(fds)
     with contextlib.suppress(StateUnavailable, OSError):
         counter_path(env, resolve(project), session_id).unlink()
 

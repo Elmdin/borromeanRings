@@ -19,7 +19,8 @@ from meta_harness.retry_state import (
     clear,
     counter_path,
     decide,
-    legacy_counter_path,
+    is_inside,
+    legacy_name,
     main,
     parse_count,
     project_digest,
@@ -97,13 +98,27 @@ def test_counter_path_layout() -> None:
     assert got == Path("/s/borromeanrings") / project_digest("/work/p") / "stop_attempts" / "sid"
 
 
-def test_legacy_counter_path_is_the_pre_adr_0079_in_tree_location(tmp_path: Path) -> None:
-    got = legacy_counter_path(tmp_path, "sid")
-    assert got == tmp_path / ".meta-harness" / "stop_attempts" / "sid"
+def test_legacy_name_is_the_verbatim_session_id() -> None:
+    assert legacy_name("sid") == "sid"
 
 
-def test_legacy_counter_path_refuses_unsafe_ids(tmp_path: Path) -> None:
-    assert legacy_counter_path(tmp_path, "../../etc/passwd") is None
+def test_legacy_name_refuses_unsafe_ids() -> None:
+    assert legacy_name("../../etc/passwd") is None
+
+
+@pytest.mark.parametrize(
+    ("path", "root", "inside"),
+    [
+        ("/p", "/p", True),
+        ("/p/.state", "/p", True),
+        ("/p/a/b", "/p", True),
+        ("/pp", "/p", False),
+        ("/q/p", "/p", False),
+        ("/", "/p", False),
+    ],
+)
+def test_is_inside(path: str, root: str, inside: bool) -> None:
+    assert is_inside(path, root) is inside
 
 
 # --- parse_count / decide ------------------------------------------------------
@@ -168,7 +183,7 @@ def test_failures_accumulate_then_escalate_and_reset(tmp_path: Path) -> None:
 
 def test_the_resolved_path_keys_the_count(tmp_path: Path) -> None:
     env = _env(tmp_path)
-    canonical = lambda _p: "/canonical/project"  # noqa: E731 — injected resolver
+    canonical = lambda p: "/canonical/project" if p.startswith("/via") else p  # noqa: E731
     assert record_failure("/via/link", "s", 3, env, resolve=canonical) == "retry 1"
     assert record_failure("/via/other", "s", 3, env, resolve=canonical) == "retry 2"
 
@@ -232,6 +247,30 @@ def test_an_unwritable_state_root_fails_closed(tmp_path: Path) -> None:
     finally:
         locked.chmod(0o700)
     assert line.startswith("unrecorded cannot write ") and "Permission denied" in line
+
+
+@pytest.mark.parametrize("where", ["xdg", "home"])
+def test_a_state_root_inside_the_project_fails_closed(tmp_path: Path, where: str) -> None:
+    project = _project(tmp_path)
+    env = {"XDG_STATE_HOME": str(project / ".state")} if where == "xdg" else {"HOME": str(project)}
+    line = record_failure(str(project), "s", 3, env)
+    assert line.startswith("unrecorded ") and "inside the project" in line
+    assert not (project / ".state").exists() and not (project / ".local").exists()
+
+
+def test_the_inside_check_compares_resolved_paths(tmp_path: Path) -> None:
+    # The resolver sees the state root too: a symlink out of the tree is judged by
+    # where it lands, so the check cannot be dodged by spelling.
+    project = _project(tmp_path)
+    seen: list[str] = []
+
+    def resolve(path: str) -> str:
+        seen.append(path)
+        return str(project) if path == str(project) else str(project / "landed")
+
+    line = record_failure(str(project), "s", 3, {"XDG_STATE_HOME": "/elsewhere"}, resolve=resolve)
+    assert "inside the project" in line
+    assert "/elsewhere" in seen
 
 
 def test_no_home_fails_closed(tmp_path: Path) -> None:
@@ -314,6 +353,75 @@ def test_an_unreadable_legacy_count_counts_as_nothing(tmp_path: Path) -> None:
     assert record_failure(str(project), "s", 3, _env(tmp_path)) == "retry 1"
 
 
+def test_a_legacy_meta_harness_that_is_a_file_counts_as_nothing(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    (project / ".meta-harness").write_text("not a directory")
+    assert record_failure(str(project), "s", 3, _env(tmp_path)) == "retry 1"
+    assert (project / ".meta-harness").read_text() == "not a directory"
+
+
+def test_a_missing_project_has_no_legacy_count(tmp_path: Path) -> None:
+    assert record_failure(str(tmp_path / "gone"), "s", 3, _env(tmp_path)) == "retry 1"
+
+
+def _plant_symlink(tmp_path: Path, project: Path, level: str) -> tuple[Path, Path]:
+    """Point one level of the legacy path at the real state; return (link, real counter)."""
+    counter = _counter(tmp_path, project)
+    targets = {
+        "meta-harness": (project / ".meta-harness", counter.parent.parent),
+        "stop_attempts": (project / ".meta-harness" / "stop_attempts", counter.parent),
+        "counter": (project / ".meta-harness" / "stop_attempts" / "s", counter),
+    }
+    link, target = targets[level]
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target)
+    return link, counter
+
+
+LEVELS = ["meta-harness", "stop_attempts", "counter"]
+
+
+@pytest.mark.parametrize("level", LEVELS)
+def test_a_symlinked_legacy_path_is_refused_not_followed(tmp_path: Path, level: str) -> None:
+    """#221 D1: the migration must not delete (or read) the real count through a link."""
+    project = _project(tmp_path)
+    env = _env(tmp_path)
+    assert record_failure(str(project), "s", 3, env) == "retry 1"
+    link, counter = _plant_symlink(tmp_path, project, level)
+    assert link.is_symlink() and counter.resolve().is_relative_to(link.resolve())
+    assert counter.read_text() == "1"
+
+    line = record_failure(str(project), "s", 3, env)
+
+    assert line.startswith("unrecorded ") and "symlink" in line
+    assert counter.read_text() == "1"  # neither deleted nor bumped through the link
+    assert link.is_symlink()
+
+
+@pytest.mark.parametrize("level", LEVELS)
+def test_clear_never_deletes_through_a_symlinked_legacy_path(tmp_path: Path, level: str) -> None:
+    project = _project(tmp_path)
+    env = _env(tmp_path)
+    record_failure(str(project), "s", 3, env)
+    link, counter = _plant_symlink(tmp_path, project, level)
+    other = counter.with_name("other-session")
+    other.write_text("2")  # a count the link exposes but clear() has no business touching
+
+    clear(str(project), "s", env)
+
+    assert not counter.exists()  # this session's real count is cleared directly...
+    assert other.read_text() == "2"  # ...and nothing else is touched through the link
+    assert link.is_symlink() or level == "counter"
+
+
+def test_a_legacy_dir_without_this_session_counts_as_nothing(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    other = _legacy(project, "2", sid="other")
+    assert record_failure(str(project), "s", 3, _env(tmp_path)) == "retry 1"
+    assert other.read_text() == "2"
+    assert other.parent.is_dir()  # not emptied, so not removed
+
+
 def test_other_sessions_legacy_files_are_left_in_place(tmp_path: Path) -> None:
     project = _project(tmp_path)
     other = _legacy(project, "2", sid="other")
@@ -366,12 +474,17 @@ def test_main_passes_the_cap_through(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert capsys.readouterr().out == "escalate 1\n"
 
 
+def _same(path: str) -> str:
+    """Resolve the two spellings /a and /b to one project; leave the state root alone."""
+    return "/same" if path in ("/a", "/b") else path
+
+
 def test_main_uses_the_injected_resolver(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     env = _env(tmp_path)
-    main(["fail", "/a", "s", "3"], env, resolve=lambda _p: "/same")
-    main(["fail", "/b", "s", "3"], env, resolve=lambda _p: "/same")
+    main(["fail", "/a", "s", "3"], env, resolve=_same)
+    main(["fail", "/b", "s", "3"], env, resolve=_same)
     assert capsys.readouterr().out == "retry 1\nretry 2\n"
 
 
@@ -379,9 +492,9 @@ def test_main_clear_uses_the_injected_resolver(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     env = _env(tmp_path)
-    main(["fail", "/a", "s", "3"], env, resolve=lambda _p: "/same")
-    main(["clear", "/b", "s"], env, resolve=lambda _p: "/same")
-    main(["fail", "/a", "s", "3"], env, resolve=lambda _p: "/same")
+    main(["fail", "/a", "s", "3"], env, resolve=_same)
+    main(["clear", "/b", "s"], env, resolve=_same)
+    main(["fail", "/a", "s", "3"], env, resolve=_same)
     assert capsys.readouterr().out == "retry 1\ncleared\nretry 1\n"
 
 

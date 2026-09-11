@@ -43,18 +43,33 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
      `hidden`, `submit`, `button`, `reset`, `image` — those are named by their `value`
      or `alt`, or are not exposed at all.
    - A control is named when **any** of these holds: it is nested inside a `<label>`
-     element; some `<label for="X">` in the document targets its `id`; it carries a
-     non-empty `aria-label`; or its `aria-labelledby` names **at least one id that
-     exists in the document**. A dangling `aria-labelledby` is a violation — it names
-     nothing.
+     **that has a name**; some `<label for="X">` **with a name** targets its `id`; it
+     carries a non-empty `aria-label`; or its `aria-labelledby` names **at least one
+     element that has a name**.
+   - A name is **resolved, not merely present**. `<label><input></label>`,
+     `<label for="q"> </label>` and `aria-labelledby` pointing at an empty (or missing)
+     element all announce *nothing*, and all are violations. An element's name is the
+     text of its subtree, plus the `alt` of images inside it and the `aria-label` of
+     any descendant — so a `<label>` whose only content is `<img alt="Search">` does
+     name the control. References are followed **one level** (an element named only by
+     its *own* `aria-labelledby` cannot lend that name onward), which is the limit the
+     accessible-name algorithm itself imposes.
+   - A control's own content is never its name: a `<select>`'s `<option>`s and a
+     `<textarea>`'s content are the *value*.
    - `placeholder` and `title` are **not** accepted as names. A hint that vanishes on
      input, or a tooltip that never reaches a touch user, is not a label. This is
      deliberately stricter than axe-core's `label` rule, which tolerates both.
 5. **`link_text`** — every `<a href>` has **discernible text** (SC 2.4.4 Link Purpose;
-   axe-core `link-name`). Matrix row U5. A link is discernible when **any** of these
-   holds: its text content is non-empty after stripping whitespace (text from nested
-   elements counts); it carries a non-empty `aria-label`; it contains an `<img>` with a
-   non-empty `alt`; or its `aria-labelledby` names an id that exists.
+   axe-core `link-name`). Matrix row U5. A link is discernible when its **name from
+   content** is non-empty after stripping whitespace — that is, when any of the
+   following is inside it or on it: text; a non-empty `aria-label`; an `<img>` with a
+   non-empty `alt`; an `<svg>` with a `<title>`; or an `aria-labelledby` that resolves.
+   - **A descendant can contribute the name.**
+     `<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>` is named
+     "Twitter" — the commonest icon-link idiom there is, and a rule that failed it
+     would teach people to switch the rule off. `aria-label`, `aria-labelledby` and
+     `<svg><title>` count wherever they sit inside the link, exactly as `<img alt>`
+     always did.
    - `aria-labelledby` is accepted here for the same reason as in `control_label`: it is
      the same accessible-name computation, and rejecting it would flag conformant
      markup. (#159 enumerated only the first three sources; this is a deliberate,
@@ -72,16 +87,20 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
 6. **`heading_structure`** — the document's heading outline is well-formed (SC 1.3.1
    Info and Relationships; axe-core `page-has-heading-one`, `heading-order`). Row U6.
    Two facts, one rule:
-   - **Exactly one `<h1>`** — checked only for a **full document**; zero is a violation
-     (reported without a line, since an absence has no location) and each `<h1>` after
-     the first is a violation at its own line.
+   - **Exactly one `<h1>`** — *zero* is a violation only in a **full document** (a
+     fragment legitimately has no `<h1>`), reported without a line since an absence has
+     no location; each `<h1>` **after the first** is a violation at its own line, in a
+     fragment as much as in a document — two top-level headings are one too many
+     wherever they appear.
    - **No skipped levels** — for consecutive headings in document order, the level may
      not increase by more than one (`h2` → `h4` is a violation at the `h4`). Checked in
      fragments too, since it needs no document context; a fragment that legitimately
      *starts* at `h3` is not flagged, because only the deltas are examined.
    - Headings inside `<template>` do **not** count: template content is inert until
      cloned, so it is not part of this document's outline. Headings inside comments do
-     not count either (they are not markup). `control_label` and `link_text` *do* apply
+     not count either (they are not markup), nor does an `<h1>` inside an
+     `<svg>`/`<math>` subtree (there it is not an HTML heading at all) — unless an HTML
+     integration point such as `<foreignObject>` has resumed HTML, where it is. `control_label` and `link_text` *do* apply
      inside `<template>` — a control's name and a link's text are properties of the
      element wherever it is finally inserted.
 
@@ -111,6 +130,13 @@ The rules answer what a *browser* would build, not what the text looks like:
   `<title>` inside one is not the document's title, and it cannot name an enclosing
   link. It *is* still scanned in its own right (a control inside a template still needs
   a name).
+- **Inside an `<svg>`/`<math>` subtree a familiar tag name is not an HTML element.** An
+  `<svg><title>` names an icon, so it never satisfies the document's `<title>`; an
+  `<svg><h1>` is not a heading; an `<svg><input>` is not a form control. HTML resumes at
+  an integration point (`<foreignObject>`, `<desc>`, `<mtext>`, …), where all three are
+  judged normally again. Two things are deliberately *not* excluded there: an SVG
+  `<a href>` is a genuine link and still needs a name, and an `<img>` really does break
+  out of foreign content into HTML, so it still needs an `alt`.
 
 ### Reporting
 Each violation is one line:
@@ -143,6 +169,15 @@ Stated so the green is never read as more than it is:
   anything a framework generates at build time are outside a static scan. A project
   whose HTML is generated should scan the *build output* (drop `dist`/`build` from
   `[a11y].exclude`) or wait for the rendered lane.
+- **An *empty* heading still counts as a heading.** `<h1></h1>` satisfies "the document
+  has an `<h1>`", because the fact this rule states is about the outline's *shape*.
+  Whether a heading announces anything is axe-core's separate `empty-heading` rule and a
+  row the Product/UX matrix does not carry; it is not silently folded in here.
+- **`lang` is checked for presence, not validity.** `<html lang="nonsense">` passes;
+  whether the value is a well-formed BCP-47 tag is axe-core's `valid-lang`, a different
+  fact from SC 3.1.1's "has a language".
+- **An SVG link that uses only the deprecated `xlink:href` is not seen as a link**, so it
+  is never checked for a name.
 - **`id` resolution is document-wide and does not model `<template>` scope.** A
   `<label for="x">` or `aria-labelledby="x"` outside a template is accepted when the
   only `id="x"` lives *inside* one, though a browser would not resolve it. This is a
@@ -191,11 +226,14 @@ scope this — the reasoning above is from the specifications, which is all it n
 - **Adoptable one rule at a time** — the three new rules are off by default; a project
   turns each on in `[a11y].require` when it is ready to keep it green.
 - **Honest about nothing** — no HTML ⇒ `noop`; an undecidable git state ⇒ fail closed.
-- **Right floor** — presence and structure, not rendered quality. Unit-tested (line and
-  branch coverage at the repo's 100% ratchet, exact-value assertions including
-  wrapping vs `for=` labels, dangling `aria-labelledby`, an `<a>` wrapping only an
-  `<img alt="">`, an `<h1>` inside `<template>` or a comment, two `<h1>`s, and `h1 → h3`)
-  and integration-tested by driving the real `verify.sh`.
+- **Right floor** — a resolved name and a well-formed outline, not rendered quality.
+  Unit-tested (line and branch coverage at the repo's 100% ratchet, exact-value
+  assertions including wrapping vs `for=` labels, a label with no text at all, a
+  dangling and an empty-target `aria-labelledby`, the `<svg aria-label>` icon link, an
+  `<a>` wrapping only an `<img alt="">`, an `<svg><title>` against the document title, an
+  `<h1>` inside `<template>`, a comment or an `<svg>`, two `<h1>`s, and `h1 → h3`) and
+  integration-tested by driving the real `verify.sh`. Every rule has been shown to fail
+  when the behaviour it describes regresses.
 
 ## Dogfood
 - **fire** (Electron; raw renderer HTML) — five pages, *every one* missing

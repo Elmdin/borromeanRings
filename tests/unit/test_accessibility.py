@@ -450,3 +450,195 @@ def test_title_inside_a_template_is_not_the_documents_title() -> None:
         '<html lang="en"><head></head><body><template><title>Ghost</title></template></body></html>'
     )
     assert _located(a11y_findings(html)) == [("page_title", None)]
+
+
+# --------------------------------------------------------------------------
+# A name may be contributed by a descendant (the icon-link idiom) — PR #211
+# --------------------------------------------------------------------------
+
+
+def test_icon_link_is_named_by_a_descendants_aria_label() -> None:
+    # The commonest icon-link idiom there is; assistive tech announces "Twitter".
+    svg = '<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>'
+    span = '<a href="/tw"><span aria-label="Twitter"></span></a>'
+    assert a11y_findings(svg, require=LINK) == []
+    assert a11y_findings(span, require=LINK) == []
+
+
+def test_icon_link_is_named_by_an_svg_title() -> None:
+    assert a11y_findings('<a href="/tw"><svg><title>Twitter</title></svg></a>', require=LINK) == []
+
+
+def test_icon_link_is_named_by_a_descendants_aria_labelledby() -> None:
+    html = '<span id="t">Twitter</span><a href="/tw"><svg aria-labelledby="t"></svg></a>'
+    assert a11y_findings(html, require=LINK) == []
+
+
+def test_icon_link_with_nothing_to_announce_is_still_flagged() -> None:
+    # The whole point of crediting descendants is that it must not credit *nothing*.
+    assert _located(a11y_findings('<a href="/tw"><svg role="img"></svg></a>', require=LINK)) == [
+        ("link_text", 1)
+    ]
+    dangling = '<a href="/tw"><svg aria-labelledby="gone"></svg></a>'
+    assert _located(a11y_findings(dangling, require=LINK)) == [("link_text", 1)]
+
+
+# --------------------------------------------------------------------------
+# Names are resolved, not merely present — PR #211
+# --------------------------------------------------------------------------
+
+
+def test_aria_labelledby_pointing_at_an_empty_element_names_nothing() -> None:
+    empty = '<span id="lbl"></span><input aria-labelledby="lbl">'
+    blank = '<span id="lbl">   </span><input aria-labelledby="lbl">'
+    assert _located(a11y_findings(empty, require=CONTROL)) == [("control_label", 1)]
+    assert _located(a11y_findings(blank, require=CONTROL)) == [("control_label", 1)]
+
+
+def test_aria_labelledby_resolves_when_any_referenced_element_has_text() -> None:
+    html = '<span id="a"></span><span id="b">Search</span><input aria-labelledby="a b">'
+    assert a11y_findings(html, require=CONTROL) == []
+
+
+def test_a_referenced_element_may_be_named_by_its_own_aria_label() -> None:
+    html = '<span id="lbl" aria-label="Search"></span><input aria-labelledby="lbl">'
+    assert a11y_findings(html, require=CONTROL) == []
+
+
+def test_a_reference_is_not_chased_through_a_second_reference() -> None:
+    # One level of indirection, as the accessible-name algorithm allows: an element
+    # named only by its *own* aria-labelledby cannot lend that name onward.
+    html = '<span id="deep">Search</span><span id="lbl" aria-labelledby="deep"></span>'
+    assert _located(a11y_findings(html + '<input aria-labelledby="lbl">', require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+
+
+def test_a_label_with_no_text_names_nothing() -> None:
+    # Structure is not a name: both of these announce exactly nothing.
+    assert _located(a11y_findings("<label><input></label>", require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+    assert _located(a11y_findings('<label for="q"> </label><input id="q">', require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+
+
+def test_a_label_whose_only_content_is_an_image_names_the_control() -> None:
+    wrapping = '<label><img src="s.svg" alt="Search"><input></label>'
+    associated = '<label for="q"><img src="s.svg" alt="Search"></label><input id="q">'
+    assert a11y_findings(wrapping, require=CONTROL) == []
+    assert a11y_findings(associated, require=CONTROL) == []
+
+
+def test_a_label_named_by_a_reference_names_the_control() -> None:
+    html = '<span id="t">Search</span><label aria-labelledby="t"><input></label>'
+    assert a11y_findings(html, require=CONTROL) == []
+
+
+# --------------------------------------------------------------------------
+# Foreign content: inside <svg>/<math> a familiar tag is not an HTML element
+# --------------------------------------------------------------------------
+
+
+def test_an_svg_title_does_not_satisfy_the_documents_title() -> None:
+    # It names an icon. A page with no <head><title> is still untitled.
+    html = '<html lang="en"><body><svg><title>Twitter icon</title></svg></body></html>'
+    assert _located(a11y_findings(html)) == [("page_title", None)]
+
+
+def test_a_real_title_is_unaffected_by_an_svg_title_elsewhere() -> None:
+    html = (
+        '<html lang="en"><head><title>Home</title></head>'
+        "<body><svg><title>Twitter icon</title></svg></body></html>"
+    )
+    assert a11y_findings(html) == []
+
+
+def test_headings_inside_svg_and_math_are_not_the_documents_headings() -> None:
+    svg = DOC.format("<h1>Real</h1><svg><h1>not a heading</h1></svg>")
+    math = DOC.format("<h1>Real</h1><math><h1>not a heading</h1></math>")
+    assert a11y_findings(svg, require=HEADING) == []
+    assert a11y_findings(math, require=HEADING) == []
+
+
+def test_a_heading_in_an_html_integration_point_is_a_real_heading() -> None:
+    # <foreignObject> resumes HTML inside SVG, so this really is the page's <h1>.
+    inside = DOC.format("<svg><foreignObject><h1>Real</h1></foreignObject></svg>")
+    assert a11y_findings(inside, require=HEADING) == []
+    # ...and without it the document has no <h1> at all.
+    assert _located(a11y_findings(DOC.format("<svg><h1>x</h1></svg>"), require=HEADING)) == [
+        ("heading_structure", None)
+    ]
+
+
+def test_a_control_inside_svg_is_not_a_form_control() -> None:
+    assert a11y_findings("<svg><input></svg>", require=CONTROL) == []
+    # ...but one in an HTML integration point is.
+    inside = "<svg><foreignObject><input></foreignObject></svg>"
+    assert _located(a11y_findings(inside, require=CONTROL)) == [("control_label", 1)]
+
+
+# --------------------------------------------------------------------------
+# Element-stack robustness (the name scopes are a real nesting stack)
+# --------------------------------------------------------------------------
+
+
+def test_an_unclosed_child_does_not_leak_text_past_its_parent() -> None:
+    # </a> closes the <span> left open inside it; the text after the link is not the
+    # link's, and the link itself is still named by what it did contain.
+    html = '<a href="/docs"><span>Docs</a> and more'
+    assert a11y_findings(html, require=LINK) == []
+
+
+def test_an_unclosed_void_element_cannot_swallow_the_rest_of_the_document() -> None:
+    # <input>/<img> never have content, so a following label must not be credited to
+    # them, and the second control is still judged on its own.
+    html = '<label>Name <input id="a"></label><input id="b">'
+    assert _located(a11y_findings(html, require=CONTROL)) == [("control_label", 1)]
+
+
+def test_a_void_element_closes_at_once_and_cannot_adopt_later_text() -> None:
+    # <input> has no content, so the text that follows it is not its name. If it were
+    # left open, the label written *after* an input would silently name it.
+    html = '<input id="lbl"><span>Search</span><input aria-labelledby="lbl">'
+    assert _located(a11y_findings(html, require=CONTROL)) == [
+        ("control_label", 1),
+        ("control_label", 1),
+    ]
+
+
+def test_closing_a_parent_also_closes_what_was_left_open_inside_it() -> None:
+    # The <span> is never closed, so </a> has to end it as well. Left open, it would go
+    # on collecting the text written after the link — and lend that name to a control
+    # that references it, which is not what a browser would announce.
+    unclosed = '<a href="/x">Docs<span id="lbl"></a> Search<input aria-labelledby="lbl">'
+    assert _located(a11y_findings(unclosed, require=CONTROL)) == [("control_label", 1)]
+    # ...while a span that really does contain the text still names it.
+    named = '<a href="/x"><span id="lbl">Search</span></a><input aria-labelledby="lbl">'
+    assert a11y_findings(named, require=CONTROL) == []
+
+
+def test_an_svg_link_is_still_a_link_and_its_title_names_it() -> None:
+    # SVG has its own <a href>, and it is a genuine link — deliberately not excluded
+    # along with the tag names that mean something else inside a foreign subtree.
+    assert _located(a11y_findings("<svg><a href='/x'></a></svg>", require=LINK)) == [
+        ("link_text", 1)
+    ]
+    assert a11y_findings("<svg><a href='/x'><title>Home</title></a></svg>", require=LINK) == []
+
+
+def test_an_image_inside_svg_still_needs_an_alt() -> None:
+    # <img> breaks out of foreign content into HTML, so it really is an HTML image.
+    assert _rules(a11y_findings("<svg><img src=a></svg>", require=("img_alt",))) == {"img_alt"}
+
+
+def test_a_controls_own_content_is_its_value_not_its_name() -> None:
+    # A <select>'s options and a <textarea>'s content are what the user *chose*, never
+    # a label — crediting them would silently bless every unlabelled dropdown.
+    assert _located(a11y_findings("<select><option>Blue</option></select>", require=CONTROL)) == [
+        ("control_label", 1)
+    ]
+    assert _located(a11y_findings("<textarea>hello</textarea>", require=CONTROL)) == [
+        ("control_label", 1)
+    ]

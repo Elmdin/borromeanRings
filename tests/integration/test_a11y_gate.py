@@ -65,6 +65,7 @@ OPT_IN_CLEAN_HTML = """\
 <h2>Your details</h2>
 <label for="email">Email</label><input type="email" id="email">
 <a href="/help">Help</a>
+<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>
 </body>
 </html>
 """

@@ -46,14 +46,18 @@ one at a time:
 
 - **`control_label`** (WCAG 2.2 SC 3.3.2, 4.1.2; axe-core `label`) — `<select>`,
   `<textarea>` and `<input>` except `type` in `hidden|submit|button|reset|image` must
-  have an accessible name: nested inside a `<label>`, targeted by a `<label for>`,
-  a non-empty `aria-label`, or an `aria-labelledby` naming **an id that exists in the
-  document**. A dangling reference names nothing and is a violation. `placeholder` and
+  have an accessible name: nested inside a `<label>` **that has a name**, targeted by a
+  `<label for>` that has one, a non-empty `aria-label`, or an `aria-labelledby` naming
+  **an element that has a name**. A dangling reference, an empty referenced element and
+  a `<label>` with no text all name nothing and are violations. `placeholder` and
   `title` are **not** accepted (stricter than axe-core's `label` rule, deliberately: a
   hint that disappears on input, or a tooltip a touch user never sees, is not a label).
-- **`link_text`** (SC 2.4.4; axe-core `link-name`) — every `<a href>` must have non-empty
-  text content, a non-empty `aria-label`, an `aria-labelledby` that resolves, or an
-  `<img>` with non-empty `alt` inside it. `aria-labelledby` was not in #159's
+- **`link_text`** (SC 2.4.4; axe-core `link-name`) — every `<a href>` must have a
+  non-empty **name from content**: its own text, or a name contributed by anything inside
+  it — an `<img alt>`, an `aria-label`, an `aria-labelledby` that resolves, or an `<svg>`
+  with a `<title>`. That is what makes the icon-link idiom
+  `<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>` pass, as it must.
+  `aria-labelledby` was not in #159's
   enumeration; it is accepted here because it is the same accessible-name computation as
   U4 and rejecting it would flag conformant markup — a widening that can only *reduce*
   false positives, recorded rather than silent.
@@ -61,7 +65,9 @@ one at a time:
   a **full document** has exactly one `<h1>` (zero and every extra are violations), and
   in any document or fragment no heading may descend more than one level below the
   heading before it. Headings inside `<template>` are excluded (inert until cloned, so
-  not part of this outline); headings inside comments are not markup. `control_label`
+  not part of this outline); headings inside comments are not markup, and neither is an
+  `<h1>` inside an `<svg>`/`<math>` subtree unless an HTML integration point has resumed
+  HTML. `control_label`
   and `link_text` *do* apply inside `<template>`, because a name and a link's text
   travel with the element wherever it is inserted.
 
@@ -86,6 +92,25 @@ rules turn on exemptions, id matching and text content, which do):
 - **`<template>` content cannot name an enclosing element**: it never renders in place,
   so it is not the outline, not the document `<title>`, and not a link's text — while a
   link or control *inside* a template is still checked on its own terms.
+- **Inside an `<svg>`/`<math>` subtree, a familiar tag name is not an HTML element.** An
+  `<svg><title>` names an icon and must never satisfy the (default-on) `page_title` rule;
+  an `<svg><h1>` is not a heading; an `<svg><input>` is not a form control. HTML resumes
+  at an integration point (`<foreignObject>`, `<desc>`, `<mtext>`, …). Two elements are
+  deliberately *not* excluded there: an SVG `<a href>` is a real link and still needs a
+  name, and `<img>` genuinely breaks out of foreign content into HTML.
+
+**A name is resolved, not merely present.** The first cut asked only whether a naming
+*mechanism* was attached; a second review showed that answers the wrong question in both
+directions. `<label><input></label>`, `<label for="q"></label>` and an `aria-labelledby`
+pointing at an empty element all passed while announcing nothing (false negatives), and
+`<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>` — the commonest icon-link
+idiom there is — was flagged, because only `<img alt>` was credited from inside a link
+(a false positive, and the kind that gets a rule switched off). So every element now
+accumulates its **name from content**: the text of its subtree, plus the `alt` of images
+and the `aria-label` of *any* descendant, plus `aria-labelledby` references resolved
+after the parse (an id may be defined later). A reference is followed one level, the
+limit the accessible-name algorithm itself imposes. A control is the exception that
+proves the rule: its own content is its *value*, never its name.
 
 `id` resolution stays deliberately **document-wide**: a reference that only resolves
 across a `<template>` boundary is accepted. Modelling template/shadow scope is a DOM
@@ -141,6 +166,13 @@ this: the reasoning is from the specifications, which is all it needs.
 - (−) Static analysis still sees the source, not the page: JS-injected content, framework
   output and runtime-computed names are invisible. A generated site should scan its build
   output (drop `dist`/`build` from `[a11y].exclude`) or wait for #210.
+- (−) The name model is a deliberate subset of the accessible-name algorithm: no roles,
+  no CSS-generated content, no shadow DOM, `title`/`placeholder` rejected on purpose, and
+  references followed one level. It answers "is there a non-empty name here?", not "what
+  is the name?".
+- (−) An *empty* heading still satisfies "the document has an `<h1>`" — that is
+  axe-core's separate `empty-heading` rule and a row this matrix does not carry, so it is
+  disclosed rather than silently folded into `heading_structure`.
 - (−) `id` references are resolved document-wide, so one that a browser would not resolve
   (the id lives inside a `<template>`) is accepted, and duplicate `id`s are not reported
   at all — an HTML-validity concern, not an a11y rule. Both are false *negatives*, stated

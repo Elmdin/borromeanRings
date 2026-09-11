@@ -33,6 +33,19 @@ queue is merged.
   ("click here") list either: link purpose *in context* is a judgement, not a fact.
 
 ### Fixed
+- `15_a11y` treated an accessible *name* as present when only the **mechanism** was
+  present (PR #211 review). `<label><input></label>`, `<label for="q"></label>` and an
+  `aria-labelledby` pointing at an empty element all passed while announcing nothing;
+  and `<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>` — the commonest
+  icon-link idiom there is — was **flagged**, because only `<img alt>` was credited from
+  inside a link. Names are now resolved from content: every element accumulates its
+  subtree text plus the `alt`/`aria-label` of any descendant, and `aria-labelledby` is
+  resolved (one level) after the parse.
+- `15_a11y` let an `<svg><title>` satisfy the **default-on** `page_title` rule, so a page
+  with no `<head><title>` at all passed if it contained one titled icon (pre-existing,
+  undisclosed). Inside an `<svg>`/`<math>` subtree a familiar tag name is no longer taken
+  for an HTML element — `<title>`, `h1`–`h6` and form controls are all namespace-aware,
+  and HTML resumes at an integration point such as `<foreignObject>`.
 - `15_a11y` read the HTML tree in three ways a browser does not (found in review of
   #159, and applying to the rules shipped in ADR-0045 as well): **duplicate attributes**
   resolved last-wins where the HTML parsing spec keeps the *first*

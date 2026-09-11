@@ -16,28 +16,34 @@ Available but **opt-in**, because a shipped frontend usually has a backlog again
 and a gate nobody can turn on governs nothing (rows U4–U6, ADR-0075):
 
 - ``control_label`` — every labelable form control has an accessible name: a wrapping
-  or ``for=``-associated ``<label>``, an ``aria-label``, or an ``aria-labelledby``
-  naming an id that exists (WCAG 3.3.2, 4.1.2).
-- ``link_text`` — every ``<a href>`` has discernible text, an ``aria-label``/
-  ``aria-labelledby``, or an ``<img alt="...">`` inside it (WCAG 2.4.4).
+  or ``for=``-associated ``<label>`` that has text, an ``aria-label``, or an
+  ``aria-labelledby`` naming an element that has one (WCAG 3.3.2, 4.1.2).
+- ``link_text`` — every ``<a href>`` has discernible text, from its own content or from
+  a named descendant (``<img alt>``, ``aria-label``, an ``<svg><title>``) (WCAG 2.4.4).
 - ``heading_structure`` — a full document has exactly one ``<h1>``, and no heading
   skips a level on the way down (WCAG 1.3.1).
 
-Deliberately low-false-positive (presence facts only) — contrast ratios, keyboard
-reachability, focus visibility and target size are properties of the *rendered* page,
-not of the source, and belong to a real a11y tool (axe-core) on an opt-in heavy lane
-(issue #210), not to a deterministic static gate. Threshold-free: no arbitrary score
-target. Rules that presuppose a full page (``html_lang``, ``page_title``, the
-one-``<h1>`` half of ``heading_structure``) apply only when an ``<html>`` tag is
-present, so HTML *fragments* (components, partials) don't trip them. stdlib
-``html.parser`` only; no dependency. The parse is a single fact-gathering pass and each
-rule is a pure function of those facts, so adding a rule cannot perturb another.
+Deliberately low-false-positive — contrast ratios, keyboard reachability, focus
+visibility and target size are properties of the *rendered* page, not of the source, and
+belong to a real a11y tool (axe-core) on an opt-in heavy lane (issue #210), not to a
+deterministic static gate. Threshold-free: no arbitrary score target. Rules that
+presuppose a full page (``html_lang``, ``page_title``, the "has an ``<h1>``" half of
+``heading_structure``) apply only when an ``<html>`` tag is present, so HTML *fragments*
+(components, partials) don't trip them. stdlib ``html.parser`` only; no dependency.
 
 The tree is read the way a browser would build it, not the way the text looks:
-duplicate attributes resolve **first-wins** (the HTML parsing spec), ``<script>`` and
-``<style>`` content is source rather than text, and ``<template>`` content is inert —
-scanned on its own terms, but never the outline, the document title, or an enclosing
-link's name. See docs/specs/SPEC-accessibility.md, ADR-0045 and ADR-0075.
+duplicate attributes resolve **first-wins** (the HTML parsing spec); ``<script>`` and
+``<style>`` content is source rather than text; ``<template>`` content is inert — scanned
+on its own terms, but never the outline, the document title, or an enclosing link's name;
+and inside an ``<svg>``/``<math>`` subtree a familiar tag name is **not** an HTML element
+(an ``<svg><title>`` names an icon, not the page), until an HTML integration point such
+as ``<foreignObject>`` resumes HTML.
+
+Names are **resolved, not merely present**: every element accumulates the text of its own
+subtree plus the names contributed by descendants, so a reference or a wrapping
+``<label>`` that resolves to *nothing* names nothing. The parse is a single
+fact-gathering pass; each rule is then a pure function of those facts, so adding a rule
+cannot perturb another. See docs/specs/SPEC-accessibility.md, ADR-0045 and ADR-0075.
 """
 
 from __future__ import annotations
@@ -70,6 +76,36 @@ _SELF_NAMING_INPUT_TYPES: frozenset[str] = frozenset(
 #: Elements whose content is source code, not text anyone reads or hears.
 _RAW_TEXT_TAGS: frozenset[str] = frozenset({"script", "style"})
 
+#: Elements that never have content: they close the moment they open, so an unclosed
+#: one can't swallow the rest of the document.
+_VOID_TAGS: frozenset[str] = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+
+#: Roots of a foreign subtree: inside one, an HTML tag name is not an HTML element.
+_FOREIGN_ROOT_TAGS: frozenset[str] = frozenset({"svg", "math"})
+
+#: Where HTML resumes inside a foreign subtree (the HTML parsing spec's integration
+#: points). Tag names arrive lower-cased, so ``<foreignObject>`` is ``foreignobject``.
+_HTML_INTEGRATION_TAGS: frozenset[str] = frozenset(
+    {"foreignobject", "desc", "title", "annotation-xml", "mtext", "mi", "mo", "mn", "ms"}
+)
+
 #: Heading tag → outline level.
 _HEADING_LEVELS: dict[str, int] = {f"h{level}": level for level in range(1, 7)}
 
@@ -88,9 +124,30 @@ class A11yFinding:
     line: int | None = None
 
 
+@dataclass
+class _NameScope:
+    """The accessible-name evidence accumulating for one element's subtree.
+
+    ``text`` is everything that would be announced from this element's content: its
+    descendants' text, the ``alt`` of images inside it, and the ``aria-label`` of any
+    descendant. ``refs`` are the ``aria-labelledby`` ids found on it or on a descendant,
+    resolved after the parse (an id can be defined later in the document).
+    """
+
+    tag: str
+    line: int
+    template_depth: int
+    text: str = ""
+    refs: list[str] = field(default_factory=list)
+
+
 @dataclass(frozen=True)
 class _Control:
-    """A labelable form control and the naming evidence carried on the element."""
+    """A labelable form control and the naming evidence carried on the element.
+
+    Its own subtree text is deliberately *not* naming evidence: a ``<select>``'s
+    ``<option>``s and a ``<textarea>``'s content are the value, never the label.
+    """
 
     tag: str
     type_: str
@@ -98,19 +155,7 @@ class _Control:
     control_id: str
     aria_label: str
     labelledby: tuple[str, ...]
-    wrapped_in_label: bool
-
-
-@dataclass
-class _Link:
-    """An ``<a href>`` and the naming evidence gathered while it is open."""
-
-    line: int
-    aria_label: str
-    labelledby: tuple[str, ...]
-    template_depth: int = 0
-    text: str = ""
-    has_img_alt: bool = False
+    wrapping_label: _NameScope | None
 
 
 @dataclass(frozen=True)
@@ -130,10 +175,11 @@ class _Facts:
     html_has_lang: bool = False
     imgs_missing_alt: int = 0
     title_text: str = ""
-    ids: set[str] = field(default_factory=set)
-    label_targets: set[str] = field(default_factory=set)
+    id_scopes: dict[str, _NameScope] = field(default_factory=dict)
+    label_targets: dict[str, _NameScope] = field(default_factory=dict)
+    named_ids: set[str] = field(default_factory=set)
     controls: list[_Control] = field(default_factory=list)
-    links: list[_Link] = field(default_factory=list)
+    links: list[_NameScope] = field(default_factory=list)
     headings: list[_Heading] = field(default_factory=list)
 
 
@@ -165,63 +211,119 @@ class _Collector(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.facts = _Facts()
         self._in_title = False
-        self._label_depth = 0
-        self._template_depth = 0
-        self._rawtext_depth = 0
-        self._open_links: list[_Link] = []
+        self._scopes: list[_NameScope] = []
+        self._open_tags: dict[str, int] = {}
         self._starters: dict[str, Callable[[str, dict[str, str]], None]] = {
             "html": self._start_html,
             "title": self._start_title,
             "img": self._start_img,
             "a": self._start_anchor,
             "label": self._start_label,
-            "template": self._start_template,
-            **dict.fromkeys(_RAW_TEXT_TAGS, self._start_rawtext),
             **dict.fromkeys(_CONTROL_TAGS, self._start_control),
             **dict.fromkeys(_HEADING_LEVELS, self._start_heading),
-        }
-        self._enders: dict[str, Callable[[], None]] = {
-            "title": self._end_title,
-            "a": self._end_anchor,
-            "label": self._end_label,
-            "template": self._end_template,
-            **dict.fromkeys(_RAW_TEXT_TAGS, self._end_rawtext),
         }
 
     # -- parser callbacks --------------------------------------------------
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        """Record any ``id`` this element defines, then dispatch to its rule collector."""
+        """Open this element's name scope, credit its own naming attributes, dispatch."""
         values = _attr_map(attrs)
-        element_id = values.get("id", "").strip()
-        if element_id:
-            self.facts.ids.add(element_id)
+        self._push(tag, values)
         starter = self._starters.get(tag)
         if starter is not None:
             starter(tag, values)
+        if tag in _VOID_TAGS:
+            self._pop_to(tag)  # no content to accumulate; never left hanging open
 
     def handle_endtag(self, tag: str) -> None:
-        """Close whichever nesting context this end tag ends, if any."""
-        ender = self._enders.get(tag)
-        if ender is not None:
-            ender()
+        """Close the innermost matching element, and anything left open inside it."""
+        if tag == "title":
+            self._in_title = False
+        self._pop_to(tag)
 
     def handle_data(self, data: str) -> None:
-        """Route rendered text to the ``<title>`` and to the links it belongs to."""
-        if self._rawtext_depth:
+        """Route rendered text to the ``<title>`` and to the elements it names."""
+        if self._in_raw_text():
             return  # <script>/<style> source is not text the user or a reader sees
         if self._in_title:
             self.facts.title_text += data
-        for link in self._live_links():
-            link.text += data
+        for scope in self._live_scopes():
+            scope.text += data
 
-    def _live_links(self) -> Iterator[_Link]:
-        """The open links that content here actually belongs to.
+    # -- element stack -----------------------------------------------------
+    def _push(self, tag: str, values: dict[str, str]) -> None:
+        """Start a name scope for this element and record the id it may be known by."""
+        depth = self._open_tags.get("template", 0)
+        if tag == "template":
+            depth += 1  # the template's own content sits one level in
+        scope = _NameScope(tag=tag, line=self.getpos()[0], template_depth=depth)
+        self._scopes.append(scope)
+        self._open_tags[tag] = self._open_tags.get(tag, 0) + 1
+        element_id = values.get("id", "").strip()
+        if element_id:
+            self.facts.id_scopes.setdefault(element_id, scope)  # first id wins, as in the DOM
+        self._credit_aria(values)
 
-        Content inside a ``<template>`` nested *within* a link never renders in place,
-        so it cannot give that link its name; a link that is itself inside a template
-        sits at the same depth as its own content and collects it normally.
+    def _pop_to(self, tag: str) -> None:
+        """Close the innermost open ``tag``; a stray end tag closes nothing."""
+        for index in range(len(self._scopes) - 1, -1, -1):
+            if self._scopes[index].tag != tag:
+                continue
+            for scope in self._scopes[index:]:
+                self._open_tags[scope.tag] -= 1
+            del self._scopes[index:]
+            return
+
+    def _live_scopes(self) -> Iterator[_NameScope]:
+        """The open elements that content here actually contributes a name to.
+
+        Content inside a ``<template>`` nested *within* an element never renders in
+        place, so it cannot name it; an element inside a template sits at the same depth
+        as its own content and accumulates it normally.
         """
-        return (link for link in self._open_links if link.template_depth == self._template_depth)
+        depth = self._open_tags.get("template", 0)
+        return (scope for scope in self._scopes if scope.template_depth == depth)
+
+    def _in_raw_text(self) -> bool:
+        """True inside ``<script>``/``<style>``, whose content is source, not text."""
+        return any(self._open_tags.get(tag, 0) for tag in _RAW_TEXT_TAGS)
+
+    def _in_foreign_content(self) -> bool:
+        """True when the element being started is *not* an HTML element.
+
+        Inside an ``<svg>``/``<math>`` subtree a familiar tag name belongs to that
+        language — an ``<svg><title>`` names an icon and an ``<svg><h1>`` is not a
+        heading — until an HTML integration point (``<foreignObject>``, ``<desc>``,
+        ``<mtext>``, …) resumes HTML. Ancestors only: the element's own scope is
+        already on the stack when its collector runs.
+        """
+        for scope in reversed(self._scopes[:-1]):
+            if scope.tag in _HTML_INTEGRATION_TAGS:
+                return False
+            if scope.tag in _FOREIGN_ROOT_TAGS:
+                return True
+        return False
+
+    def _wrapping_label(self) -> _NameScope | None:
+        """The innermost ``<label>`` this element is nested inside, if any."""
+        for scope in reversed(self._scopes):
+            if scope.tag == "label":
+                return scope
+        return None
+
+    def _credit_aria(self, values: dict[str, str]) -> None:
+        """Credit this element's own ARIA naming attributes to it and its ancestors.
+
+        A named descendant contributes to the name of the element containing it — which
+        is what makes ``<a href><svg role="img" aria-label="Twitter"></svg></a>`` a
+        named link, the commonest icon-link idiom there is.
+        """
+        label = values.get("aria-label", "").strip()
+        refs = _id_tokens(values.get("aria-labelledby", ""))
+        if not label and not refs:
+            return
+        for scope in self._live_scopes():
+            scope.text += f" {label}"
+            scope.refs.extend(refs)
 
     # -- per-element collectors -------------------------------------------
     def _start_html(self, tag: str, values: dict[str, str]) -> None:
@@ -230,63 +332,38 @@ class _Collector(HTMLParser):
         self.facts.html_has_lang = bool(values.get("lang", "").strip())
 
     def _start_title(self, tag: str, values: dict[str, str]) -> None:
-        if self._template_depth:
+        if self._open_tags.get("template", 0):
             return  # inert until cloned — not this document's title
+        if self._in_foreign_content():
+            return  # an <svg>/<math> <title> names an icon, not the page
         self._in_title = True
-
-    def _end_title(self) -> None:
-        self._in_title = False
 
     def _start_img(self, tag: str, values: dict[str, str]) -> None:
         if "alt" not in values:
             self.facts.imgs_missing_alt += 1
-        elif values["alt"].strip():
-            for link in self._live_links():
-                link.has_img_alt = True
+            return
+        alt = values["alt"].strip()
+        if alt:
+            for scope in self._live_scopes():
+                scope.text += f" {alt}"
 
     def _start_anchor(self, tag: str, values: dict[str, str]) -> None:
-        if "href" not in values:
-            return  # a named target, not a link
-        link = _Link(
-            line=self.getpos()[0],
-            aria_label=values.get("aria-label", ""),
-            labelledby=_id_tokens(values.get("aria-labelledby", "")),
-            template_depth=self._template_depth,
-        )
-        self.facts.links.append(link)  # document order, evaluated even if never closed
-        self._open_links.append(link)
-
-    def _end_anchor(self) -> None:
-        if self._open_links:
-            self._open_links.pop()
+        if "href" in values:  # an <a> without one is a named target, not a link
+            self.facts.links.append(self._scopes[-1])
 
     def _start_label(self, tag: str, values: dict[str, str]) -> None:
-        self._label_depth += 1
         target = values.get("for", "").strip()
         if target:
-            self.facts.label_targets.add(target)
-
-    def _end_label(self) -> None:
-        self._label_depth = max(0, self._label_depth - 1)
-
-    def _start_template(self, tag: str, values: dict[str, str]) -> None:
-        self._template_depth += 1
-
-    def _end_template(self) -> None:
-        self._template_depth = max(0, self._template_depth - 1)
-
-    def _start_rawtext(self, tag: str, values: dict[str, str]) -> None:
-        self._rawtext_depth += 1
-
-    def _end_rawtext(self) -> None:
-        self._rawtext_depth = max(0, self._rawtext_depth - 1)
+            self.facts.label_targets.setdefault(target, self._scopes[-1])
 
     def _start_heading(self, tag: str, values: dict[str, str]) -> None:
-        if self._template_depth:
-            return  # inert until cloned — not part of this document's outline
+        if self._open_tags.get("template", 0) or self._in_foreign_content():
+            return  # inert, or not an HTML heading at all
         self.facts.headings.append(_Heading(_HEADING_LEVELS[tag], self.getpos()[0]))
 
     def _start_control(self, tag: str, values: dict[str, str]) -> None:
+        if self._in_foreign_content():
+            return  # an <svg><input> is an SVG element, not a form control
         self.facts.controls.append(
             _Control(
                 tag=tag,
@@ -295,25 +372,35 @@ class _Collector(HTMLParser):
                 control_id=values.get("id", "").strip(),
                 aria_label=values.get("aria-label", ""),
                 labelledby=_id_tokens(values.get("aria-labelledby", "")),
-                wrapped_in_label=self._label_depth > 0,
+                wrapping_label=self._wrapping_label(),
             )
         )
 
 
 def _facts(html: str) -> _Facts:
-    """Parse ``html`` and return the gathered a11y presence facts."""
+    """Parse ``html``, then resolve which ids actually name something."""
     collector = _Collector()
     collector.feed(html)
     collector.close()
-    return collector.facts
+    facts = collector.facts
+    # One level of indirection, as the accessible-name algorithm allows: an element
+    # named only by its *own* aria-labelledby cannot lend that name onward.
+    facts.named_ids = {name for name, scope in facts.id_scopes.items() if scope.text.strip()}
+    return facts
 
 
-def _has_aria_name(aria_label: str, labelledby: Sequence[str], ids: set[str]) -> bool:
+def _scope_has_name(scope: _NameScope, named_ids: set[str]) -> bool:
+    """True when this element's subtree yields a non-empty accessible name."""
+    return bool(scope.text.strip()) or any(ref in named_ids for ref in scope.refs)
+
+
+def _has_aria_name(aria_label: str, labelledby: Sequence[str], named_ids: set[str]) -> bool:
     """True when ARIA supplies a name: a non-empty label, or a reference that resolves.
 
-    A dangling ``aria-labelledby`` names nothing, so it does not count.
+    A dangling ``aria-labelledby``, or one pointing at an element with no text of its
+    own, names nothing — so neither counts.
     """
-    return bool(aria_label.strip()) or any(ref in ids for ref in labelledby)
+    return bool(aria_label.strip()) or any(ref in named_ids for ref in labelledby)
 
 
 def _html_lang_findings(facts: _Facts) -> list[A11yFinding]:
@@ -364,12 +451,22 @@ def _describe_control(control: _Control) -> str:
     return f"<{control.tag}>"
 
 
+def _labelled_by_element(control: _Control, facts: _Facts) -> bool:
+    """True when a ``<label>`` that actually says something names this control.
+
+    Structure alone is not a name: ``<label><input></label>`` and
+    ``<label for="q"></label>`` announce nothing at all.
+    """
+    for label in (control.wrapping_label, facts.label_targets.get(control.control_id)):
+        if label is not None and _scope_has_name(label, facts.named_ids):
+            return True
+    return False
+
+
 def _control_is_named(control: _Control, facts: _Facts) -> bool:
     """True when the control has an accessible name from a label or from ARIA."""
-    return (
-        control.wrapped_in_label
-        or control.control_id in facts.label_targets
-        or _has_aria_name(control.aria_label, control.labelledby, facts.ids)
+    return _labelled_by_element(control, facts) or _has_aria_name(
+        control.aria_label, control.labelledby, facts.named_ids
     )
 
 
@@ -384,23 +481,14 @@ def _control_label_findings(facts: _Facts) -> list[A11yFinding]:
         A11yFinding(
             "control_label",
             f"{_describe_control(control)} has no accessible name — wrap it in a "
-            "<label>, point a <label for=...> at its id, or give it a non-empty "
-            "aria-label / an aria-labelledby naming an id that exists "
-            "(WCAG 3.3.2, 4.1.2).",
+            "<label> that has text, point a <label for=...> at its id, or give it a "
+            "non-empty aria-label / an aria-labelledby naming an element that has a "
+            "name (WCAG 3.3.2, 4.1.2).",
             control.line,
         )
         for control in facts.controls
         if _control_needs_name(control) and not _control_is_named(control, facts)
     ]
-
-
-def _link_is_discernible(link: _Link, facts: _Facts) -> bool:
-    """True when the link has text, an image alternative, or an ARIA name."""
-    return (
-        bool(link.text.strip())
-        or link.has_img_alt
-        or _has_aria_name(link.aria_label, link.labelledby, facts.ids)
-    )
 
 
 def _link_text_findings(facts: _Facts) -> list[A11yFinding]:
@@ -413,12 +501,13 @@ def _link_text_findings(facts: _Facts) -> list[A11yFinding]:
         A11yFinding(
             "link_text",
             "<a href> has no discernible text — give the link text, a non-empty "
-            'aria-label/aria-labelledby, or an <img alt="..."> inside it, so its '
-            "purpose is announced (WCAG 2.4.4).",
+            "aria-label/aria-labelledby, or a named child such as an "
+            '<img alt="..."> or an <svg> with a <title>, so its purpose is '
+            "announced (WCAG 2.4.4).",
             link.line,
         )
         for link in facts.links
-        if not _link_is_discernible(link, facts)
+        if not _scope_has_name(link, facts.named_ids)
     ]
 
 

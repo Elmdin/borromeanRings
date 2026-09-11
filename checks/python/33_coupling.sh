@@ -21,7 +21,7 @@ if [ -z "$package" ] || [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -prin
   exit 0
 fi
 
-read -r current worst < <(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
+read -r current worst < <(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
 import sys
 
 from meta_harness.coupling import worst_fan_out
@@ -40,6 +40,6 @@ if [ "$current" -gt "$baseline" ]; then
   status="fail"
   code=1
 fi
-extra="$(python3 -c "import json,sys; print(json.dumps({'worst_fan_out': int(sys.argv[1]), 'coupling_baseline': int(sys.argv[2]), 'worst_module': sys.argv[3]}))" "$current" "$baseline" "$worst" 2>/dev/null || echo '')"
+extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'worst_fan_out': int(sys.argv[1]), 'coupling_baseline': int(sys.argv[2]), 'worst_module': sys.argv[3]}))" "$current" "$baseline" "$worst" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

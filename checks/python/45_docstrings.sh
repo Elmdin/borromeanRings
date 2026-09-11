@@ -22,7 +22,7 @@ if [ -z "$package" ] || [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -prin
   exit 0
 fi
 
-current="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
+current="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
 import sys
 
 from meta_harness.docstrings import measure_package
@@ -33,7 +33,7 @@ PY
 baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 echo "docstring coverage: $current (baseline $baseline)" >"$log"
 
-regressed="$(python3 -c "import sys; print(1 if float(sys.argv[1]) + 1e-9 < float(sys.argv[2]) else 0)" "$current" "$baseline")"
+regressed="$(borromeanrings_py -c "import sys; print(1 if float(sys.argv[1]) + 1e-9 < float(sys.argv[2]) else 0)" "$current" "$baseline")"
 status="pass"
 code=0
 if [ "$regressed" = "1" ]; then
@@ -41,6 +41,6 @@ if [ "$regressed" = "1" ]; then
   status="fail"
   code=1
 fi
-extra="$(python3 -c "import json,sys; print(json.dumps({'docstring_coverage': round(float(sys.argv[1]),6), 'docstring_baseline': float(sys.argv[2])}))" "$current" "$baseline" 2>/dev/null || echo '')"
+extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'docstring_coverage': round(float(sys.argv[1]),6), 'docstring_baseline': float(sys.argv[2])}))" "$current" "$baseline" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

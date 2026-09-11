@@ -12,6 +12,21 @@ queue is merged.
 
 ## [Unreleased]
 
+### Security
+- Gate no longer self-certifies via a planted stdlib name (ADR-0080, #222). `verify.sh`
+  ran its trusted Python (verdict aggregation, language detect) and `checks/_lib.sh` ran
+  `emit_receipt` / `borromeanrings_project_cfg` from `PROJECT_ROOT` — putting the
+  governed project first on `sys.path`, so a `json.py` committed at the repo root could
+  shadow stdlib and make `bash verify.sh` (what CI runs) print `RESULT: PASS` and exit 0
+  on a failing tree, forging the required `gate` check. New `checks/_py.sh` defines
+  `borromeanrings_py` (runs Python from `/` with `PYTHONPATH` at borromeanRings' own
+  `src`, mirroring #221's hook helper); the four named calls plus every verdict-deciding
+  analysis heredoc (`05`–`15`, `32`–`35`, `45`, `55`, `56`, `74`) now route through it.
+  Deliberately not `python3 -P`/`-I` (3.11-only / drops `PYTHONPATH`). Tool runs that
+  execute project code by design (`pytest`, `mypy`, `compileall`, `mutmut`, `pip-audit`,
+  `pip-licenses`) are left as-is — already untrusted per #218, blocked on M7. The
+  Stop-hook half of #222 (forged `last_green_state`, hook markers) remains, also on M7.
+
 ### Added
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"

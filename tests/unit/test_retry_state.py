@@ -347,6 +347,15 @@ def test_a_garbage_legacy_count_counts_as_nothing(tmp_path: Path, text: str) -> 
     assert record_failure(str(project), "s", 3, _env(tmp_path)) == "retry 1"
 
 
+def test_an_undecodable_legacy_count_counts_as_nothing(tmp_path: Path) -> None:
+    # Invalid UTF-8 must not crash the helper: a crash reads as "no answer".
+    project = _project(tmp_path)
+    legacy = project / ".meta-harness" / "stop_attempts" / "s"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_bytes(b"\xff\xfe2")
+    assert record_failure(str(project), "s", 3, _env(tmp_path)) == "retry 1"
+
+
 def test_an_unreadable_legacy_count_counts_as_nothing(tmp_path: Path) -> None:
     project = _project(tmp_path)
     (project / ".meta-harness" / "stop_attempts" / "s").mkdir(parents=True)

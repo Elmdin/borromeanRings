@@ -24,7 +24,11 @@ dev = [
   # tree builder that tests/unit/test_accessibility_conformance.py parses each fixture
   # with, so 15_a11y's namespace rules are *derived* from a real parser instead of
   # recited from the spec (three reviews running, reciting got them wrong). MIT.
-  "html5lib>=1.1",
+  # PINNED, not floored: this one decides test outcomes, and how a parser treats
+  # malformed markup is exactly what moves between releases — a floored oracle could
+  # disagree with itself between a laptop and CI, and the conformance suite would be
+  # what broke. See ADR-0077 (pin the toolchain).
+  "html5lib==1.1",
 ]
 
 [tool.setuptools.packages.find]

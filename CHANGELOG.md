@@ -44,7 +44,9 @@ queue is merged.
   var`, plus `font` with `color`/`face`/`size`), along with `<annotation-xml>`'s
   `encoding` condition — and it is **derived from html5lib by a new conformance suite**
   rather than recited, since reciting it is what got it wrong twice. `html5lib` joins the
-  `dev` extra as a test oracle only; the harness still runs on the stdlib alone.
+  `dev` extra as a test oracle only — **pinned** (`==1.1`), because an oracle whose
+  version drifts can disagree with itself between a laptop and CI (ADR-0077); the
+  harness itself still runs on the stdlib alone.
 - `15_a11y` treated an accessible *name* as present when only the **mechanism** was
   present (PR #211 review). `<label><input></label>`, `<label for="q"></label>` and an
   `aria-labelledby` pointing at an empty element all passed while announcing nothing;

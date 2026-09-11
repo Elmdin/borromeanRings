@@ -118,6 +118,15 @@ not allowed.
 - (−) The pinned tools are exempt from the floating-closure argument, so a CVE in `ruff` or
   `mutmut` itself blocks the gate rather than being patched silently. Accepted: a security fix to
   a verdict-deciding tool is exactly the kind of change that should arrive as a reviewed bump.
+- (−) **This ADR only reaches Python distributions, and the class is wider.** Pins live in
+  `pyproject.toml`, so a tool that is not a Python dependency cannot be pinned here at all — and
+  `git` is one. Found the day this ADR landed: a test on #217 asserted `git apply`'s error prose,
+  `unrecognized input`, which git 2.34.1 prints and git 2.55.0 replaced with `No valid patches in
+  input`. Same class — a verdict that depends on an unpinned external tool — outside this ADR's
+  reach. The mitigation there is different in kind: **do not depend on an unpinnable tool's
+  prose.** Assert the property you mean, not the words some version happens to use for it. A
+  reader who accepts this ADR should expect that question next, so it is answered here.
+
 - (−) **`TOOLS` becomes a registry mirror, and that is a standing obligation on other changes.**
   Any PR that adds a check invoking a new binary must, in the same change, add the `Tool` entry,
   pin the distribution, and map the binary name to the distribution name if they differ. This is

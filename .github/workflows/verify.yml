@@ -104,6 +104,12 @@ jobs:
           for log in sorted(run_dir.glob("*.log")):
               if log.stem in shown:
                   continue
+              # Scratch files share the run dir and are named `<check>.<something>.log`
+              # (70_pip_audit.tool, for one). A receipt-less log for a REAL check is the
+              # case worth shouting about, so only a bare check id qualifies; anything
+              # with a further dot is scratch and would be a false alarm.
+              if "." in log.stem:
+                  continue
               # A check that died inside emit_receipt leaves a log and no receipt.
               print(f"::group::{log.stem} (NO RECEIPT — the check died before writing one)")
               print(tail(str(log), log))

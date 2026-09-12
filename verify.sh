@@ -22,6 +22,11 @@ BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 export BORROMEANRINGS_HOME PROJECT_ROOT
+
+# borromeanrings_py: the gate's trusted Python must run from a neutral directory,
+# never with the governed project on sys.path (a planted json.py / meta_harness/
+# would otherwise shadow stdlib and forge the verdict — #222).
+source "$BORROMEANRINGS_HOME/checks/_py.sh"
 CONFIG="$PROJECT_ROOT/borromeanrings.toml"
 
 # Which borromeanRings version is governing this run. `git describe` on borromeanRings's own
@@ -34,13 +39,19 @@ HARNESS_VERSION="$(git -C "$BORROMEANRINGS_HOME" describe --tags --always --dirt
 export HARNESS_VERSION
 
 if [ ! -f "$CONFIG" ]; then
-  echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
-  exit 1
+  if [ -f "$PROJECT_ROOT/borromeo.toml" ]; then
+    # Pre-rename config name (issue #62): still honored (meta_harness.spine falls back to
+    # it), but deprecated — say so on every run until the project renames the file.
+    echo "borromeanRings: DEPRECATED config name borromeo.toml in $PROJECT_ROOT — still honored; rename it: git mv borromeo.toml borromeanrings.toml (see docs/RENAME.md)." >&2
+  else
+    echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
+    exit 1
+  fi
 fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
-language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
+language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
 case "$language" in
   "" | *[!a-z0-9_-]*)
@@ -70,7 +81,8 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
+
 import json
 import os
 import sys

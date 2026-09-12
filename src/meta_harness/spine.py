@@ -7,6 +7,7 @@ every declared check must produce a pass receipt. The spine governs *outcomes*
 See docs/specs/SPEC-spine.md.
 """
 
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,12 @@ import tomllib
 #: (see :func:`load_config`): a typo'd verification claim must never read as
 #: "nothing declared", which would silently switch the rule off. ADR-0074.
 VERIFICATION_KEYS: frozenset[str] = frozenset({"properties"})
+# The policy-spine file name, and the pre-rename spelling still accepted (issue #62).
+# Projects governed before the borromeo -> borromeanRings rename may still carry the
+# legacy file; it keeps loading (with a FutureWarning on stderr) so they never silently
+# fall out of governance. Migration: `git mv borromeo.toml borromeanrings.toml`.
+CONFIG_NAME = "borromeanrings.toml"
+LEGACY_CONFIG_NAME = "borromeo.toml"
 
 
 @dataclass(frozen=True)
@@ -94,9 +101,65 @@ class Config:
     # the key is an affirmative claim, so "" means the rule is off, and a declared
     # directory with no property tests is a failure, not a no-op.
     verification_properties: str = ""
+    # [provenance] — re-authored text must not reproduce a declared source (ADR-0070).
+    # declared=False ⇒ rule off. sources are read-only paths (machine-local ones come
+    # from BORROMEANRINGS_PROVENANCE_SOURCES, never the config); allow is the human's
+    # classification of generic overlaps, kept reviewable in the config.
+    provenance_declared: bool = False
+    provenance_sources: tuple[str, ...] = ()
+    provenance_paths: tuple[str, ...] = ("docs", "skills", ".claude/skills")
+    provenance_allow: tuple[str, ...] = ()
+    # [predicates] — hedge-word lint + graph integrity over acceptance predicates
+    # (ADR-0064). Off unless enabled; hedges EXTEND the built-in list.
+    predicates_enabled: bool = False
+    predicates_paths: tuple[str, ...] = ("docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE")
+    predicates_hedges: tuple[str, ...] = ()
+    predicates_require_reference: bool = True
+
+    # [shell] — shellcheck lint over the project's own shell (ADR-0050). borromeanRings
+    # is roughly half bash, and that bash IS the trust root: the gate, the hooks, every
+    # check. `source_paths` are shellcheck -P entries so `source`d libraries resolve
+    # statically (SCRIPTDIR = the checked script's own directory) rather than being
+    # blanket-suppressed; `exclude` is a per-code escape hatch that should stay empty.
+    shell_source_paths: tuple[str, ...] = ("SCRIPTDIR", "SCRIPTDIR/..")
+    shell_exclude: tuple[str, ...] = ()
 
 
-def load_config(path: str | Path = "borromeanrings.toml") -> Config:
+def resolve_config_path(path: str | Path) -> Path:
+    """Resolve the spine path, falling back to a sibling legacy ``borromeo.toml``.
+
+    The fallback applies ONLY when ``path`` names the canonical file and it is absent:
+    the canonical file always wins when present, and any other file name is returned
+    untouched (a missing file then surfaces as ``FileNotFoundError`` in the caller).
+
+    The notice is a ``FutureWarning``, not a ``DeprecationWarning``: Python's default
+    filters hide the latter outside ``__main__``, so it never reached stderr through the
+    real call paths (``status.sh``, the hooks — PR #165 review). A ``FutureWarning`` is
+    the end-user-facing category, shown by default, once per process per legacy file.
+
+    Args:
+        path: the requested TOML config path.
+
+    Returns:
+        ``path`` itself, or the sibling legacy file when that is what exists.
+    """
+    requested = Path(path)
+    if requested.exists() or requested.name != CONFIG_NAME:
+        return requested
+    legacy = requested.with_name(LEGACY_CONFIG_NAME)
+    if not legacy.exists():
+        return requested
+    warnings.warn(
+        f"{legacy} uses the deprecated config name {LEGACY_CONFIG_NAME}; rename it to "
+        f"{CONFIG_NAME} (git mv {LEGACY_CONFIG_NAME} {CONFIG_NAME}). The legacy name "
+        "still loads for now — see docs/RENAME.md.",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return legacy
+
+
+def load_config(path: str | Path = CONFIG_NAME) -> Config:
     """Load and validate the policy spine from ``borromeanrings.toml``.
 
     Fail-closed: an empty or absent ``[checks].required`` is a misconfiguration
@@ -111,8 +174,10 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     Raises:
         ValueError: if no required checks are declared, or if ``[verification]``
             carries a key borromeanRings does not understand.
+        ValueError: if no required checks are declared.
+        FileNotFoundError: if neither the canonical nor the legacy file exists.
     """
-    raw: dict[str, Any] = tomllib.loads(Path(path).read_text(encoding="utf-8"))
+    raw: dict[str, Any] = tomllib.loads(resolve_config_path(path).read_text(encoding="utf-8"))
     required = list(raw.get("checks", {}).get("required", []))
     if not required:
         raise ValueError(
@@ -139,6 +204,8 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    provenance = raw.get("provenance", {})
+    predicates = raw.get("predicates", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -192,4 +259,21 @@ def load_config(path: str | Path = "borromeanrings.toml") -> Config:
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
         verification_properties=str(verification.get("properties", "")).strip(),
+        provenance_declared="provenance" in raw,
+        provenance_sources=tuple(str(p) for p in provenance.get("sources", [])),
+        provenance_paths=tuple(
+            str(p) for p in provenance.get("paths", ["docs", "skills", ".claude/skills"])
+        ),
+        provenance_allow=tuple(str(p) for p in provenance.get("allow", [])),
+        predicates_enabled=bool(predicates.get("enabled", False)),
+        predicates_paths=tuple(
+            str(p)
+            for p in predicates.get("paths", ["docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE"])
+        ),
+        predicates_hedges=tuple(str(h) for h in predicates.get("hedges", [])),
+        predicates_require_reference=bool(predicates.get("require_reference", True)),
+        shell_source_paths=tuple(
+            raw.get("shell", {}).get("source_paths", ["SCRIPTDIR", "SCRIPTDIR/.."])
+        ),
+        shell_exclude=tuple(raw.get("shell", {}).get("exclude", [])),
     )

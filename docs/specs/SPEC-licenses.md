@@ -10,8 +10,8 @@ closure and fails on any dependency whose license matches a declared **deny**
 pattern.
 
 - **Denylist, not allowlist:** `[licenses].deny` holds case-insensitive substring
-  patterns for *incompatible* license families (GPL/AGPL/SSPL); robust to the wild
-  variance in license strings. `allow_packages` exempts vetted deps.
+  patterns for *incompatible* license families (GPL/AGPL/SSPL); so the spellings a
+  license string takes in the wild (`GPL-3.0-only`, `GPLv3`, `GNU General Public License v3`) all match. `allow_packages` exempts vetted deps.
 - **Opt-in:** off when `deny` is empty. Fail-closed on a missing pip-licenses
   report.
 - Receipts name each offender + the deny pattern it matched.

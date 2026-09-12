@@ -77,6 +77,9 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
+| `25_provenance` | Files changed under `paths` since the merge-base share **no unlisted 6-word shingle** with the declared read-only `sources` (re-authored, never copied); binary — every unlisted overlap fails with both locations, the human allowlists generic ones with a reason. No `[provenance]` ⇒ off (`noop`); no sources ⇒ `noop`; absent/empty source or git error ⇒ fail closed | `[provenance].sources`, `paths`, `allow`; env `BORROMEANRINGS_PROVENANCE_SOURCES` (colon-separated, machine-local) | 0070 |
+| `23_predicates` | Acceptance predicates (SPEC Contract/Guarantees/Acceptance bullets, ADR Consequences must/never/shall bullets, issue-form task items) contain no hedge word; every SPEC names a shipped check id, an existing test file or an issue (no orphans); `noop` when off or nothing found | `[predicates].enabled`, `paths`, `hedges`, `require_reference` | 0064 |
+| `16_shellcheck` | Shell lint over the project's own scripts — **fail-closed on any finding**. Sources are *resolved* (`-x` + `SCRIPTDIR`), not suppressed. No shell ⇒ `noop` | `[shell].source_paths`, `[shell].exclude` | 0050 |
 
 ## Fast lane — Python checks
 
@@ -102,6 +105,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 
 | Check | Enforces | Config / notes | ADR |
 |-------|----------|----------------|-----|
+| `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; **fails closed on 0 evaluated mutants** (a clean-test failure inside mutmut's sandbox is "MUTATION CHECK DID NOT RUN", never a vacuous 1.0). The verdict row shows the count: `PASS (evaluated N, score S)` / `FAIL (evaluated 0)` | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
 | `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; fails on 0 evaluated | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
 | `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
 | `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |

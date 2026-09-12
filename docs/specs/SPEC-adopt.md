@@ -30,7 +30,7 @@ them at once turns a healthy project red.
    | `45_docstrings` | `.borromeanrings-docstring-baseline` | `measure_package(src, pkg).coverage` |
    Skipped when there is no package to measure (the ratchet is greenfield-pass).
 3. **Seed changelog** — if `11_changelog` is added and none exists, write a
-   minimal Keep-a-Changelog file with an `## [Unreleased]` section.
+   Keep-a-Changelog file that contains only the header and an `## [Unreleased]` section.
 4. **Rewrite** — `rewrite_required(toml_text, new_required)` replaces the
    `[checks].required` array in place, scoped to the `[checks]` table, preserving
    all other text/comments. Fail-closed: a missing table or array raises.

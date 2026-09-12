@@ -26,7 +26,7 @@ fi
 list_file="$RECEIPT_DIR/$id.files"
 ( cd "$PROJECT_ROOT" && git ls-files -z 2>/dev/null || true ) >"$list_file"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$list_file" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$list_file" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 

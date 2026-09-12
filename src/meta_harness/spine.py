@@ -92,6 +92,14 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [provenance] — re-authored text must not reproduce a declared source (ADR-0070).
+    # declared=False ⇒ rule off. sources are read-only paths (machine-local ones come
+    # from BORROMEANRINGS_PROVENANCE_SOURCES, never the config); allow is the human's
+    # classification of generic overlaps, kept reviewable in the config.
+    provenance_declared: bool = False
+    provenance_sources: tuple[str, ...] = ()
+    provenance_paths: tuple[str, ...] = ("docs", "skills", ".claude/skills")
+    provenance_allow: tuple[str, ...] = ()
     # [predicates] — hedge-word lint + graph integrity over acceptance predicates
     # (ADR-0064). Off unless enabled; hedges EXTEND the built-in list.
     predicates_enabled: bool = False
@@ -177,6 +185,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    provenance = raw.get("provenance", {})
     predicates = raw.get("predicates", {})
     return Config(
         required_checks=tuple(required),
@@ -230,6 +239,12 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        provenance_declared="provenance" in raw,
+        provenance_sources=tuple(str(p) for p in provenance.get("sources", [])),
+        provenance_paths=tuple(
+            str(p) for p in provenance.get("paths", ["docs", "skills", ".claude/skills"])
+        ),
+        provenance_allow=tuple(str(p) for p in provenance.get("allow", [])),
         predicates_enabled=bool(predicates.get("enabled", False)),
         predicates_paths=tuple(
             str(p)

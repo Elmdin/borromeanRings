@@ -13,6 +13,29 @@ queue is merged.
 ## [Unreleased]
 
 ### Fixed
+- Git-identity guard hardened against per-command overrides and exotic invocations
+  (closes #54). Two independent holes, both preventive-layer only (check `06_git_identity`
+  remained the backstop). **(1) Overrides were invisible.** The guard compared the repo's
+  *configured* identity, but git accepts an identity per invocation — `--author=`,
+  `-c user.email=`, and the `GIT_AUTHOR_*`/`GIT_COMMITTER_*` environment variables — none
+  of which config-comparison can see, so a correct repo could still produce a
+  wrong-authored commit. **(2) Detection was a substring match.** Keying on the literal
+  `"git commit"` misses every spelling that puts something between the two words
+  (`git -c … commit`, `git -C dir commit`, `VAR=value git commit`) — so those invocations
+  skipped the identity *and* protected-branch guards entirely. New `git_subcommand()`
+  parses the real subcommand, stepping over leading environment assignments and git's
+  global options; `command_override_violation()` compares any declared override against
+  the required identity, allows one that states the correct identity (being explicit is
+  not evasion), and refuses an override it cannot parse rather than failing open. Both
+  guards now key off the parsed subcommand. Scoped so it only ever fires on a real
+  `git commit`/`push`: a script or heredoc that merely mentions git is not a commit.
+  Verified end to end against all four evasion paths through the hook's own stdin
+  protocol, with negative controls.
+  Those hook tests now run against a throwaway governed project (configured identity =
+  declared identity, HEAD on a work branch) instead of the harness checkout: CI's checkout
+  has no `user.name`/`user.email`, so the configured-identity rule denied every commit
+  there — failing the negative control and letting the override test pass for the wrong
+  reason. The override test now also asserts the denial came from the override rule.
 - `merge.sh` now merges the **governed project**, not borromeanRings itself (closes #121).
   It unconditionally `cd`-ed into `BORROMEANRINGS_HOME`, so invoking it from a governed
   project checked *borromeanRings's* working tree for dirtiness and would have merged

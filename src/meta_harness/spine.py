@@ -100,6 +100,12 @@ class Config:
     provenance_sources: tuple[str, ...] = ()
     provenance_paths: tuple[str, ...] = ("docs", "skills", ".claude/skills")
     provenance_allow: tuple[str, ...] = ()
+    # [predicates] — hedge-word lint + graph integrity over acceptance predicates
+    # (ADR-0064). Off unless enabled; hedges EXTEND the built-in list.
+    predicates_enabled: bool = False
+    predicates_paths: tuple[str, ...] = ("docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE")
+    predicates_hedges: tuple[str, ...] = ()
+    predicates_require_reference: bool = True
 
     # [shell] — shellcheck lint over the project's own shell (ADR-0050). borromeanRings
     # is roughly half bash, and that bash IS the trust root: the gate, the hooks, every
@@ -180,6 +186,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
     provenance = raw.get("provenance", {})
+    predicates = raw.get("predicates", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -238,6 +245,13 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
             str(p) for p in provenance.get("paths", ["docs", "skills", ".claude/skills"])
         ),
         provenance_allow=tuple(str(p) for p in provenance.get("allow", [])),
+        predicates_enabled=bool(predicates.get("enabled", False)),
+        predicates_paths=tuple(
+            str(p)
+            for p in predicates.get("paths", ["docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE"])
+        ),
+        predicates_hedges=tuple(str(h) for h in predicates.get("hedges", [])),
+        predicates_require_reference=bool(predicates.get("require_reference", True)),
         shell_source_paths=tuple(
             raw.get("shell", {}).get("source_paths", ["SCRIPTDIR", "SCRIPTDIR/.."])
         ),

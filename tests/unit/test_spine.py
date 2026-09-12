@@ -279,6 +279,27 @@ def test_provenance_empty_table_is_declared_with_defaults(tmp_path: Path) -> Non
     assert cfg.provenance_paths == ("docs", "skills", ".claude/skills")
 
 
+def test_predicates_defaults_off_and_loaded(tmp_path: Path) -> None:
+    """[predicates] (ADR-0064): off by default; hedges extend the built-ins."""
+    cfg = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert cfg.predicates_enabled is False
+    assert cfg.predicates_paths == ("docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE")
+    assert cfg.predicates_hedges == ()
+    assert cfg.predicates_require_reference is True
+
+    cfg = load_config(
+        _write(
+            tmp_path,
+            '[checks]\nrequired = ["00_build"]\n\n[predicates]\nenabled = true\n'
+            'paths = ["specs"]\nhedges = ["fluffy"]\nrequire_reference = false\n',
+        )
+    )
+    assert cfg.predicates_enabled is True
+    assert cfg.predicates_paths == ("specs",)
+    assert cfg.predicates_hedges == ("fluffy",)
+    assert cfg.predicates_require_reference is False
+
+
 def test_shell_source_paths_loaded_and_default_resolves_sources(tmp_path: Path) -> None:
     """The defaults are load-bearing: they are what stops 16_shellcheck drowning in
     "cannot follow sourced file" notes, which is why they are resolution paths rather

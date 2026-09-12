@@ -30,6 +30,7 @@ profiler-style advisory recommender — proposes, never gates.
   CLI. Dead upstreams are removed, not flagged (RouteLLM, no commits since
   2024-08-10). Audit source: `docs/research/AGENT-TOOLING-SURVEY.md`.
 - **Curated, not authoritative** — a new tool is a one-line catalog PR (data).
+- **Verified by** `tests/unit/test_enhancements.py` (catalog integrity, filtering, rendering).
 
 ## borromeanRings config
 

@@ -14,7 +14,7 @@ id="15_a11y"
 log="$RECEIPT_DIR/$id.log"
 cmd="static a11y invariants (html lang, img alt, page title per [a11y].require)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$PROJECT_ROOT" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$PROJECT_ROOT" >"$log" 2>&1 <<'PY'
 import subprocess
 import sys
 from pathlib import Path

@@ -70,10 +70,10 @@ step-by-step way to exercise every feature on a fresh project.
 | 40 | test + coverage **ratchet** | `pytest --cov` (no absolute % target) |
 | 50 | security | `bandit` |
 
-The required set is declared in `borromeanrings.toml` `[checks].required` (twenty gates
+The required set is declared in `borromeanrings.toml` `[checks].required` (nineteen gates
 on this repo; `06_git_identity` exists but is intentionally excluded so external
 contributors pass CI — see ADR-0019). The table above is the v0 core; the full set of
-**29 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
+**28 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
 keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 ## Layout
@@ -90,6 +90,7 @@ keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 - `docs/MANIFESTO.md` — **the why**: the north star; borromeanRings is the meta-harness (it enhances agent capabilities incl. deep research); the notes/Kernel is a separate product built *with* it
 - `docs/VISION.md` — the whole product borromeanRings (the meta-harness) is meant to become
 - `docs/ROADMAP.md` — **every harness feature, with status** (plus the separate products built with borromeanRings)
+- `docs/SELF-ASSESSMENT.md` — **the evidence-based self-assessment**: how the gate works, what one cycle of sub-agent reviews found (defects by class, and whether a mechanism or only review catches each), gaps in the platform's own order, prioritised improvements
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
 

@@ -5,10 +5,14 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from meta_harness.adopt import RECOMMENDED
 from meta_harness.status import (
     ProjectStatus,
     build_status,
     discover_projects,
+    find_enclosing_project,
     gather,
     main,
     render,
@@ -111,9 +115,10 @@ def test_build_status_reports_adoption_drift() -> None:
         has_changelog=True,
         last_verdict=Verdict(ok=True),
     )
-    # all 5 recommended checks are missing here ⇒ the note reports the exact count.
-    assert len(s.missing_recommended) == 5
-    assert "drift: +5" in s.note
+    # every recommended check is missing here ⇒ the note reports the exact count.
+    # Derived from RECOMMENDED, not hardcoded, so growing the set is not a test break.
+    assert len(s.missing_recommended) == len(RECOMMENDED)
+    assert f"drift: +{len(RECOMMENDED)}" in s.note
 
 
 def test_build_status_names_failing_checks() -> None:
@@ -131,15 +136,26 @@ def test_build_status_names_failing_checks() -> None:
     assert "40_test" not in s.note
 
 
-def test_build_status_fully_adopted_has_no_note() -> None:
-    required = (
-        "00_build",
-        "12_secrets",
-        "11_changelog",
-        "32_complexity",
-        "33_coupling",
-        "45_docstrings",
+def test_noop_checks_are_not_reported_as_failures() -> None:
+    """A check that inspected nothing did not FAIL — mislabelling it destroys the signal."""
+    v = Verdict(
+        ok=False,
+        checks=(("50_security", "fail"), ("00_build", "noop"), ("40_test", "pass")),
     )
+    s = build_status(
+        "/p",
+        is_git=True,
+        config_dirty=False,
+        required=("00_build",),
+        has_changelog=True,
+        last_verdict=v,
+    )
+    assert "failed: 50_security" in s.note
+    assert "00_build" not in s.note
+
+
+def test_build_status_fully_adopted_has_no_note() -> None:
+    required = ("00_build", *RECOMMENDED)
     s = build_status(
         "/p",
         is_git=True,
@@ -309,3 +325,147 @@ def test_main_render_mode(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     assert "proj" in out
     assert "governed" in out
+
+
+# --- self-status scope: THIS project by default (ADR-0049) -----------------
+
+
+def test_find_enclosing_project_walks_up_from_a_subdirectory(tmp_path: Path) -> None:
+    proj = _write_project(tmp_path / "proj")
+    nested = proj / "src" / "deep"
+    nested.mkdir(parents=True)
+    assert find_enclosing_project(nested) == proj.resolve()
+
+
+def test_find_enclosing_project_returns_none_when_ungoverned(tmp_path: Path) -> None:
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert find_enclosing_project(plain) is None
+
+
+def test_main_defaults_to_this_project_not_the_portfolio(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """Bare `status.sh` must never walk $HOME — scope is opt-in (ADR-0049)."""
+    proj = _write_project(tmp_path / "proj")
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(proj))
+    rc = main([])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "this project only" in out
+    assert "proj" in out
+
+
+def test_list_without_all_stays_scoped_to_this_project(tmp_path: Path, capsys, monkeypatch) -> None:
+    """`--list` must not silently widen scope to $HOME.
+
+    `status.sh --run` discovers its work via `--list`. If that walked $HOME regardless of
+    scope, running it inside one project would re-gate every OTHER governed project on the
+    machine — writing receipts into unrelated repos and returning an exit code that
+    reflects their health, not this project's.
+    """
+    proj = _write_project(tmp_path / "proj")
+    # Sibling governed projects under $HOME: these must NOT be listed (and so must not be
+    # re-gated by `status.sh --run`) when the caller asked about `proj`.
+    _write_project(tmp_path / "unrelated_a")
+    _write_project(tmp_path / "unrelated_b")
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(proj))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert main(["--list"]) == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out == [str(proj.resolve())], "--list leaked into unrelated projects"
+
+
+def test_list_with_all_returns_the_portfolio(tmp_path: Path, capsys, monkeypatch) -> None:
+    _write_project(tmp_path / "a")
+    _write_project(tmp_path / "b")
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(tmp_path / "a"))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert main(["--list", "--all"]) == 0
+    assert len(capsys.readouterr().out.strip().splitlines()) == 2
+
+
+def test_main_self_report_on_ungoverned_dir_explains_adoption(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(plain))
+    assert main([]) == 0
+    assert "NOT GOVERNED" in capsys.readouterr().out
+
+
+def test_self_report_surfaces_hollow_checks_and_enforcement(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """The end-to-end point: a PASS built on checks that inspected nothing says so."""
+    proj = _write_project(tmp_path / "proj")
+    write_last_verdict(
+        proj,
+        Verdict(
+            ok=True,
+            checks=(("00_build", "noop"), ("20_lint", "pass")),
+            run_id="r1",
+            harness_version="v0.1.0",
+        ),
+    )
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(proj))
+    assert main([]) == 0
+    out = capsys.readouterr().out
+    assert "1 of 2" in out and "00_build" in out
+    assert "MANUAL" in out  # no hooks wired in this fixture
+
+
+def test_self_report_survives_an_unreadable_config(tmp_path: Path, capsys, monkeypatch) -> None:
+    """A status report that crashes is worse than one that says 'unknown'."""
+    proj = tmp_path / "broken"
+    proj.mkdir()
+    (proj / "borromeanrings.toml").write_text("not = [valid", encoding="utf-8")
+    monkeypatch.setenv("BORROMEANRINGS_PROJECT", str(proj))
+    assert main([]) == 0
+    assert "borromeanRings status" in capsys.readouterr().out
+
+
+# --- legacy config name (issue #62) -----------------------------------------
+
+
+def _write_legacy_project(root: Path, toml: str = _MINIMAL_TOML) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "borromeo.toml").write_text(toml, encoding="utf-8")
+    return root
+
+
+def test_discover_finds_legacy_named_project(tmp_path: Path) -> None:
+    _write_legacy_project(tmp_path / "old")
+    _write_project(tmp_path / "new")
+    assert discover_projects([tmp_path]) == [
+        (tmp_path / "new").resolve(),
+        (tmp_path / "old").resolve(),
+    ]
+
+
+def test_gather_legacy_project_loads_config_and_tracks_dirty(tmp_path: Path) -> None:
+    proj = _write_legacy_project(tmp_path / "old")
+    _git_init(proj)
+    subprocess.run(["git", "-C", str(proj), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(proj), "commit", "-q", "-m", "init"], check=True)
+    with pytest.warns(FutureWarning):
+        clean = gather(proj)
+    assert clean.required_count == 2
+    assert clean.config_dirty is False
+    (proj / "borromeo.toml").write_text(_MINIMAL_TOML + "\n# edit\n", encoding="utf-8")
+    with pytest.warns(FutureWarning):
+        dirty = gather(proj)
+    assert dirty.config_dirty is True
+
+
+def test_stray_legacy_file_does_not_dirty_a_clean_canonical_config(tmp_path: Path) -> None:
+    # Review of PR #165 nit: dirtiness follows the file that was actually resolved.
+    proj = _write_project(tmp_path / "proj")
+    _git_init(proj)
+    subprocess.run(["git", "-C", str(proj), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(proj), "commit", "-q", "-m", "init"], check=True)
+    (proj / "borromeo.toml").write_text("stale = true\n", encoding="utf-8")  # untracked stray
+    assert gather(proj).config_dirty is False
+    (proj / "borromeanrings.toml").write_text(_MINIMAL_TOML + "\n# edit\n", encoding="utf-8")
+    assert gather(proj).config_dirty is True

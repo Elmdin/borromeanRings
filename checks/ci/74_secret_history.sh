@@ -18,7 +18,7 @@ cmd="git-history secret scan (reachable blobs; high-confidence)"
 
 if ! git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "not a git repository — no history to scan" >"$log"
-  emit_receipt "$id" "$cmd" 0 "$log" "pass"
+  emit_noop "$id" "$cmd" "$log"
   exit 0
 fi
 

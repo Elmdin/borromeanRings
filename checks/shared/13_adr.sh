@@ -28,7 +28,7 @@ merge_base=""
 [ -n "$base" ] && merge_base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base" 2>/dev/null || true)"
 if [ -z "$merge_base" ]; then
   echo "no base branch to diff against — nothing to check" >"$log"
-  emit_receipt "$id" "$cmd" 0 "$log" "pass"
+  emit_noop "$id" "$cmd" "$log"
   exit 0
 fi
 

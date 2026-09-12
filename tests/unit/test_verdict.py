@@ -6,9 +6,11 @@ from pathlib import Path
 
 from meta_harness.verdict import (
     LAST_VERDICT_FILE,
+    NON_FAILING_STATUSES,
     VERDICT_HISTORY_FILE,
     Verdict,
     append_history,
+    is_failing,
     read_history,
     read_last_verdict,
     write_last_verdict,
@@ -117,6 +119,65 @@ def test_read_history_skips_blank_and_malformed_lines(tmp_path: Path) -> None:
 
 
 def test_to_dict_is_json_shaped() -> None:
-    v = Verdict(ok=True, checks=(("00_build", "pass"),), run_id="r", digest="d")
+    v = Verdict(
+        ok=True, checks=(("00_build", "pass"),), run_id="r", digest="d", harness_version="v1.2.3"
+    )
     d = v.to_dict()
-    assert d == {"ok": True, "run_id": "r", "digest": "d", "checks": [["00_build", "pass"]]}
+    assert d == {
+        "ok": True,
+        "run_id": "r",
+        "digest": "d",
+        "harness_version": "v1.2.3",
+        "checks": [["00_build", "pass"]],
+    }
+
+
+def test_harness_version_round_trips(tmp_path: Path) -> None:
+    # the governing borromeanRings version is persisted and read back verbatim.
+    write_last_verdict(tmp_path, Verdict(ok=True, harness_version="v1.0.0-3-gabc123"))
+    got = read_last_verdict(tmp_path)
+    assert got is not None
+    assert got.harness_version == "v1.0.0-3-gabc123"
+
+
+def test_read_verdict_without_harness_version_defaults_empty(tmp_path: Path) -> None:
+    # records written before versioning have no harness_version ⇒ "" (not "None").
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text('{"ok": true, "checks": []}', encoding="utf-8")
+    v = read_last_verdict(tmp_path)
+    assert v is not None
+    assert v.harness_version == ""
+
+
+# --- fail-closed status classification (the gate's core safety property) -------------
+# The gate must decide "does this status fail the run?" from an explicit ALLOWLIST.
+# Written as a negation ("anything that isn't 'fail'"), a new/typo'd/forged status would
+# silently pass — which is exactly the hole that introducing 'noop' could open.
+
+
+def test_real_pass_and_noop_do_not_fail_the_gate() -> None:
+    assert is_failing("pass") is False
+    assert is_failing("noop") is False
+
+
+def test_fail_and_error_fail_the_gate() -> None:
+    assert is_failing("fail") is True
+    assert is_failing("error") is True
+
+
+def test_unknown_status_fails_closed() -> None:
+    """The critical property: anything not explicitly allowlisted must FAIL."""
+    for unknown in ("", "?", "skipped", "noopp", "ok", "success", "MISSING", "unknown"):
+        assert is_failing(unknown) is True, f"{unknown!r} must fail closed"
+
+
+def test_status_matching_is_exact_not_fuzzy() -> None:
+    # Case/whitespace variants are not silently accepted — only the canonical form is.
+    for variant in ("PASS", "Pass", " pass", "pass ", "NOOP"):
+        assert is_failing(variant) is True, f"{variant!r} must not be treated as a pass"
+
+
+def test_non_failing_allowlist_is_immutable_and_minimal() -> None:
+    assert isinstance(NON_FAILING_STATUSES, frozenset)
+    assert sorted(NON_FAILING_STATUSES) == ["noop", "pass"]

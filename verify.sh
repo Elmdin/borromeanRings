@@ -29,9 +29,24 @@ export BORROMEANRINGS_HOME PROJECT_ROOT
 source "$BORROMEANRINGS_HOME/checks/_py.sh"
 CONFIG="$PROJECT_ROOT/borromeanrings.toml"
 
+# Which borromeanRings version is governing this run. `git describe` on borromeanRings's own
+# repo reflects the exact code state (tag when clean, `-N-g<sha>-dirty` when ahead/modified,
+# short SHA before the first tag); the VERSION file is the human-declared release fallback.
+# Stamped into the gate output and the persisted Verdict so each governed project's evidence
+# records what verified it — not just pass/fail. See ADR-0048.
+HARNESS_VERSION="$(git -C "$BORROMEANRINGS_HOME" describe --tags --always --dirty 2>/dev/null || true)"
+[ -n "$HARNESS_VERSION" ] || HARNESS_VERSION="$(cat "$BORROMEANRINGS_HOME/VERSION" 2>/dev/null || echo unknown)"
+export HARNESS_VERSION
+
 if [ ! -f "$CONFIG" ]; then
-  echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
-  exit 1
+  if [ -f "$PROJECT_ROOT/borromeo.toml" ]; then
+    # Pre-rename config name (issue #62): still honored (meta_harness.spine falls back to
+    # it), but deprecated — say so on every run until the project renames the file.
+    echo "borromeanRings: DEPRECATED config name borromeo.toml in $PROJECT_ROOT — still honored; rename it: git mv borromeo.toml borromeanrings.toml (see docs/RENAME.md)." >&2
+  else
+    echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
+    exit 1
+  fi
 fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
@@ -66,7 +81,7 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
 import json
 import os
 import sys
@@ -75,9 +90,9 @@ from pathlib import Path
 from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
-from meta_harness.verdict import Verdict, append_history, write_last_verdict
+from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
 
-config_path, receipt_dir, project_root, heavy = sys.argv[1:5]
+config_path, receipt_dir, project_root, heavy, harness_version = sys.argv[1:6]
 config = load_config(config_path)
 # Under --heavy the CI-tier heavy checks are also required; otherwise only the
 # fast required set gates (the heavy set never blocks the inner Stop gate).
@@ -108,18 +123,27 @@ for cid in expected:
         rows.append((cid, f"{status.upper()} !TAMPERED"))
         continue
     intact_hashes.append(receipt.get("content_sha256", ""))
-    if status != "pass":
+    # Fail-closed by ALLOWLIST, never by negation: only statuses meta_harness.verdict
+    # declares non-failing (pass, noop) survive, so an unknown/typo'd/forged status
+    # still fails. See ADR-0049.
+    if is_failing(status):
         ok = False
     rows.append((cid, status.upper()))
 
 width = max(len(c) for c, _ in rows)
 print()
 print(f"  borromeanRings gate  (project: {project_root})")
+print(f"  harness-version: {harness_version}")
 print("  " + "-" * (width + 14))
 for cid, status in rows:
     print(f"  {cid.ljust(width)}   {status}")
 print("  " + "-" * (width + 14))
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
+# A green built partly on checks that inspected NOTHING is not the same green as one
+# where every check did real work. Say so here, or the verdict over-claims (ADR-0049).
+hollow = [cid for cid, status in rows if status == "NOOP"]
+if hollow:
+    print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} — {', '.join(hollow)}")
 digest = run_digest(intact_hashes) if intact_hashes else ""
 if digest:
     print(f"  run-digest: {digest}")
@@ -136,9 +160,12 @@ try:
         checks=tuple((cid, status.lower()) for cid, status in rows),
         run_id=os.path.basename(receipt_dir),
         digest=digest,
+        harness_version=harness_version,
     )
     write_last_verdict(Path(project_root), _verdict)
     append_history(Path(project_root), _verdict)
+    # Make each receipt bundle self-describing: which borromeanRings produced it.
+    Path(receipt_dir, "harness_version.txt").write_text(harness_version + "\n", encoding="utf-8")
 except OSError:
     pass
 

@@ -12,15 +12,16 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 . "$HERE/_lib.sh"
 
 # Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
-[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
+# borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
+{ [ -f "$PROJECT_DIR/borromeanrings.toml" ] || [ -f "$PROJECT_DIR/borromeo.toml" ]; } || exit 0
 
 # No dedupe needed here: a duplicate registration just re-checks the same
 # command and reaches the same verdict (idempotent). The read stays bounded.
 input="$(borromeanrings_read_stdin)"
-cmd="$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo '')"
+cmd="$(printf '%s' "$input" | borromeanrings_py -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo '')"
 
 deny() {
-  python3 -c "import json,sys; print(json.dumps({'hookSpecificOutput':{'hookEventName':'PreToolUse','permissionDecision':'deny','permissionDecisionReason':sys.argv[1]}}))" "$1"
+  borromeanrings_py -c "import json,sys; print(json.dumps({'hookSpecificOutput':{'hookEventName':'PreToolUse','permissionDecision':'deny','permissionDecisionReason':sys.argv[1]}}))" "$1"
   exit 0
 }
 
@@ -67,7 +68,7 @@ is_force_push "$cmd" &&
 case "$cmd" in
   *"git commit"* | *"git push"*)
     branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
-    reason="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+    reason="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - \
       "$PROJECT_DIR/borromeanrings.toml" "$branch" 2>/dev/null <<'PY'
 import sys
 
@@ -97,7 +98,7 @@ case "$cmd" in
     reason="$(
       cfg_name="$(git -C "$PROJECT_DIR" config user.name 2>/dev/null || true)" \
       cfg_email="$(git -C "$PROJECT_DIR" config user.email 2>/dev/null || true)" \
-      PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR/borromeanrings.toml" <<'PY'
+      PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR/borromeanrings.toml" <<'PY'
 import os
 import sys
 

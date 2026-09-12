@@ -16,7 +16,7 @@ judge_command="$(borromeanrings_project_cfg critic_judge_command)"
 rubrics="$(borromeanrings_project_cfg critic_rubrics)"
 if [ -z "$judge_command" ] || [ "$rubrics" = "()" ]; then
   echo "critic rubrics off (need [critic].judge_command and [critic].rubrics) — advisory" >"$log"
-  emit_receipt "$id" "$cmd" 0 "$log" "pass"
+  emit_noop "$id" "$cmd" "$log"
   exit 0
 fi
 

@@ -15,7 +15,7 @@ cmd="doc-drift critic (advisory; model judge external to the generator)"
 judge_command="$(borromeanrings_project_cfg critic_judge_command)"
 if [ -z "$judge_command" ]; then
   echo "no [critic].judge_command configured — doc-drift critic off (advisory)" >"$log"
-  emit_receipt "$id" "$cmd" 0 "$log" "pass"
+  emit_noop "$id" "$cmd" "$log"
   exit 0
 fi
 

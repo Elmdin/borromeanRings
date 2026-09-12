@@ -11,8 +11,12 @@ def overall_status(statuses: Iterable[str]) -> str:
     """Aggregate per-check statuses into one verdict, failing closed.
 
     Returns ``"pass"`` only when *every* status is ``"pass"``. Any non-pass
-    status — or an empty input (absence of proof) — yields ``"fail"``. This is
-    the same rule borromeanRings's gate applies across its checks.
+    status — or an empty input (absence of proof) — yields ``"fail"``.
+
+    This illustrates the *shape* of borromeanRings's fail-closed rule; the gate's actual
+    classifier is :func:`meta_harness.verdict.is_failing`, which also treats ``"noop"``
+    as non-failing (ADR-0049). Kept simple deliberately — it is a demo module that gives
+    the gate real typed, tested code to chew on, not the policy itself.
 
     Args:
         statuses: the individual check statuses to aggregate.

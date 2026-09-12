@@ -12,7 +12,8 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 . "$HERE/_lib.sh"
 
 # Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
-[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
+# borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
+{ [ -f "$PROJECT_DIR/borromeanrings.toml" ] || [ -f "$PROJECT_DIR/borromeo.toml" ]; } || exit 0
 
 # No dedupe needed here: a duplicate registration just re-checks the same
 # command and reaches the same verdict (idempotent). The read stays bounded.

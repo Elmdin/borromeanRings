@@ -17,7 +17,7 @@ package="$(borromeanrings_project_cfg package)"
 
 if [ -z "$package" ] || [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -print -quit 2>/dev/null)" ]; then
   echo "no package/source to measure (greenfield) — nothing to analyze" >"$log"
-  emit_receipt "$id" "$cmd" 0 "$log" "pass"
+  emit_noop "$id" "$cmd" "$log"
   exit 0
 fi
 

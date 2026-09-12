@@ -70,16 +70,19 @@ step-by-step way to exercise every feature on a fresh project.
 | 40 | test + coverage **ratchet** | `pytest --cov` (no absolute % target) |
 | 50 | security | `bandit` |
 
-The required set is declared in `borromeanrings.toml` `[checks].required` (eight gates
+The required set is declared in `borromeanrings.toml` `[checks].required` (nineteen gates
 on this repo; `06_git_identity` exists but is intentionally excluded so external
-contributors pass CI — see ADR-0019).
+contributors pass CI — see ADR-0019). The table above is the v0 core; the full set of
+**28 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
+keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 ## Layout
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
-- `status.sh` — the **portfolio view**: one table across every governed project (last verdict, config/adoption drift, non-git repos); `--run` re-gates, `--list` prints paths (ADR-0046)
+- `status.sh` — **this project's** status by default: governed? enforcement actually on (hooks wired vs. disabled)? last verdict, and how many of those checks inspected **nothing** (ADR-0049). `--all` opts into the portfolio table across every governed project; `--run` re-gates, `--list` prints paths (ADR-0046)
 - `ledger.sh` — the **effectiveness view**: per project, gate runs / failures caught / pass-fail streak from the recorded verdict history — is the gate actually catching anything (ADR-0047)
-- `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set)
+- `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set); catalogued in `docs/CHECKS.md`
+- `VERSION` — the declared release marker; every gate run is stamped with the governing borromeanRings version (ADR-0048)
 - `borromeanrings.toml` — the policy spine: declared invariants enforced on every run
 - `.claude/` — Claude Code hook **adapters** over the substrate-neutral gate
 - prompt rewriting: `.claude/hooks/prompt_rewrite.sh` (UserPromptSubmit) injects a spine-driven rewrite directive; toggle in `borromeanrings.toml`
@@ -87,6 +90,7 @@ contributors pass CI — see ADR-0019).
 - `docs/MANIFESTO.md` — **the why**: the north star; borromeanRings is the meta-harness (it enhances agent capabilities incl. deep research); the notes/Kernel is a separate product built *with* it
 - `docs/VISION.md` — the whole product borromeanRings (the meta-harness) is meant to become
 - `docs/ROADMAP.md` — **every harness feature, with status** (plus the separate products built with borromeanRings)
+- `docs/SELF-ASSESSMENT.md` — **the evidence-based self-assessment**: how the gate works, what one cycle of sub-agent reviews found (defects by class, and whether a mechanism or only review catches each), gaps in the platform's own order, prioritised improvements
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
 

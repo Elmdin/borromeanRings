@@ -7,7 +7,7 @@ src_dir="$(borromeanrings_project_cfg src_dir)"
 if [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -print -quit 2>/dev/null)" ]; then
   log="$RECEIPT_DIR/30_typecheck.log"
   echo "no Python source in '$src_dir' yet (greenfield) — nothing to typecheck" >"$log"
-  emit_receipt "30_typecheck" "typecheck (no source yet)" 0 "$log" "pass"
+  emit_noop "30_typecheck" "typecheck (no source yet)" "$log"
   exit 0
 fi
 run_check "30_typecheck" "mypy" "mypy $src_dir"

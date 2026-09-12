@@ -12,6 +12,17 @@ queue is merged.
 
 ## [Unreleased]
 
+### Deprecated
+- The pre-rename config file name `borromeo.toml` (issue #62). It still loads —
+  `meta_harness.spine.resolve_config_path` falls back to it when `borromeanrings.toml`
+  is absent and prints a `FutureWarning` to stderr (once per process per legacy file;
+  shown by Python's default filters, which a `DeprecationWarning` is not). Visible from
+  `verify.sh` (its own notice on every run), `status.sh`, `ledger.sh`, the Stop and
+  UserPromptSubmit hooks; the PreToolUse branch guard swallows stderr by design and stays
+  silent but still governs — so no already-governed project falls out of governance. Migrate with `git mv borromeo.toml borromeanrings.toml`.
+  The `meta_harness` package and the `.meta-harness/` evidence directory are deliberately
+  NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
+
 ### Added
 - Honest no-op status + source-coherence guard + self-status (ADR-0049) — the fix for a
   **hollow green**. A governed project reported `ok: true`, 12/12, while seven of those
@@ -51,6 +62,46 @@ queue is merged.
   enable a check (`init.sh`/`adopt.sh`/manual) and how to opt a project into *automatic*
   governance (the per-project hooks model). Closes the "how do I know how to use all its
   features" gap.
+- `docs/RENAME.md` (issue #62): the borromeo -> borromeanRings rename tail — what was
+  renamed, what deliberately was not and why, and the exact commands to fix a local
+  clone's remote URL, re-run `install-global.sh`, and refresh the GitHub label
+  descriptions that still say "borromeo".
+### Changed
+- Enhancement catalog health-audited (#133): entries carry `maintained_as_of` / `needs_api_key` / `applies_to`, `recommend()` filters by substrate, RouteLLM (dead) and OmniRoute (search-query URL) removed, Serena / Repomix / ast-grep / pyright-lsp added.
+
+### Added
+- Issue forms, PR template, and label scheme (closes #61): YAML issue forms for bug
+  report (repro, expected/actual, gate output + receipt path, `harness-version`),
+  feature request (user story, acceptance checkboxes, quality attributes, the check
+  that would enforce it, ADR/milestone fit) and research/spike (question, sources,
+  deliverable under `docs/research/`); blank issues disabled, vulnerabilities routed to
+  the private advisory. `PULL_REQUEST_TEMPLATE.md` now mirrors the real definition of
+  done (fast gate, `--heavy` with `60_mutation`/`74_secret_history`, sub-agent review
+  on the PR, ADR/CHANGELOG/spec when applicable, no new CI/packaging, subject ≤ 72).
+  `docs/LABELS.md` documents the label + milestone vocabulary reconciled with the
+  labels that exist; `scripts/labels.sh` (idempotent, `--dry-run`, shellcheck-clean)
+  applies it — run by a human on purpose, never by a hook.
+- Platform self-assessment (`docs/SELF-ASSESSMENT.md`, issue #51): how the gate, receipts,
+  hooks, ratchets and lanes work with every claim cited; the defect-class table built from
+  this cycle's 25 sub-agent PR reviews (#148–#185) plus the full-source licence sweep, and
+  whether a mechanism or only review catches each class; gaps ranked fail-closed → vacuous evidence → matrix coverage →
+  ergonomics; ten prioritised improvements with tracking issues (four newly filed:
+  #186 fail-closed enumeration, #187 mutation-lane vacuity guard, #188 citation check,
+  #189 license shingle check); the constraints honoured and where each is enforced.
+- Toolchain pinning (ADR-0077): `[project.optional-dependencies].dev` pins with `==`
+  every package that decides a verdict — the check tools, plus `coverage` (measures the
+  ratchet) and `libcst` (generates mutmut's mutants). The rest of the closure stays free
+  to resolve current, because pinning it froze four packages at versions with known CVEs
+  and `70_pip_audit` correctly went red. `meta_harness.toolchain` + integration tests fail
+  closed when the gate runs a version other than the pinned one, when a version cannot be
+  read, when a `dev` requirement is not exact, or when a tool reachable from `checks/**.sh`
+  has no pin. Each tool is observed through **the argv its check uses** (`ruff` from
+  `PATH`, `pytest` via `python3 -m`), because those resolve to different installs on a
+  machine with a user-site shim.
+- CI prints the log of every check that did not pass, marking checks outside the required
+  set as advisory. A red gate used to name the failing check and nothing else. Adding a check that
+  invokes a new binary now also requires registering and pinning it; the failure message
+  names the three steps.
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

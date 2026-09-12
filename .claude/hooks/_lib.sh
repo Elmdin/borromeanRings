@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helpers for borromeanRings's substrate hooks. Sourced, not executed.
 # Callers using borromeanrings_claim/borromeanrings_release define
 # BORROMEANRINGS_HOME and PROJECT_DIR before calling them; the other helpers

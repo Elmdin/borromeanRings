@@ -31,7 +31,14 @@ _DECIDERS_NOT_INVOKED_DIRECTLY = {"coverage", "libcst"}
 
 # Not pinnable from PyPI: the interpreter, stdlib modules, and the coreutils
 # binaries `checks/_lib.sh` bounds each check with.
-_NOT_A_DISTRIBUTION = {"python3", "compileall", "timeout", "gtimeout"}
+# `shellcheck` (from 16_shellcheck, #124) is excluded here on purpose: the
+# `shellcheck-py` wheel is versioned 0.11.0.1 while the binary it ships reports
+# 0.11.0, so TOOLS (which verifies the RUNNING version against the pin) cannot
+# check it — the case the _DIST_OF_BINARY comment below describes. It is pinned
+# exactly as `shellcheck-py==` in [dev] and enforced by
+# test_every_dev_requirement_is_pinned_exactly, which is the right guarantee for a
+# tool whose wheel and binary versions differ.
+_NOT_A_DISTRIBUTION = {"python3", "compileall", "timeout", "gtimeout", "shellcheck"}
 # Import name → distribution name, where they differ.
 _DIST_OF_MODULE = {"pip_audit": "pip-audit"}
 # Binary name → distribution name, where they differ. Empty on purpose.

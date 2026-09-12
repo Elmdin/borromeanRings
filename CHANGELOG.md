@@ -96,6 +96,27 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Added
+- Provenance gate `25_provenance` (ADR-0070, `docs/specs/SPEC-provenance.md`, closes #189):
+  re-authored text must not reproduce its declared source. The ADR-0020 rule for the 4D
+  merge (#172) was enforced by review alone, and review found copied or clause-for-clause
+  passages in two of five ports after the builder had reported them clean; the reviewer's
+  shingle sweep lived only in a scratchpad. Now a check: every file changed since the
+  merge-base under `[provenance].paths` is split into **6-word shingles** (lowercased,
+  Unicode punctuation stripped, whitespace collapsed, code fences skipped) and compared
+  with every file under `[provenance].sources` (config, then the colon-separated
+  `BORROMEANRINGS_PROVENANCE_SOURCES` env var — so a machine-local sibling path never
+  lands in the config). **Binary, no score**: any overlap not covered by
+  `[provenance].allow` fails, printed as `changed:line ↔ source:line — "<shingle>"`;
+  the gate never guesses which overlaps are "generic" — the human allowlists them with a
+  reason, in a reviewable diff. No `[provenance]` ⇒ off (`noop`); no sources or nothing
+  changed under `paths` ⇒ `noop`; absent/unreadable/empty source, git error inside a
+  repo, or an allow entry that normalizes to nothing ⇒ **fail closed**. Self-quotes
+  (overlap among this repo's own files, or a source inside the project) are never
+  findings. Pure core `meta_harness.provenance` (100% line+branch, exact-value tests);
+  end-to-end tests on a fixture repo + fixture source cover off / noop / pass / fail with
+  locations / allowlisted / unreadable source / env-var. This repo declares
+  `sources = []` (honest `noop` until the maintainer sets the env var) and registers the
+  check in `[checks].required`; `adopt.sh`'s RECOMMENDED set is unchanged (opt-in).
 - Predicate lint (`23_predicates`, `meta_harness.predicates`, ADR-0064, #174): the
   checkable statements this repo's documents make — SPEC `Contract`/`Guarantees`/
   `Acceptance` bullets, ADR `Consequences` bullets phrased must/never/shall, issue-form

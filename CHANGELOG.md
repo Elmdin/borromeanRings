@@ -12,6 +12,9 @@ queue is merged.
 
 ## [Unreleased]
 
+### Changed
+- Enhancement catalog health-audited (#133): entries carry `maintained_as_of` / `needs_api_key` / `applies_to`, `recommend()` filters by substrate, RouteLLM (dead) and OmniRoute (search-query URL) removed, Serena / Repomix / ast-grep / pyright-lsp added.
+
 ### Added
 - Platform self-assessment (`docs/SELF-ASSESSMENT.md`, issue #51): how the gate, receipts,
   hooks, ratchets and lanes work with every claim cited; the defect-class table built from

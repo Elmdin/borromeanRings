@@ -22,7 +22,7 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 
 input="$(borromeanrings_read_stdin)"
 if [ -n "$input" ]; then
-  key="$(printf '%s' "$input" | python3 -c "
+  key="$(printf '%s' "$input" | borromeanrings_py -c "
 import hashlib, json, sys
 d = json.load(sys.stdin)
 digest = hashlib.sha256(d.get('prompt', '').encode()).hexdigest()[:16]
@@ -35,7 +35,7 @@ fi
 # Empty/unparseable payload ⇒ no dedupe key ⇒ emit anyway (fail-open: a timed-out
 # read must never silently drop the directive).
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR/borromeanrings.toml" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR/borromeanrings.toml" <<'PY'
 import sys
 
 try:

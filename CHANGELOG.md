@@ -12,6 +12,25 @@ queue is merged.
 
 ## [Unreleased]
 
+### Fixed
+- The Stop hook's retry count could be reset by deleting a file (#218, ADR-0079). It lived
+  in `.meta-harness/stop_attempts/`, inside the project, and a missing file read as `0`. It
+  now lives under `${XDG_STATE_HOME:-$HOME/.local/state}/borromeanrings/<project-digest>/`,
+  keyed by the project's resolved path, via the new `meta_harness.retry_state` (pure, 100%
+  unit-tested). This resists accident and a naive reset: tidying `.meta-harness/`, deleting
+  the counter or writing `0` into it no longer buys attempts. It is **not** a bound against
+  intent: the gate runs the project's own tests as the user, so a `conftest.py` can still
+  delete the count, as can any same-user process; only an isolated test run closes that.
+  Keyless. Fails closed: a broken or unusable state directory, one that resolves inside the
+  project, or a symlink on the old in-tree path now escalates to the human instead of
+  silently counting from zero. The old in-tree count is carried over with `max()`, walked
+  without following symlinks, then removed. The headless driver from #217 must adopt the
+  same module when it lands.
+- Hooks no longer import modules from the governed project. They run from the project
+  directory, where `python3 -c` put a planted `json.py` ahead of the standard library; the
+  Stop hook's payload parse imported one and got a fresh session id on every Stop. Every
+  hook now starts Python through `borromeanrings_py` (`.claude/hooks/_lib.sh`), which runs
+  it from `/`. Not `-P`, which needs Python 3.11 against `requires-python = ">=3.10"`.
 ### Deprecated
 - The pre-rename config file name `borromeo.toml` (issue #62). It still loads —
   `meta_harness.spine.resolve_config_path` falls back to it when `borromeanrings.toml`

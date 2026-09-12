@@ -17,10 +17,38 @@
 # See docs/specs/SPEC-merge.md and docs/adr/{0007,0009}-*.md.
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Fail loudly rather than run git operations from whatever directory we happen
-# to be in if the cd fails.
-cd "$ROOT" || { echo "merge: cannot cd to $ROOT" >&2; exit 1; }
+# Two distinct roots, exactly as verify.sh resolves them (ADR-0013): BORROMEANRINGS_HOME
+# is where the harness lives; PROJECT_ROOT is the repository being merged. They coincide
+# only when borromeanRings governs itself.
+#
+# This script used to cd into BORROMEANRINGS_HOME and operate there unconditionally, so
+# invoking it from a governed project checked *borromeanRings's* working tree for
+# dirtiness and would have merged *borromeanRings's* branches — the wrong repository
+# entirely. Every git/gh call below now runs in PROJECT_ROOT.
+BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd)" || {
+  echo "borromeanRings merge: cannot resolve project directory." >&2
+  exit 1
+}
+export BORROMEANRINGS_HOME PROJECT_ROOT
+
+# `gh` resolves the target repository from GH_REPO *before* falling back to inferring it
+# from the current directory. An inherited GH_REPO (set by an earlier command, a shell
+# profile or a CI job) would therefore send `gh pr merge` at a completely different
+# repository no matter which directory we are standing in. Clear it: for this tool the
+# repository is always the project being merged.
+unset GH_REPO
+# Fail loudly rather than run git operations from whatever directory we happen to be in.
+cd "$PROJECT_ROOT" || {
+  echo "borromeanRings merge: cannot cd to $PROJECT_ROOT" >&2
+  exit 1
+}
+
+if [ ! -f "$PROJECT_ROOT/borromeanrings.toml" ]; then
+  echo "borromeanRings merge: $PROJECT_ROOT is not governed (no borromeanrings.toml)." >&2
+  exit 1
+fi
 
 AUTO=0
 positional=()
@@ -32,6 +60,8 @@ for arg in "$@"; do
 done
 BASE="${positional[0]:-main}"
 branch="$(git rev-parse --abbrev-ref HEAD)"
+# The tip that is being merged, captured before anything moves.
+head_sha="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
 # --- Preconditions ----------------------------------------------------------
 if [ "$branch" = "$BASE" ]; then
@@ -45,13 +75,13 @@ fi
 
 # --- Gate is the precondition (fail-closed) ---------------------------------
 echo "borromeanRings merge: running the gate on '$branch'…"
-if ! ./verify.sh; then
+if ! BORROMEANRINGS_PROJECT="$PROJECT_ROOT" bash "$BORROMEANRINGS_HOME/verify.sh"; then
   echo "borromeanRings merge: REFUSED — gate did not pass. Nothing merged." >&2
   exit 1
 fi
 
 # --- Policy: explicit request (we are one) + gate passed --------------------
-decision="$(PYTHONPATH=src python3 -c "from meta_harness.merge_policy import decide_merge; d=decide_merge(gate_passed=True, explicitly_requested=True); print('ALLOW' if d.allowed else 'DENY', d.reason)")"
+decision="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c "from meta_harness.merge_policy import decide_merge; d=decide_merge(gate_passed=True, explicitly_requested=True); print('ALLOW' if d.allowed else 'DENY', d.reason)")"
 if [ "${decision%% *}" != "ALLOW" ]; then
   echo "borromeanRings merge: REFUSED by policy: ${decision#* }" >&2
   exit 1
@@ -87,6 +117,7 @@ if [ "$AUTO" = "1" ]; then
     exit 1
   }
   mode="auto (local gate + CI)"
+  result_sha=""
 else
   echo "borromeanRings merge: gate green — merging '$branch' into '$BASE'."
   if command -v gh >/dev/null 2>&1 && gh pr view "$branch" >/dev/null 2>&1; then
@@ -94,6 +125,7 @@ else
       echo "borromeanRings merge: 'gh pr merge' failed; nothing merged." >&2
       exit 1
     }
+    result_sha=""
   else
     git checkout "$BASE" || exit 1
     if ! git merge --no-ff "$branch" -m "merge: $branch into $BASE (gated by borromeanRings)"; then
@@ -101,7 +133,13 @@ else
       echo "borromeanRings merge: merge conflict — aborted, nothing changed." >&2
       exit 1
     fi
-    git push origin "$BASE" || exit 1
+    result_sha="$(git rev-parse HEAD)"
+    if ! git push origin "$BASE"; then
+      echo "borromeanRings merge: the merge succeeded LOCALLY but the push failed." >&2
+      echo "  '$PROJECT_ROOT' is now on '$BASE' with an unpushed merge commit $result_sha." >&2
+      echo "  Resolve the push, or undo with: git -C '$PROJECT_ROOT' reset --hard origin/$BASE" >&2
+      exit 1
+    fi
   fi
   mode="immediate (local gate)"
 fi
@@ -109,13 +147,17 @@ fi
 # --- Audit receipt ----------------------------------------------------------
 ts="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p .meta-harness/merges
-PYTHONPATH=src python3 - "$branch" "$BASE" "$ts" "$mode" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+  "$branch" "$BASE" "$ts" "$mode" "$head_sha" "${result_sha:-}" <<'RECEIPT'
 import json
-import subprocess
 import sys
 
-branch, base, ts, mode = sys.argv[1:5]
-sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+branch, base, ts, mode, head_sha, result_sha = sys.argv[1:7]
+
+# Record only what this run can actually attest to. `head_sha` is the branch tip that
+# was merged — true on both paths. `merge_commit_sha` exists only on the local-git path;
+# a `gh pr merge` completes server-side and leaves local HEAD untouched, so reading HEAD
+# afterwards would name the pre-merge commit and label it as the merge's result.
 receipt = {
     "action": "merge",
     "mode": mode,
@@ -123,13 +165,19 @@ receipt = {
     "base": base,
     "gate": "pass",
     "timestamp": ts,
-    "merged_sha": sha,
+    "head_sha": head_sha,
 }
+if result_sha:
+    receipt["merge_commit_sha"] = result_sha
+else:
+    receipt["merge_commit_sha"] = None
+    receipt["note"] = "merged via the GitHub API; the merge commit exists remotely"
+
 path = f".meta-harness/merges/{ts}.json"
 with open(path, "w") as fh:
     json.dump(receipt, fh, indent=2)
     fh.write("\n")
 print(f"  audit receipt: {path}")
-PY
+RECEIPT
 
 echo "borromeanRings merge: done."

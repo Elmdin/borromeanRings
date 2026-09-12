@@ -27,6 +27,17 @@ requires-python = ">=3.10"
 # coverage measures the ratchet, and libcst generates mutmut's mutants, so either one
 # moving changes a score. Depending on them is real, so it is declared.
 dev = [
+  "ruff>=0.6",
+  "mypy>=1.10",
+  "pytest>=8",
+  "pytest-cov>=5",
+  "bandit>=1.7",
+  "pip-audit>=2.7",
+  "mutmut>=3",
+  "pip-licenses>=5",
+  # Ships the real shellcheck binary as a wheel, so CI needs no apt/brew step and
+  # local installs match CI exactly (check 16_shellcheck, ADR-0050).
+  "shellcheck-py>=0.10",
   "ruff==0.15.8",
   "mypy==1.19.1",
   "pytest==9.0.3",

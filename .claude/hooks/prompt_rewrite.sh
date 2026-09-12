@@ -17,7 +17,8 @@ BORROMEANRINGS_HOME="$(cd "$HERE/../.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 . "$HERE/_lib.sh"
 
-[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
+# borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
+{ [ -f "$PROJECT_DIR/borromeanrings.toml" ] || [ -f "$PROJECT_DIR/borromeo.toml" ]; } || exit 0
 
 input="$(borromeanrings_read_stdin)"
 if [ -n "$input" ]; then

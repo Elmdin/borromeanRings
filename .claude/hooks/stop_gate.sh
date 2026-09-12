@@ -12,7 +12,8 @@ CAP=3   # max retry attempts before escalating to the human
 . "$HERE/_lib.sh"
 
 # Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
-[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
+# borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
+{ [ -f "$PROJECT_DIR/borromeanrings.toml" ] || [ -f "$PROJECT_DIR/borromeo.toml" ]; } || exit 0
 
 input="$(borromeanrings_read_stdin)"
 read -r stop_active session_id <<EOF

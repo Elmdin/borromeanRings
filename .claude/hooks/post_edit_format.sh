@@ -7,7 +7,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/_lib.sh"
 
 # Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
-[ -f "${CLAUDE_PROJECT_DIR:-$PWD}/borromeanrings.toml" ] || exit 0
+# borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
+{ [ -f "${CLAUDE_PROJECT_DIR:-$PWD}/borromeanrings.toml" ] || [ -f "${CLAUDE_PROJECT_DIR:-$PWD}/borromeo.toml" ]; } || exit 0
 
 # No dedupe needed here: formatting the same file twice is idempotent. The
 # read stays bounded so an unclosed pipe can't orphan this shell.

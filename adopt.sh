@@ -21,6 +21,7 @@ PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || {
 
 if [ ! -f "$PROJECT_DIR/borromeanrings.toml" ]; then
   echo "adopt: $PROJECT_DIR is not borromeanRings-governed (no borromeanrings.toml)" >&2
+  [ -f "$PROJECT_DIR/borromeo.toml" ] && echo "adopt: found legacy borromeo.toml — rename it first: git mv borromeo.toml borromeanrings.toml (docs/RENAME.md)" >&2
   echo "       run ./init.sh \"$PROJECT_DIR\" first to bootstrap it." >&2
   exit 1
 fi

@@ -45,7 +45,7 @@ harder to game.
 | Practice | Tier | Status | Notes |
 |---|---|---|---|
 | Tests pass | T0 | ✅ | `checks/…/40_test.sh` |
-| Coverage non-regression | T1 | ❌ | **candidate** — no check exists (`.borromeanrings-coverage-baseline` was never wired; this row previously mis-claimed ✅). Buildable now; mutation is the stronger signal but coverage catches un-executed code |
+| Coverage non-regression | T1 | ✅ | `40_test` ratchets coverage against `.borromeanrings-coverage-baseline` (currently 100) — non-regression, no absolute target. Caught a real 98.24%-vs-100% drop during PR #122 |
 | **Mutation score** (assertion/oracle strength) | T1 | ✅ | `checks/ci/60_mutation.sh` (heavy lane); ratchet 0.83 vs baseline 0.80; fail-closed on 0-evaluated (ADR-0022) |
 | Property-based / metamorphic testing present | T1/T3 | ❌ | deferred — mutation testing already measures oracle strength |
 | Boundary-value / equivalence design | T2 | ⚠️ | `56_critics` rubric `boundary_value` — advisory critic, dormant until a judge is wired (ADR-0036) |
@@ -66,7 +66,7 @@ harder to game.
 | Static SAST | T0 | ✅ | bandit (`50_security`) |
 | Dependency / CVE audit | T0 | ✅ | `checks/ci/70_pip_audit.sh` (heavy lane) — pip-audit, `[audit]` ignores (ADR-0034) |
 | Secret scanning | T0 | ✅ | `checks/shared/12_secrets.sh` — native high-confidence scan (tracked files); gitleaks (entropy) is the heavy-lane follow-up (ADR-0032). **Hardening candidate:** fails vacuously on a non-git dir (empty `git ls-files`) — a "can't-scan ≠ nothing-to-find" gap found in rollout (spaceThink) |
-| Git-history secret scan | T0 | ❌ | candidate — a deleted-then-committed secret stays compromised; scan history, not just HEAD |
+| Git-history secret scan | T0 | ✅ | `74_secret_history` (heavy/CI) scans every blob reachable from any ref — a committed-then-deleted secret stays compromised. Deduped by one-way fingerprint; `[secrets].history_allow` acknowledges rotated findings (ADR-0042) |
 | Pinned deps / lockfile integrity / SBOM | T0 | ⚠️ | `pyproject.toml`; no lockfile-integrity gate. **SBOM generation + supply-chain provenance** is the next security build (candidate) |
 | License compliance | T0 | ✅ | `checks/ci/72_licenses.sh` (heavy lane) — pip-licenses denylist (ADR-0035) |
 | Fuzzing / DAST | T1/T3 | ❌ | |
@@ -75,7 +75,7 @@ harder to game.
 | **Dependency-direction / architecture fitness functions** | T0 | ✅ | `checks/python/35_architecture.sh` — native import-graph contracts: leaves/private/forbidden/acyclic (ADR-0027) |
 | Layering / information-hiding | T0 | ✅ | `35_architecture` now enforces *dependency* rules (not just file layout) (ADR-0027) |
 | Coupling/cohesion metrics | T1 | ✅ | `checks/python/33_coupling.sh` — worst-case fan-out ratchet (ADR-0038) |
-| ADR present for load-bearing decisions | T0/T3 | ⚠️ | 41 ADRs by convention (`docs/adr`), not gated — a candidate T0 gate |
+| ADR present for load-bearing decisions | T0/T3 | ✅ | `13_adr` gates it: on a `feat/` branch, a change touching `src` must add or modify an ADR under `[adr].dir` (ADR-0043) |
 | Design-doc for N-file features | T0/T3 | ⚠️ | rule only |
 | Public-API breaking-change detection | T1 | ✅ | `checks/python/34_api_diff.sh` — signature diff vs merge-base; fails on removed symbol / renamed param / new required arg unless `[api].allow_breaking`; dogfooded on `examples/textkit` (ADR-0040) |
 | Behavioral / type-aware API breaks | T1/T2 | ❌ | candidate — `34_api_diff` is signature-shape only |
@@ -174,6 +174,11 @@ no longer used (an archetype-blocked row is a row, not a status).
 | **Operational / SRE** | documented | [`matrices/04`](matrices/04-operational-sre.md): `14_container` (non-root / pinned base / healthcheck) + hygiene + honest-`noop` ✅; health, SLO, canary, postmortem rows archetype-blocked (#79) |
 | **Data / ML** | documented | [`matrices/05`](matrices/05-data-ml.md): ML Test Score rows, all threshold-free ratchets; shared rows (tests, secrets, ADR) ✅; the rest archetype-blocked (#79) |
 | **Product / UX** | documented | [`matrices/06`](matrices/06-product-ux.md): `15_a11y` (lang / alt / title) ✅; labels, links, headings static (next); contrast, focus, Core Web Vitals ratchet rendered/heavy; heuristics archetype-blocked (#79) |
+| **Security & compliance** | partial | SAST / CVE / secrets / licenses ✅; SBOM + git-history secret-scan (next) |
+| **Delivery / DORA** | partial | branch / commit / merge / CI gates ✅; PR-size ratchet (git-derivable); deploy-freq / MTTR (telemetry-gated) |
+| **Operational / SRE** | partial | container hygiene ✅ (`14_container`: non-root, pinned base, healthcheck — ADR-0044); deploy/runtime rows still need a deployed service (candidate: `AutoApply`) |
+| **Data / ML** | archetype | needs an ML project |
+| **Product / UX** | partial | static a11y ✅ (`15_a11y`: WCAG-cited `html_lang` / `img_alt` / `page_title` — ADR-0045, dogfooded on `fire`); rendered a11y + Core Web Vitals still need a heavy lane |
 
 ## 4. How rows graduate
 

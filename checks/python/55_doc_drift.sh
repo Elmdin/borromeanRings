@@ -21,7 +21,7 @@ fi
 
 src_dir="$(borromeanrings_project_cfg src_dir)"
 PYTHONPATH="$BORROMEANRINGS_HOME/src" BORROMEANRINGS_JUDGE_CMD="$judge_command" \
-  python3 - "$PROJECT_ROOT/$src_dir" >"$log" 2>&1 <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT/$src_dir" >"$log" 2>&1 <<'PY'
 import os
 import sys
 from pathlib import Path

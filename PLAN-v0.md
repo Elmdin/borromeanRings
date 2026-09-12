@@ -132,7 +132,7 @@ All three hooks point at scripts in `.claude/hooks/`, registered in committed `.
 `stop_gate.sh` receives Stop-event JSON on stdin. Logic:
 
 1. Parse `stop_hook_active`. **If `true`, `exit 0`** (let the agent stop) — this is the documented infinite-loop escape hatch.
-2. Maintain a per-session attempt counter at `.meta-harness/stop_attempts/<session_id>`.
+2. Maintain a per-session attempt counter at `.meta-harness/stop_attempts/<session_id>`. *(Superseded by ADR-0079: the count now lives outside the governed tree, under `$XDG_STATE_HOME/borromeanrings/`, because the agent could reset an in-tree count.)*
 3. Run `verify.sh`.
    - **Pass** → reset the counter, `exit 0` (allow stop). The agent only finishes when the code is green. Evidence-based completion (Brief principle 6).
    - **Fail** → increment counter.

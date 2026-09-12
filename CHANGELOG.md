@@ -96,6 +96,19 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Added
+- Predicate lint (`23_predicates`, `meta_harness.predicates`, ADR-0064, #174): the
+  checkable statements this repo's documents make — SPEC `Contract`/`Guarantees`/
+  `Acceptance` bullets, ADR `Consequences` bullets phrased must/never/shall, issue-form
+  task items — are now read by a gate. Any **hedge word** ("appropriately", "as needed",
+  "reasonable"; a fixed list organised by ISO/IEC/IEEE 29148 §5.2.7's ambiguity categories,
+  extended per project via `[predicates].hedges`) fails the gate as
+  `file:line — predicate — hedge`, and any SPEC that names **no** shipped check id, existing
+  test file or issue is reported as an **orphan**. Only resolvable references count, so the
+  orphan rule cannot be vacuous — a mutation-driven test replaces the detector with one that
+  finds nothing and asserts the suite notices (the defect 4D's validator shipped). Opt-in via
+  `[predicates].enabled`; `noop` when off or when nothing was found; fails closed on an
+  unreadable file. Dogfooded: five hedged predicates in this repo's SPECs/ADRs were rewritten
+  as yes/no statements and five orphan SPECs now name their unit-test file.
 - Governance matrices #2–#6 documented (#138) — `docs/matrices/` holds one row-by-row
   document each for **security & compliance**, **delivery / DORA**, **operational / SRE**,
   **data / ML** and **product / UX**, plus an index of the shared conventions. Every row is a

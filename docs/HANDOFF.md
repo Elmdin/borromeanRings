@@ -178,3 +178,137 @@ is re-author; they may relicense their own prose instead.
 
 **Progress metric** (built = closed + reviewed-PR-open, over 72 tracked issues): ~74% built,
 ~20% merged.
+
+## 10. Merge map (2026-09-10) — the order the stacked PRs land
+
+Every open PR is reviewed and awaiting the maintainer's approval. Merge top-down within each
+tree, `--squash`, never `--admin`; after each merge the next child's base is retargeted to
+`dev` automatically by GitHub (verify with `gh pr view N --json baseRefName`). A PR whose
+parent has not merged cannot be merged first.
+
+**Independent of the trunk (base `dev`, any order):** #123, #129, #147 → #195, #149, #161
+(needs #147 and #129 first for its citations), #165.
+
+**The trunk — #122 first, then its children in any order, each child's own chain in order:**
+- #122 `feat/versioning-and-checks-catalog`
+  - #124 → #125 → #126 → #127
+  - #148 (#131 prior-art gate)
+  - #150 (#128 adopt tests)
+  - #151 (#132 self-description) → #171 (#66 README)
+  - #152 (#137 compaction brief) → #166 (#136 plugin) → #196 (#142 substrate spec)
+  - #152 → #167 (#81 rewrite contract) → #185 (#176 self-report)
+  - #152 → #180 (#173 charter) → #183 (#177 cadence), #184 (#178 dry-runs)
+  - #153 (#138 matrices)
+  - #160 (#130 api contracts) → #198 (#67 TS/Go lanes)
+  - #162 (#135 context budget) → #168 (#47 research skill) → #182 (#175 quotes)
+  - #163 (#134 verdict evidence)
+  - #164 (#154 a11y noop) → #179 (#79 archetypes) → #197 (#139 SWE state)
+  - #169 (#75 trunk policy)
+  - #170 (#58 supply chain)
+  - #181 (#174 predicate lint)
+
+**Known cross-branch touches to expect conflicts on (resolve by keeping both additions):**
+`CHANGELOG.md` (every PR adds under Unreleased), `setup.cfg` (mutmut ignore lines),
+`borromeanrings.toml` `[checks].required`, `docs/CHECKS.md` rows, `src/meta_harness/adopt.py`
+RECOMMENDED, README's describe block (regenerate with `./describe.sh --readme` after #151).
+
+  - #199 (#187 mutation-guard proof + evaluated count on the gate row)
+  - #200 (#189 provenance gate)
+
+**Deliberately waiting for the trunk to merge:** #186 (it refactors an idiom every check PR
+copies). **Maintainer-side or excluded by the constraints:** #60 (enforce_admins), #64 (wiki
+publishing), #68 (second-model critic), #59 (pre-public review).
+
+## 11. Audit: checks that read a crashed tool as a clean pass (2026-09-10)
+
+The single most important finding of the third session. A read-only sweep of every check
+script found the pattern in twelve places; #186 is re-scoped to fix the nine on `dev` after
+the trunk merges, and the three on open PRs are being fixed on those PRs. Full table:
+
+## Confirmed fail-open sites (script @ branch, lines, fix shape)
+1. checks/typescript/50_security.sh @ feat/multi-language L28-53 — ast-grep $tool_code captured, never gates; empty stdout ⇒ pass. Fix: nonzero exit + empty/unparseable output ⇒ fail. (PR #198, in fix round)
+2. checks/python/32_complexity.sh @ dev L25-44 — `read -r < <(python…)` no status; empty current ⇒ pass. Fix: temp file + explicit $?; fail closed on empty/non-numeric.
+3. checks/python/33_coupling.sh @ dev L24-42 — identical.
+4. checks/python/45_docstrings.sh @ dev L25-43 — `current="$(…)"` unchecked; regressed="" ⇒ pass. Fix: check $?; fail closed on empty (go/40_test L60-66 idiom).
+5. checks/shared/15_a11y.sh @ dev, @ feat/versioning… — git ls-files returncode ignored. Fixed on fix/a11y-noop (PR #164).
+6. checks/shared/12_secrets.sh @ dev L27 — `git ls-files -z … || true` ⇒ empty list ⇒ clean pass. Fix: drop || true, check status, fail closed.
+7. checks/shared/06_git_identity.sh @ dev L28-32 — `git log … || true` ⇒ no authors ⇒ pass. Fix: keep code=$?; fail closed when the repo is real and the query failed.
+8. checks/ci/74_secret_history.sh @ dev L37-45 — python git() discards returncode; rev-list failure ⇒ "empty history" exit 0. Fix: inspect returncode; distinguish empty repo from git failure.
+9. checks/python/34_api_diff.sh @ dev L51-57 — git show returncode unused; every file "new" ⇒ no breaking changes. Fix: continue only on path-not-in-tree; other nonzero ⇒ fail.
+10. checks/shared/14_container.sh @ dev L17-31 — config read in $(… 2>/dev/null); crash ⇒ Dockerfile fallback ⇒ "not a container project" pass. Fix: `if ! x="$(…)" || [ -z "$x" ]; then fail` (17_prior_art L45-49 idiom).
+11. checks/shared/23_predicates.sh @ feat/predicate-lint L20 — `|| echo False` ⇒ noop on spine crash. Fix: same fail-closed shape. (PR #181)
+12. checks/ci/76_lockfile.sh @ feat/supply-chain L20 — `|| true` on config read ⇒ emit_noop. Fix: fail closed when the read errors; noop only for a genuinely empty value. (PR #170)
+
+Low severity (git absence is legitimate): base-resolution `|| true` in 09_commits, 11_changelog, 13_adr, 17_prior_art, 34_api_diff; `find || true` in 07_layout.
+
+## Safe idiom (no finding)
+run_check helper (00/10/20/30/50 in every lane); 60_mutation (explicit evaluated=0 fail); 70/72 (empty report ⇒ fail); 40_test in all lanes (code=$? + empty-parse fail); 16_shellcheck; 19_context_budget; 01_source_coherence, 17_prior_art, 18_api_contracts, 21_archetype, 22_charter, 24_quotes, 04_self_description, 78_pins (`borromeanrings_status_for_code "$code"`); go/10_format (&& propagation).
+
+**Receipt-dir rule (from PR #198):** never write a non-receipt file named `*.json` into
+`$RECEIPT_DIR`; every `*.json` glob over the run dir treats it as a receipt. Scratch output
+takes a non-`.json` suffix. #186 adds the reader-side guard.
+
+## 12. Toolchain determinism (2026-09-10) — why PRs kept going red in CI
+
+**Read this before diagnosing any "green locally, red in CI" report.** It was not the
+fast/heavy split, and it was not the PR's diff.
+
+The check toolchain was declared with lower bounds (`ruff>=0.6`, `mypy>=1.10`), so CI's
+`pip install -e ".[dev]"` resolved whatever was newest on the runner while this machine
+kept whatever the shared conda environment had. **Every tool differed:**
+
+| tool | here | CI |
+|---|---|---|
+| ruff | 0.15.8 | 0.16.7 |
+| mypy | 1.19.1 | 2.3.1 |
+| pytest | 9.0.3 | 9.1.1 |
+| mutmut | 3.6.0 | 3.7.0 |
+| coverage | 7.13.4 | 7.16.0 |
+
+That turned #207 red on `10_format` (0.16.7 reformats what 0.15.8 accepts) and #208 red on
+`40_test`. Neither diff was at fault. **Diagnosis order for any future case: compare tool
+versions first.** `gh run view <id> --log` prints pip's `Successfully installed` line.
+
+PR #216 (ADR-0077, branch `fix/pin-the-toolchain`, based on `dev`, CI green) fixes it. Three
+things in it are worth carrying forward.
+
+**An upper bound at the next major is not sufficient.** #170's `78_pins` rule would have
+caught the mypy major jump but not the ruff minor bump, which is the one that broke. A
+formatter's output is not a semantically versioned interface. A tool whose *output is the
+verdict* needs an exact pin.
+
+**Pin the deciders, not the closure.** The first version pinned all 49 packages via a
+`constraints-dev.txt`. CI rejected it: that also froze `click`, `idna`, `msgpack` and
+`urllib3` at versions with known CVEs and `70_pip_audit` went red. "Pin everything" and
+"keep dependencies patched" are in direct conflict; the tie-breaker is that a pin exists to
+stop the release calendar changing a *verdict*. So only the eight check tools plus
+`coverage` (measures the ratchet) and `libcst` (generates mutmut's mutants) are pinned.
+Note this failure mode is invisible locally: `70_pip_audit` always fails here on unrelated
+conda packages, so its signal gets discarded as noise. **CI is the only place that lane
+means anything.**
+
+**Observe a tool the way its check invokes it.** The checks disagree — `10_format` runs
+`ruff` from `PATH`, `40_test` runs `python3 -m pytest` — and on this machine those resolve
+to *different installs of pytest* (a user-site shim at 9.0.2 shadowing site-packages at
+9.0.3). A drift check reading `importlib.metadata` would certify a version the gate never
+runs. `meta_harness.toolchain.TOOLS` therefore stores an argv per tool. Filed as #214 to
+make the invocations uniform.
+
+**CI now prints the log of every check that did not pass** (`.github/workflows/verify.yml`),
+marking non-required checks as advisory. Before this, a red CI named the failing check and
+nothing else, and every diagnosis cost a full local reproduction. Note `06_git_identity`
+fails on this repo's history by design (ADR-0019, local-guard-only for the public repo);
+it is outside the required set and the step labels it advisory.
+
+### Two hazards this turned up, both filed, neither fixed
+- **#214** — checks reach tools two different ways (`PATH` vs `python3 -m`). Pick one.
+- **#215** — a stale untracked copy of `checks/` sits at the repo root as `meta_harness/`,
+  29 shell files from 2026-08-15, untracked *and* unignored, already diverged from the real
+  `checks/`. Not deleted: not mine to remove and nothing has confirmed it is unreferenced.
+
+### Rules this adds to the builder brief
+- **Any new dev dependency is pinned exactly.** A test fails closed on an unpinned one; it
+  caught `html5lib>=1.1` arriving from #211 while #216 was open.
+- **The receipt directory contains non-receipts.** `70_pip_audit.report.json` shares it.
+  Anything iterating that directory must identify a receipt by its `check` field, not by
+  the `.json` extension. New code reproduced this known hazard on its first run.

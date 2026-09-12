@@ -78,6 +78,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
 | `23_predicates` | Acceptance predicates (SPEC Contract/Guarantees/Acceptance bullets, ADR Consequences must/never/shall bullets, issue-form task items) contain no hedge word; every SPEC names a shipped check id, an existing test file or an issue (no orphans); `noop` when off or nothing found | `[predicates].enabled`, `paths`, `hedges`, `require_reference` | 0064 |
+| `16_shellcheck` | Shell lint over the project's own scripts — **fail-closed on any finding**. Sources are *resolved* (`-x` + `SCRIPTDIR`), not suppressed. No shell ⇒ `noop` | `[shell].source_paths`, `[shell].exclude` | 0050 |
 
 ## Fast lane — Python checks
 

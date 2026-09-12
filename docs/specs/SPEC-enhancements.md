@@ -20,8 +20,15 @@ profiler-style advisory recommender — proposes, never gates.
 
 - **Advisory only** — no gate, no pass/fail; it never dictates the agent's setup
   (red line).
-- **Honest certainty** — `verified=False` entries (e.g. user-suggested OmniRoute)
-  render with a "verify before wiring" marker; every entry carries a source URL.
+- **Honest certainty** — `verified=False` entries render with a "verify before
+  wiring" marker; every entry carries a real source URL (never a search query).
+- **Health-audited** (#133) — every entry records `maintained_as_of` (the ISO date its
+  upstream activity was last checked; a stale date is shown, never hidden),
+  `needs_api_key`, and `applies_to` (substrates: `claude-code`, `api-key`).
+  `recommend(substrate=...)` never offers a tool to a substrate it cannot serve: a
+  proxy, router, or cache on API-key traffic is invisible to a subscription agent
+  CLI. Dead upstreams are removed, not flagged (RouteLLM, no commits since
+  2024-08-10). Audit source: `docs/research/AGENT-TOOLING-SURVEY.md`.
 - **Curated, not authoritative** — a new tool is a one-line catalog PR (data).
 - **Verified by** `tests/unit/test_enhancements.py` (catalog integrity, filtering, rendering).
 

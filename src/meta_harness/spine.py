@@ -15,6 +15,10 @@ from typing import Any
 
 import tomllib
 
+#: Every key `[verification]` understands. An unknown key there is a hard error
+#: (see :func:`load_config`): a typo'd verification claim must never read as
+#: "nothing declared", which would silently switch the rule off. ADR-0074.
+VERIFICATION_KEYS: frozenset[str] = frozenset({"properties"})
 # The policy-spine file name, and the pre-rename spelling still accepted (issue #62).
 # Projects governed before the borromeo -> borromeanRings rename may still carry the
 # legacy file; it keeps loading (with a FutureWarning on stderr) so they never silently
@@ -92,6 +96,11 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [verification] — the mathematical-verification ladder (ADR-0074). Tier 1 only:
+    # the project-relative directory holding its property suite. NO default — writing
+    # the key is an affirmative claim, so "" means the rule is off, and a declared
+    # directory with no property tests is a failure, not a no-op.
+    verification_properties: str = ""
     # [provenance] — re-authored text must not reproduce a declared source (ADR-0070).
     # declared=False ⇒ rule off. sources are read-only paths (machine-local ones come
     # from BORROMEANRINGS_PROVENANCE_SOURCES, never the config); allow is the human's
@@ -163,6 +172,8 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         The validated :class:`Config`.
 
     Raises:
+        ValueError: if no required checks are declared, or if ``[verification]``
+            carries a key borromeanRings does not understand.
         ValueError: if no required checks are declared.
         FileNotFoundError: if neither the canonical nor the legacy file exists.
     """
@@ -172,6 +183,14 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         raise ValueError(
             "borromeanrings.toml must declare a non-empty [checks].required — "
             "no declared checks is a misconfiguration (fail-closed)."
+        )
+    verification: Mapping[str, Any] = raw.get("verification", {})
+    unknown = sorted(set(verification) - VERIFICATION_KEYS)
+    if unknown:
+        raise ValueError(
+            f"borromeanrings.toml [verification] has unknown key(s): {', '.join(unknown)}. "
+            f"Known: {', '.join(sorted(VERIFICATION_KEYS))}. A misspelled verification "
+            "claim would silently read as 'nothing declared' — fail-closed instead."
         )
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
@@ -239,6 +258,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        verification_properties=str(verification.get("properties", "")).strip(),
         provenance_declared="provenance" in raw,
         provenance_sources=tuple(str(p) for p in provenance.get("sources", [])),
         provenance_paths=tuple(

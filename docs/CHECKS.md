@@ -104,6 +104,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 
 | Check | Enforces | Config / notes | ADR |
 |-------|----------|----------------|-----|
+| `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; **fails closed on 0 evaluated mutants** (a clean-test failure inside mutmut's sandbox is "MUTATION CHECK DID NOT RUN", never a vacuous 1.0). The verdict row shows the count: `PASS (evaluated N, score S)` / `FAIL (evaluated 0)` | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
 | `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; fails on 0 evaluated | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
 | `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
 | `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |

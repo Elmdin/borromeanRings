@@ -37,6 +37,30 @@ VERDICT_HISTORY_FILE = ".meta-harness/verdict_history.jsonl"
 NON_FAILING_STATUSES = frozenset({"pass", "noop"})
 
 
+#: Longest ``summary`` the gate prints on a row; anything longer is cut with ``...``.
+SUMMARY_MAX_CHARS = 72
+
+
+def status_label(status: str, summary: object = None) -> str:
+    """The gate-output text for one check row: ``STATUS``, plus ``(summary)`` if present.
+
+    Any check may write a free-text ``summary`` field into its receipt (``60_mutation``
+    writes ``evaluated N, score S``); the gate prints it beside the status so the row
+    answers "did the check do real work?" without a trip to the log. The field is
+    untrusted JSON a check wrote, so it is validated here: non-strings and blanks are
+    ignored, only the first line is used, and it is bounded so the table stays a table.
+    """
+    label = status.upper()
+    if not isinstance(summary, str):
+        return label
+    first_line = summary.strip().splitlines()[0].strip() if summary.strip() else ""
+    if not first_line:
+        return label
+    if len(first_line) > SUMMARY_MAX_CHARS:
+        first_line = first_line[: SUMMARY_MAX_CHARS - 3] + "..."
+    return f"{label} ({first_line})"
+
+
 def is_failing(status: str) -> bool:
     """Does this receipt status fail the run? Fail-closed: unknown ⇒ ``True``.
 

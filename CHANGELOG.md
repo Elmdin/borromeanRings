@@ -96,6 +96,21 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Added
+- Mutation-guard proof + evaluated count on the gate row (issue #187). `60_mutation` has
+  failed closed on zero evaluated mutants since ADR-0022; it is now pinned by
+  `tests/integration/test_mutation_guard.py`, which plants a unit test that reads a path
+  outside `src/`/`tests/` (the #160/#168 shape — absent from mutmut's copied sandbox) and
+  asserts `60_mutation` is `fail` with "MUTATION CHECK DID NOT RUN", then removes it and
+  asserts `pass` with a real count. Checks may now write a one-line `summary` field into
+  their receipt (`meta_harness.mutation.summary_line` for 60_mutation); the gate prints it
+  beside the status (`meta_harness.verdict.status_label`, validated + bounded) so the row
+  reads `PASS (evaluated N, score S)` / `FAIL (evaluated 0)` — a score alone is unreadable.
+- `60_mutation` clears the stale `mutants/` copy before each run. mutmut 3.6's
+  `copy_src_dir` skips any target that already exists and never deletes, so a test removed
+  from `tests/` lingered in the sandbox and kept the lane red — the root cause of the
+  "`rm -rf mutants/` before a heavy run" rule. Bounded to `$PROJECT_ROOT/mutants`; refuses
+  a path that resolves outside the project. The integration test's second run now passes
+  without cleaning up itself, which is the regression proof.
 - Provenance gate `25_provenance` (ADR-0070, `docs/specs/SPEC-provenance.md`, closes #189):
   re-authored text must not reproduce its declared source. The ADR-0020 rule for the 4D
   merge (#172) was enforced by review alone, and review found copied or clause-for-clause

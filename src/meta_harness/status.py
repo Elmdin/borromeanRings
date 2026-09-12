@@ -25,7 +25,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from meta_harness.spine import load_config
+from meta_harness.spine import CONFIG_NAME, LEGACY_CONFIG_NAME, load_config, resolve_config_path
 from meta_harness.status_assess import (
     ProjectStatus,
     build_status,
@@ -50,11 +50,15 @@ _SKIP_DIRS = frozenset(
         "venv",
     }
 )
-_CONFIG_NAME = "borromeanrings.toml"
+_CONFIG_NAME = CONFIG_NAME
+# Both spellings mark a governed project; the legacy one loads via spine's fallback.
+_CONFIG_NAMES = (CONFIG_NAME, LEGACY_CONFIG_NAME)
 
 
 def discover_projects(roots: Sequence[Path | str], *, max_depth: int = 6) -> list[Path]:
     """Every directory containing ``borromeanrings.toml`` under ``roots`` (depth-bounded).
+
+    A legacy ``borromeo.toml`` (pre-rename, issue #62) also marks a governed project.
 
     Build-output, vendored, and cache directories are pruned from the walk.
     """
@@ -68,7 +72,7 @@ def discover_projects(roots: Sequence[Path | str], *, max_depth: int = 6) -> lis
             if depth >= max_depth:
                 dirnames[:] = []
             dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
-            if _CONFIG_NAME in filenames:
+            if any(name in filenames for name in _CONFIG_NAMES):
                 # Resolve so a symlinked alias and its real path collapse to one row.
                 found.add(Path(dirpath).resolve())
     return sorted(found)
@@ -88,10 +92,12 @@ def _is_git_repo(path: Path) -> bool:
     return result.returncode == 0
 
 
-def _config_dirty(path: Path) -> bool:
+def _config_dirty(path: Path, config_name: str = _CONFIG_NAME) -> bool:
+    # Only the file that was actually resolved counts: an untracked stray borromeo.toml
+    # next to a clean canonical config is not "config uncommitted" (PR #165 review).
     try:
         result = subprocess.run(  # nosec B603 B607 — fixed argv, no shell; only queries git
-            ["git", "-C", str(path), "status", "--porcelain", _CONFIG_NAME],
+            ["git", "-C", str(path), "status", "--porcelain", "--", config_name],
             capture_output=True,
             text=True,
             check=False,
@@ -104,15 +110,16 @@ def _config_dirty(path: Path) -> bool:
 def gather(path: Path | str) -> ProjectStatus:
     """Read one project's real state (config, git, persisted verdict) into a row."""
     project = Path(path)
+    config = resolve_config_path(project / _CONFIG_NAME)  # warns once for a legacy name
     try:
-        required = load_config(project / _CONFIG_NAME).required_checks
+        required = load_config(config).required_checks
     except (OSError, ValueError) as exc:
         # Report the real git state even on config error (the GIT column stays honest).
         return ProjectStatus(
             str(project), _is_git_repo(project), False, 0, "never", (), f"config error: {exc}"
         )
     is_git = _is_git_repo(project)
-    dirty = _config_dirty(project) if is_git else False
+    dirty = _config_dirty(project, config.name) if is_git else False
     return build_status(
         str(project),
         is_git=is_git,

@@ -1,5 +1,13 @@
 # borromeanRings
 
+> ## ⚠️ Work in progress — not ready for use
+>
+> borromeanRings is under active development and is **not in a stable state**. Do not
+> install it, adopt it in a project, or rely on its verdict yet. Known gaps that must
+> close first are tracked in the issues, including verdict-integrity and retry-bound
+> hardening. This notice will be removed when the harness is ready to be used.
+
+
 <p align="center">
   <img src="docs/borromean-rings.png" width="200" alt="Borromean rings — three links that hold only together; remove any one and the whole comes apart">
 </p>

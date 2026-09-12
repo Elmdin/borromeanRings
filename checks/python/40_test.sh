@@ -36,7 +36,7 @@ if [ "$code" -eq 5 ]; then
   src_dir="$(borromeanrings_project_cfg src_dir)"
   if [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -print -quit 2>/dev/null)" ]; then
     echo "no tests and no source yet (greenfield) — nothing to test" >>"$log"
-    emit_receipt "$id" "$cmd" 0 "$log" "pass"
+    emit_noop "$id" "$cmd" "$log"
     exit 0
   fi
   echo "no tests collected, but source exists — add tests" >>"$log"

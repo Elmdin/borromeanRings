@@ -11,7 +11,7 @@ package="$(borromeanrings_project_cfg package)"
 if [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -print -quit 2>/dev/null)" ]; then
   log="$RECEIPT_DIR/00_build.log"
   echo "no Python source in '$src_dir' yet (greenfield) — nothing to build" >"$log"
-  emit_receipt "00_build" "build (no source yet)" 0 "$log" "pass"
+  emit_noop "00_build" "build (no source yet)" "$log"
   exit 0
 fi
 

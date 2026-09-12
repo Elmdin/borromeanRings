@@ -87,6 +87,7 @@ contributors pass CI — see ADR-0019).
 - `docs/MANIFESTO.md` — **the why**: the north star; borromeanRings is the meta-harness (it enhances agent capabilities incl. deep research); the notes/Kernel is a separate product built *with* it
 - `docs/VISION.md` — the whole product borromeanRings (the meta-harness) is meant to become
 - `docs/ROADMAP.md` — **every harness feature, with status** (plus the separate products built with borromeanRings)
+- `docs/SELF-ASSESSMENT.md` — **the evidence-based self-assessment**: how the gate works, what one cycle of sub-agent reviews found (defects by class, and whether a mechanism or only review catches each), gaps in the platform's own order, prioritised improvements
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
 

@@ -26,6 +26,7 @@ RECOMMENDED: tuple[str, ...] = (
     "32_complexity",
     "33_coupling",
     "45_docstrings",
+    "01_source_coherence",
 )
 
 # Recommended checks that are ratchets: each needs a baseline file seeded from

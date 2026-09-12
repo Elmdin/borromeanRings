@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# borromeanRings — PORTFOLIO STATUS (the roster view).
+# borromeanRings — STATUS.
 #
-# One table across every governed project: which are governed, how many checks each
-# enforces, whether the last gate was green, config drift, and whether it is a git repo.
-# Complements verify.sh (which gates ONE project). Reuses the single sources of truth —
-# load_config, plan_adoption (drift), and each project's persisted last verdict.
+# Bare invocation reports THIS project: whether it is governed, whether enforcement is
+# actually on (hooks wired vs. disabled), the last verdict, and — the part a raw verdict
+# hides — how many of those checks inspected NOTHING (ADR-0049).
+#
+# The portfolio roster is opt-in (`--all`), not the default: scanning every governed
+# project under $HOME answers a fleet question nobody asked when they wanted to know
+# about the project in front of them.
 #
 # Usage:
-#   ./status.sh [PATH ...]          # read last-known verdicts (fast; default root: $HOME)
-#   ./status.sh --run [PATH ...]    # re-gate each project first (authoritative, slower)
+#   ./status.sh                     # THIS project only (default)
+#   ./status.sh --all [ROOT ...]    # portfolio roster (default root: $HOME)
+#   ./status.sh PATH ...            # roster over the named roots
+#   ./status.sh --run [PATH ...]    # re-gate first (authoritative, slower)
 #   ./status.sh --list [PATH ...]   # just print discovered project paths
 #
 # Advisory, not a gate: the read-only report always exits 0. Under --run, the exit code
@@ -18,6 +23,12 @@ set -uo pipefail
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export BORROMEANRINGS_HOME
+# Which borromeanRings is installed here, computed the same way verify.sh does (ADR-0048).
+# The self-report contrasts it with the version that produced the last verdict, which is
+# how you notice the harness moved since it last verified this project.
+HARNESS_VERSION="$(git -C "$BORROMEANRINGS_HOME" describe --tags --always --dirty 2>/dev/null || true)"
+[ -n "$HARNESS_VERSION" ] || HARNESS_VERSION="$(cat "$BORROMEANRINGS_HOME/VERSION" 2>/dev/null || echo unknown)"
+export HARNESS_VERSION
 # Invoke the module's main() via -c (house convention; keeps status.py free of an
 # uncoverable __main__ block). sys.argv[1:] forwards this function's arguments.
 PY() {

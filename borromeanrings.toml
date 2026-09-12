@@ -95,6 +95,7 @@ require = ["non_root", "pinned_base"]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
   "00_build",
+  "01_source_coherence",
   "05_hygiene",
   # 06_git_identity intentionally omitted: this public repo enforces identity via the
   # local guard only, so external contributors pass CI. See [git] above + ADR-0019.

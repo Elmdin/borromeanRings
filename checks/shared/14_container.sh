@@ -26,7 +26,7 @@ dockerfile_path="$PROJECT_ROOT/$dockerfile_rel"
 
 if [ ! -f "$dockerfile_path" ]; then
   echo "no Dockerfile at '$dockerfile_rel' — not a container project, nothing to check" >"$log"
-  emit_receipt "$id" "$cmd" 0 "$log" "pass"
+  emit_noop "$id" "$cmd" "$log"
   exit 0
 fi
 

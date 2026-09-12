@@ -5,6 +5,11 @@ that enforces engineering standards as deterministic gates. The contribution rul
 below follow directly from that premise — the gate is the product, so every change
 must pass it.
 
+By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Critique of
+work here is direct by design — that document draws the line between critiquing work
+and critiquing people. How issues are labelled, prioritised and milestoned is in
+[`docs/TRIAGE.md`](../docs/TRIAGE.md).
+
 Read [`AGENTS.md`](../AGENTS.md) first. It states the non-obvious rules (for humans
 and AI agents alike) that you could not infer from the code.
 

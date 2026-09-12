@@ -12,6 +12,9 @@ queue is merged.
 
 ## [Unreleased]
 
+### Changed
+- Enhancement catalog health-audited (#133): entries carry `maintained_as_of` / `needs_api_key` / `applies_to`, `recommend()` filters by substrate, RouteLLM (dead) and OmniRoute (search-query URL) removed, Serena / Repomix / ast-grep / pyright-lsp added.
+
 ### Added
 - Issue forms, PR template, and label scheme (closes #61): YAML issue forms for bug
   report (repro, expected/actual, gate output + receipt path, `harness-version`),
@@ -24,6 +27,27 @@ queue is merged.
   `docs/LABELS.md` documents the label + milestone vocabulary reconciled with the
   labels that exist; `scripts/labels.sh` (idempotent, `--dry-run`, shellcheck-clean)
   applies it — run by a human on purpose, never by a hook.
+- Platform self-assessment (`docs/SELF-ASSESSMENT.md`, issue #51): how the gate, receipts,
+  hooks, ratchets and lanes work with every claim cited; the defect-class table built from
+  this cycle's 25 sub-agent PR reviews (#148–#185) plus the full-source licence sweep, and
+  whether a mechanism or only review catches each class; gaps ranked fail-closed → vacuous evidence → matrix coverage →
+  ergonomics; ten prioritised improvements with tracking issues (four newly filed:
+  #186 fail-closed enumeration, #187 mutation-lane vacuity guard, #188 citation check,
+  #189 license shingle check); the constraints honoured and where each is enforced.
+- Toolchain pinning (ADR-0077): `[project.optional-dependencies].dev` pins with `==`
+  every package that decides a verdict — the check tools, plus `coverage` (measures the
+  ratchet) and `libcst` (generates mutmut's mutants). The rest of the closure stays free
+  to resolve current, because pinning it froze four packages at versions with known CVEs
+  and `70_pip_audit` correctly went red. `meta_harness.toolchain` + integration tests fail
+  closed when the gate runs a version other than the pinned one, when a version cannot be
+  read, when a `dev` requirement is not exact, or when a tool reachable from `checks/**.sh`
+  has no pin. Each tool is observed through **the argv its check uses** (`ruff` from
+  `PATH`, `pytest` via `python3 -m`), because those resolve to different installs on a
+  machine with a user-site shim.
+- CI prints the log of every check that did not pass, marking checks outside the required
+  set as advisory. A red gate used to name the failing check and nothing else. Adding a check that
+  invokes a new binary now also requires registering and pinning it; the failure message
+  names the three steps.
 - Effectiveness ledger (ADR-0047): `ledger.sh` + `meta_harness.ledger` + append-only
   verdict history — answers "is governing this project actually *catching* anything?"
   (which `status` can't). `verify.sh` now appends each run's `Verdict` to

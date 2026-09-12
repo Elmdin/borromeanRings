@@ -18,7 +18,9 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT"
+# Fail loudly rather than run git operations from whatever directory we happen
+# to be in if the cd fails.
+cd "$ROOT" || { echo "merge: cannot cd to $ROOT" >&2; exit 1; }
 
 AUTO=0
 positional=()

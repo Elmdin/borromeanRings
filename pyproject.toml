@@ -37,6 +37,7 @@ dev = [
   "pip-licenses==5.5.5",
   "coverage==7.13.4",
   "libcst==1.8.6",
+  "shellcheck-py==0.11.0.1",
 ]
 
 [tool.setuptools.packages.find]

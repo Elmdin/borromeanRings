@@ -91,6 +91,16 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[shell]
+# Shell lint (check 16_shellcheck, ADR-0050). borromeanRings is ~half bash and that bash
+# is the trust root, so it faces the same fail-closed treatment as the Python.
+# source_paths are shellcheck -P entries so `source`d libraries resolve statically
+# (SCRIPTDIR = the checked script's own directory) instead of being suppressed as SC1091.
+source_paths = ["SCRIPTDIR", "SCRIPTDIR/.."]
+# Per-code escape hatch. Keep empty: resolve findings rather than mute them, and give any
+# entry here a written justification.
+exclude = []
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -105,6 +115,7 @@ required = [
   "13_adr",
   "14_container",
   "12_secrets",
+  "16_shellcheck",
   "11_changelog",
   "10_format",
   "20_lint",

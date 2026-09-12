@@ -92,6 +92,7 @@ worked at any point.
 | What is enforced across the six matrices? | `docs/ENFORCEMENT-COVERAGE.md` |
 | What was researched and why? | `docs/research/` — video review, tooling survey |
 | How is this repo governed? | `borromeanrings.toml` — the policy spine, single source of truth |
+| Where is it weak, and what is the evidence? | `docs/SELF-ASSESSMENT.md` — review findings by defect class, gaps ranked fail-closed first, prioritised improvements with tracking issues (#51) |
 | Is it working right now? | `./status.sh` (this project) · `./ledger.sh` (is the gate catching anything) |
 | How do I label/prioritise an issue? | `docs/TRIAGE.md` (lands with #129) |
 

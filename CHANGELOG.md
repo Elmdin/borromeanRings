@@ -13,6 +13,13 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Platform self-assessment (`docs/SELF-ASSESSMENT.md`, issue #51): how the gate, receipts,
+  hooks, ratchets and lanes work with every claim cited; the defect-class table built from
+  this cycle's 25 sub-agent PR reviews (#148–#185) plus the full-source licence sweep, and
+  whether a mechanism or only review catches each class; gaps ranked fail-closed → vacuous evidence → matrix coverage →
+  ergonomics; ten prioritised improvements with tracking issues (four newly filed:
+  #186 fail-closed enumeration, #187 mutation-lane vacuity guard, #188 citation check,
+  #189 license shingle check); the constraints honoured and where each is enforced.
 - Toolchain pinning (ADR-0077): `[project.optional-dependencies].dev` pins with `==`
   every package that decides a verdict — the check tools, plus `coverage` (measures the
   ratchet) and `libcst` (generates mutmut's mutants). The rest of the closure stays free

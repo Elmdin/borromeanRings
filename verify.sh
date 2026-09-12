@@ -22,6 +22,11 @@ BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 export BORROMEANRINGS_HOME PROJECT_ROOT
+
+# borromeanrings_py: the gate's trusted Python must run from a neutral directory,
+# never with the governed project on sys.path (a planted json.py / meta_harness/
+# would otherwise shadow stdlib and forge the verdict — #222).
+source "$BORROMEANRINGS_HOME/checks/_py.sh"
 CONFIG="$PROJECT_ROOT/borromeanrings.toml"
 
 # Which borromeanRings version is governing this run. `git describe` on borromeanRings's own
@@ -46,7 +51,7 @@ fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
-language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
+language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
 case "$language" in
   "" | *[!a-z0-9_-]*)
@@ -76,7 +81,7 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
 import json
 import os
 import sys

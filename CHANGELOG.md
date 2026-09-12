@@ -12,6 +12,24 @@ queue is merged.
 
 ## [Unreleased]
 
+### Security
+- Gate no longer self-certifies via a planted stdlib name (ADR-0080, #222). `verify.sh`
+  ran its trusted Python (verdict aggregation, language detect) and `checks/_lib.sh` ran
+  `emit_receipt` / `borromeanrings_project_cfg` from `PROJECT_ROOT` — putting the
+  governed project first on `sys.path`, so a `json.py` committed at the repo root could
+  shadow stdlib and make `bash verify.sh` (what CI runs) print `RESULT: PASS` and exit 0
+  on a failing tree, forging the required `gate` check. New `checks/_py.sh` defines
+  `borromeanrings_py` (runs Python from `/` with `PYTHONPATH` at borromeanRings' own
+  `src`, plus `PYTHONNOUSERSITE=1` so a user-site `usercustomize.py` cannot forge the
+  verdict either — #224 review; mirrors #221's hook helper); the four named calls plus
+  every verdict-deciding analysis heredoc (`05`–`15`, `32`–`35`, `45`, `55`, `56`, `74`)
+  and `00_build`'s stdlib `compileall` step now route through it. Deliberately not
+  `python3 -P`/`-I` (3.11-only / drops `PYTHONPATH`). Tool runs that execute project code
+  by design (`pytest`, `mypy`, `mutmut`, `pip-audit`, `pip-licenses`, and `00_build`'s
+  `import <package>` half) are left as-is — already untrusted per #218, blocked on M7.
+  This closes the project-directory shadow completely and the user-site vector; it is not
+  full interpreter isolation. The Stop-hook half of #222 (forged `last_green_state`, hook
+  markers) also remains, on M7.
 ### Fixed
 - The Stop hook's retry count could be reset by deleting a file (#218, ADR-0079). It lived
   in `.meta-harness/stop_attempts/`, inside the project, and a missing file read as `0`. It

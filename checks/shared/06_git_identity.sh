@@ -34,7 +34,7 @@ fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" \
   BORROMEANRINGS_IS_REPO="$is_repo" BORROMEANRINGS_AUTHORS="$authors" \
-  python3 - "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import os
 import sys
 

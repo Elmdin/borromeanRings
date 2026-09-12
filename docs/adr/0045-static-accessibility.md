@@ -15,7 +15,7 @@ is a threshold-free presence fact — the kind borromeanRings gates well.
 
 Building this surfaced a real defect in a project in the roster: **fire** (an Electron
 app, raw renderer HTML) has **five** pages and *every one* is missing `<html lang>` —
-the exact justified need this check targets. borromeo itself has no HTML, so it does
+the exact justified need this check targets. borromeanRings itself has no HTML, so it does
 **not** add `15_a11y` to its own required set (that would be vacuous); the dogfood is
 fire plus the unit suite.
 

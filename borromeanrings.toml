@@ -113,6 +113,15 @@ allow = [
   "how to turn it on and",    # ordinary English (CHECKS.md intro) vs a third-party canon capture
   "mypy cache pytest cache ruff cache",  # tool cache-dir names (SPEC-provenance skip list) vs a .gitignore
 ]
+[shell]
+# Shell lint (check 16_shellcheck, ADR-0050). borromeanRings is ~half bash and that bash
+# is the trust root, so it faces the same fail-closed treatment as the Python.
+# source_paths are shellcheck -P entries so `source`d libraries resolve statically
+# (SCRIPTDIR = the checked script's own directory) instead of being suppressed as SC1091.
+source_paths = ["SCRIPTDIR", "SCRIPTDIR/.."]
+# Per-code escape hatch. Keep empty: resolve findings rather than mute them, and give any
+# entry here a written justification.
+exclude = []
 
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
@@ -129,6 +138,7 @@ required = [
   "14_container",
   "25_provenance",
   "12_secrets",
+  "16_shellcheck",
   "11_changelog",
   "10_format",
   "20_lint",

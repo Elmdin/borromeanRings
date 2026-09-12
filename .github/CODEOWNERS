@@ -1,0 +1,35 @@
+# Code owners for borromeanRings.
+#
+# GitHub requests review from an owner automatically when a matching path changes.
+# This file NOMINATES reviewers; it does not REQUIRE them. Owner review only becomes
+# mandatory once branch protection on `main` enables `require_code_owner_reviews`,
+# which is currently false — see issue #60. Until then this is routing, not a gate.
+#
+# Later rules win, so the specific entries below override the catch-all.
+
+# Everything, unless a more specific rule matches.
+*                       @wimaan3
+
+# The trust root. These decide whether anything else passes at all: the gate, the
+# check registry, the policy spine, and the hooks that enforce governance in a session.
+/verify.sh              @wimaan3
+/merge.sh               @wimaan3
+/checks/                @wimaan3
+/src/meta_harness/      @wimaan3
+/.claude/hooks/         @wimaan3
+/borromeanrings.toml    @wimaan3
+
+# Anything that reaches OUTSIDE this repository — into another project's config, or a
+# user's global Claude settings. Two field bugs (#121, #125) have come from this seam.
+/init.sh                @wimaan3
+/adopt.sh               @wimaan3
+/install-global.sh      @wimaan3
+
+# Recorded decisions. An ADR is the durable record of why the code is shaped as it is.
+/docs/adr/              @wimaan3
+/docs/specs/            @wimaan3
+
+# Supply chain and CI: what runs on GitHub's servers, and what gets installed.
+/.github/workflows/     @wimaan3
+/pyproject.toml         @wimaan3
+/setup.cfg              @wimaan3

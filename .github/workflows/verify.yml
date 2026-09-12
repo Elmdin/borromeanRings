@@ -29,6 +29,10 @@ jobs:
         # fixes reach it and `70_pip_audit` keeps meaning something.
         run: pip install -e ".[dev]"
       - name: Run borromeanRings gate (incl. CI-tier heavy checks)
+        # The suite grew past the per-check 300s default as the check set landed; give
+        # each check a 900s wall-clock so 40_test does not time out on a slow runner.
+        env:
+          BORROMEANRINGS_CHECK_TIMEOUT: "900"
         run: bash verify.sh --heavy
       - name: Show the log of every check that did not pass
         # The gate prints one line per check; the reason lives in the run dir, which a

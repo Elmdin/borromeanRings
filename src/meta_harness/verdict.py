@@ -85,6 +85,11 @@ class Verdict:
     run_id: str = ""
     digest: str = ""
     harness_version: str = ""
+    #: Which lane produced it — ``"full"`` (or ``""`` in records written before lanes
+    #: existed) for a complete run, ``"fast"`` for the narrowed interactive run the Stop
+    #: hook makes. A reader must be able to tell a partial green from a real one, so the
+    #: lane is part of the record, not only of the console output. See ADR-0081.
+    lane: str = ""
 
     def to_dict(self) -> dict[str, object]:
         """A JSON-serialisable view (tuples become lists)."""
@@ -93,6 +98,7 @@ class Verdict:
             "run_id": self.run_id,
             "digest": self.digest,
             "harness_version": self.harness_version,
+            "lane": self.lane,
             "checks": [list(pair) for pair in self.checks],
         }
 
@@ -118,6 +124,7 @@ def _parse(data: object) -> Verdict | None:
         run_id=str(data.get("run_id", "")),
         digest=str(data.get("digest", "")),
         harness_version=str(data.get("harness_version", "")),
+        lane=str(data.get("lane", "")),
     )
 
 

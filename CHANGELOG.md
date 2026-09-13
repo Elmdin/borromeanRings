@@ -12,6 +12,18 @@ queue is merged.
 
 ## [Unreleased]
 
+### Added
+- Fast (interactive) lane: `verify.sh --fast` (closes #226). The Stop hook ran the full
+  required set on every turn — 445 s, of which `40_test` was 404 s (91%) — so an agent
+  waited over seven minutes to report finished, and three retries made the worst case ~22
+  minutes per session. `--fast` exports `BORROMEANRINGS_LANE=fast` and runs the same check
+  set; only `40_test` narrows, to the paths a project declares in the new `[test].fast_paths`
+  (`Config.test_fast_paths`), without coverage. This repo declares `["tests/unit"]`: the Stop
+  gate is now ~12 s. Declaring nothing means no fast lane and no behaviour change; `--heavy`
+  always wins over `--fast`; CI still runs everything. A fast-lane pass is labelled as partial
+  in the verdict line, the check row, the receipt (`lane`, `fast_paths`, no coverage number)
+  and `last_verdict.json`, so it can never be read as a full pass. See ADR-0081.
+
 ### Fixed
 - Git-identity guard hardened against per-command overrides and exotic invocations
   (closes #54). Two independent holes, both preventive-layer only (check `06_git_identity`

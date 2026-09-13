@@ -23,9 +23,14 @@ built). Each check's rationale lives in its ADR (`docs/adr/`).
   `<project>/.meta-harness/receipts/<run_id>/`, a compact `last_verdict.json`, and appends to
   `verdict_history.jsonl`. Each run is stamped with the governing `harness-version`
   (ADR-0048).
-- **Two lanes.** The **fast lane** runs on every gate; the **heavy (CI-tier) lane** runs only
-  under `./verify.sh --heavy` or in CI — expensive tool-checks that must not slow the inner
-  loop (ADR-0033).
+- **Three lanes.** The **full lane** (`./verify.sh`) runs the whole required set over
+  everything. The **heavy (CI-tier) lane** (`./verify.sh --heavy`, and CI) adds expensive
+  tool-checks that must not slow the inner loop (ADR-0033). The **fast (interactive) lane**
+  (`./verify.sh --fast`) is what the Stop hook runs: the same required set, but `40_test`
+  narrows to the project's declared `[test].fast_paths` and skips the coverage ratchet, so a
+  turn is not held for the whole suite. A fast-lane result is labelled partial everywhere it
+  is reported — verdict line, check row, receipt, `last_verdict.json` — and declaring no fast
+  paths means no fast lane at all (ADR-0081).
 - **Opt-in, per check *and* per project.** Nothing is enabled by default; you choose.
 
 ## Enabling checks in a project
@@ -34,8 +39,11 @@ Checks a project runs are declared in its `borromeanrings.toml`:
 
 ```toml
 [checks]
-required = ["00_build", "10_format", "40_test", ...]   # fast lane — gates every run
+required = ["00_build", "10_format", "40_test", ...]   # gates every run, in every lane
 heavy    = ["60_mutation", "70_pip_audit", ...]        # heavy lane — gates under --heavy / CI
+
+[test]
+fast_paths = ["tests/unit"]   # the fast (interactive) lane's test scope; empty ⇒ no fast lane
 ```
 
 - **New project:** `./init.sh <path>` writes a starter `borromeanrings.toml` + the hook wiring.

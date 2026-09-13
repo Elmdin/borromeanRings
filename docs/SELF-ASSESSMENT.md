@@ -67,11 +67,13 @@ and mutation score (`60_mutation`, ADR-0022). `src/meta_harness/ratchet.py` is t
 decision primitive. Moving a baseline is a reviewed commit, not a side effect
 (`docs/CHECKS.md` on `feat/self-description`, "Notes").
 
-**The two lanes.** The fast lane runs on every Stop and every `./verify.sh`; the heavy lane
-(`--heavy`) adds mutation, CVE audit, licence compliance and history secret-scan and is what
-CI enforces (ADR-0033, `.github/workflows/verify.yml`). `docs/HANDOFF.md` §2 records that
-three PRs went red in CI after a green fast lane — the heavy lane is the bar, the fast lane
-is the inner loop.
+**The three lanes.** The full lane runs on every `./verify.sh`; the heavy lane (`--heavy`)
+adds mutation, CVE audit, licence compliance and history secret-scan and is what CI enforces
+(ADR-0033, `.github/workflows/verify.yml`); the fast (interactive) lane (`--fast`) is what the
+Stop hook runs, narrowing `40_test` to the declared `[test].fast_paths` so a turn is not held
+for a 400 s suite (ADR-0081). `docs/HANDOFF.md` §2 records that three PRs went red in CI after
+a green inner-loop run — the heavy lane is the bar; the lanes below it are the inner loop, and
+a fast-lane result says so on its own verdict line.
 
 **The review rule.** Every PR gets a sub coding agent's review posted as comments on the PR,
 and each finding is addressed or answered before merge (`docs/HANDOFF.md` §2 item 3). The

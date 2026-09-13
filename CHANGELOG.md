@@ -28,6 +28,36 @@ queue is merged.
   mutmut skips: it reads `.claude/`, which mutmut's `mutants/` copy lacks).
 
 ### Added
+- Citation-resolution gate `26_citations` (ADR-0073) — the deterministic half of the
+  largest defect class this repo's review cycle found: **doc overclaim**, 13 findings
+  across 11 PRs. Most instances were not judgements but path-resolution facts (a doc
+  citing `docs/HANDOFF.md` (lands with #147) on a base that lacks it; `ADR-0057` (lands with #166)
+  cited bare where the records stop at 0047; `docs/CHECKS.md` described as being "on this
+  base" when it is not). On a branch that changed Markdown under
+  `[citations].paths`, every repo-relative path, heading anchor, `ADR-NNNN` reference and
+  check id it cites must resolve against **git-tracked** paths on this branch, reported as
+  `file:line — citation — does not exist on this branch`. The decision core
+  (`src/meta_harness/citations.py`) is pure with an **injected** resolver — no filesystem,
+  no network, 100% line+branch coverage, with every real review instance as a fixture.
+  Deliberately and permanently out of scope, stated in the SPEC and the check header
+  rather than implied away: **external URLs** (needs a network; this runs on every gate)
+  and **issue/PR numbers** (GitHub state, off-machine and mutable) — a real `#53`-for-`#82`
+  defect stays a review concern, as does whether prose *describes* the code correctly
+  (`55_doc_drift`, ADR-0030). A deliberate forward reference is written in one narrow
+  recognised form immediately after the citation: `docs/PLUGIN.md` (lands with #166), or
+  `docs/PLUGIN.md` (on `feat/claude-plugin`) — `(on line 5)` is not a marker, because a hatch ordinary prose could
+  open by accident is a hole. Off unless `[citations].enabled`; `noop` when a branch
+  changed no documentation; fails closed on an unreadable config, an unreadable document,
+  or a git error inside a repository. Turned on for this repo, which surfaced **24**
+  unresolved citations in the existing tree — moved test paths after the `unit/` +
+  `integration/` regrouping, two broken relative links in one spec, a planned check id
+  whose number was already taken, and several historical paths written in citation shape.
+  Every one was fixed in the document; none suppressed. Not added to `adopt.py`'s
+  `RECOMMENDED` set: going red on accumulated dead references should be a maintainer's
+  choice, not a surprise from `adopt.sh`. Anchor slugs reproduce GitHub's **duplicate
+  disambiguation** (two "Setup" sections answer to `#setup` and `#setup-1`), and
+  **indented code blocks** are skipped alongside fenced ones — list-aware, because four
+  spaces inside a list is continuation, not code. See `docs/specs/SPEC-citations.md`.
 - Executor and generator interfaces, spec-first (#143, ADR-0071): `docs/specs/SPEC-executor.md` names the contract for "run this check against this snapshot and return a receipt" — snapshot identity (head + dirty-tree OID + branch), receipt/log/sidecar outputs, eight guarantees (isolation, determinism as equivalence, boundedness, fail-closed `error`/125 receipt on executor failure, no rewriting in transit, same harness, same branch) — and three executors: `local` (today, the reference), `worktree` (a git worktree per run, basis for #144), `sandbox` (contract only, #145 builds). `docs/specs/SPEC-generator.md` names what the gate needs from whatever produces the next change (deliver verdict, request retry with failing ids, bounded retry then a human, identity as self-declared provenance in `intent.generator`) and two generators: `claude-code` (the Stop hook as it is) and `headless` (a scripted, model-free generator for tests and #144). Conformance tests are the definition of done; `local` and the hooked agent stay the only implementations until #201 / #202 land. Substrate (ADR-0069), executor and generator are stated as three separate axes. Docs only — nothing built.
 - Multi-harness substrate research and spec (#142, ADR-0069): `docs/research/HARNESS-SUBSTRATES.md` surveys Codex CLI, Gemini CLI, OpenCode, Hermes, Aider, Cline and Roo Code from their public docs (dated, URL per cell, "not documented" never guessed); `docs/specs/SPEC-substrate-adapter.md` writes down the stdin/stdout/exit contract the six hooks already implement, the `adapters/<name>/` wiring-only shape, the capability matrix, degraded modes and the conformance test. Decision: one gate and one hook set with per-substrate wiring adapters; phase-1 target Codex CLI filed as #194. Docs only — nothing built.
 - Claude Code plugin distribution: `.claude-plugin/plugin.json`, a self-hosted single-plugin marketplace, `hooks/hooks.json` wiring the six hooks through `${CLAUDE_PLUGIN_ROOT}` (scripts unchanged), project skills exposed by symlink; one-line install from a checkout or the GitHub URL, per-project opt-in untouched. `docs/PLUGIN.md` (ADR-0057, #136).

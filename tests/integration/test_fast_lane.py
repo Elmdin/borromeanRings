@@ -110,3 +110,16 @@ def test_a_project_with_no_fast_paths_is_unaffected_by_the_fast_flag(tmp_path: P
     receipt = _receipt(project, "40_test")
     assert "lane" not in receipt
     assert "coverage_percent" in receipt, "the coverage ratchet must still apply"
+
+
+def test_an_unsafe_declaration_fails_with_a_verdict_not_a_traceback(tmp_path: Path) -> None:
+    # A bad [test].fast_paths is a config error, and a config error must still produce the
+    # gate's normal evidence: the table, the RESULT line, last_verdict.json. Crashing the
+    # verdict step would fail closed but tell whoever is looking nothing useful.
+    project = _fixture(tmp_path / "unsafe", _CONFIG + '\n[test]\nfast_paths = ["../outside"]\n')
+    code, out = _gate(project, "--fast")
+    assert code != 0, f"an unsafe declaration must fail the gate:\n{out}"
+    assert "Traceback" not in out, f"the verdict step must not crash:\n{out}"
+    assert "RESULT: FAIL" in out
+    assert "40_test" in out and "fast_paths" in out
+    assert (project / ".meta-harness" / "last_verdict.json").is_file()

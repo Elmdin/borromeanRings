@@ -110,7 +110,7 @@ import sys
 from pathlib import Path
 
 from meta_harness.change_detect import record_green
-from meta_harness.lane import FAST, FAST_LANE_NOTE, effective_lane
+from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.verdict import Verdict, append_history, is_failing, status_label, write_last_verdict
@@ -121,7 +121,13 @@ config = load_config(config_path)
 # fast required set gates (the heavy set never blocks the inner Stop gate).
 # Report the lane that describes the verification that actually happened: `--fast` in a
 # project that declared no fast paths ran everything, and must not be labelled partial.
-lane = effective_lane(config, lane)
+# An invalid declaration is already a clean FAIL receipt from 40_test; it must not also
+# cost the run its table, its last_verdict.json, and its history line.
+try:
+    lane = effective_lane(config, lane)
+except ValueError as exc:
+    print(f"\n  borromeanRings: {exc}")
+    lane = FULL
 expected = config.required_checks + (config.heavy_checks if heavy == "1" else ())
 
 rows = []

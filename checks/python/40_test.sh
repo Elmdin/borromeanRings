@@ -22,19 +22,20 @@ cmd="pytest --cov (ratchet vs baseline)"
 # the declared paths (they reach a command line); this check only asks for the arguments
 # and gets "" when there is no fast lane to take — in which case nothing below changes.
 # A non-zero exit is a bad declaration: fail closed rather than silently run everything.
-lane="${BORROMEANRINGS_LANE:-full}"
 if ! fast_args="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - \
-  "$PROJECT_ROOT/borromeanrings.toml" "$lane" <<'PY'
+  "$PROJECT_ROOT/borromeanrings.toml" 2>"$log" <<'PY'
+import os
 import sys
 
-from meta_harness.lane import fast_pytest_args
+from meta_harness.lane import fast_pytest_args, lane_from_env
 from meta_harness.spine import load_config
 
-config_path, lane = sys.argv[1:3]
-print(fast_pytest_args(load_config(config_path), lane))
+print(fast_pytest_args(load_config(sys.argv[1]), lane_from_env(os.environ)))
 PY
 )"; then
-  printf "invalid [test].fast_paths in borromeanrings.toml — fix the declaration\n" >"$log"
+  # The rejection (with the offending path) landed in $log via stderr — keep it as the
+  # evidence and add the instruction, rather than spilling a traceback on the console.
+  printf "\ninvalid [test].fast_paths in borromeanrings.toml — fix the declaration\n" >>"$log"
   emit_receipt "$id" "$cmd" 1 "$log" "fail"
   exit 1
 fi

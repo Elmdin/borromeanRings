@@ -63,7 +63,10 @@ project with no declared paths reports as a full run, because it *was* one.
 
 `record_green` still records a fast-lane green, and only `stop_gate.sh` reads that marker — to
 skip a redundant *fast* gate. No full-lane or CI decision consults it, so a fast green cannot
-stand in for a full one anywhere.
+stand in for a full one anywhere. Known limitation: that skip is silent and lane-blind, so a run
+of purely interactive turns can sit on a state only ever fast-verified without the fast-lane note
+being reprinted. It cannot forge a merge-worthy pass (nothing pre-merge reads the marker), so it
+is left as is here; recording the lane beside the state hash is the fix if it starts to mislead.
 
 ## Alternatives
 - **Drop `40_test` from the interactive lane entirely** (#226's option 1). Rejected: an agent

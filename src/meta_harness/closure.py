@@ -18,20 +18,27 @@ This module answers "which distributions is this project actually responsible fo
 that set and say so. Pure stdlib: the declarations come from ``pyproject.toml``, the
 edges from installed metadata (``importlib.metadata``).
 
-**Deliberately over-inclusive about platforms, strict about extras.** Environment
-markers are not evaluated, so a package that might not be needed on *this* platform is
-still listed — for a security check a false inclusion costs a look while a false
-exclusion costs the finding. But a requirement guarded by ``extra == "..."`` is
-skipped: those are pulled in only when someone asks for that extra, and following them
-turns a dependency graph into the whole index (measured: 624 distributions instead of
-33, including `notebook`, which nothing here depends on). An extra this project
-actually wants is declared in its own manifest and arrives as a seed.
+**When in doubt, include.** For a security check a false inclusion costs a look while
+a false exclusion costs the finding, so every ambiguity resolves toward including:
+
+* Environment markers are not evaluated — a package that might not be needed on *this*
+  platform is still listed.
+* A requirement guarded **solely** by an extra nobody asked for is skipped. Following
+  all of them turns a dependency graph into the whole index (measured: 624
+  distributions against 55 for the real closure, including ``notebook``).
+* But an extra the project **did** ask for is followed. ``pip-audit[doc]`` in the
+  manifest means ``pdoc`` is this project's dependency, and a CVE in it is this
+  project's problem. Requested extras are tracked per distribution rather than
+  stripped off the name.
+* And a marker that could be satisfied *without* the extra (``extra == "x" or
+  sys_platform == "win32"``) is followed too, because presence of the word ``extra``
+  is not proof the requirement is optional.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from importlib import metadata
 from pathlib import Path
 
@@ -39,8 +46,10 @@ import tomllib
 
 #: PEP 508 requirement -> distribution name (drops extras, markers, specifiers).
 _REQUIREMENT_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
-#: A requirement that exists only to serve an extra: `foo; extra == "bar"`.
-_EXTRA_ONLY = re.compile(r";.*\bextra\s*==")
+#: The bracketed extras of a requirement: `foo[bar, baz] >= 1`.
+_REQUIREMENT_EXTRAS = re.compile(r"^\s*[A-Za-z0-9][A-Za-z0-9._-]*\s*\[([^\]]*)\]")
+#: Each `extra == "name"` an environment marker mentions.
+_MARKER_EXTRA = re.compile(r"""\bextra\s*==\s*["']([^"']+)["']""")
 
 
 class ClosureUnavailable(Exception):
@@ -58,6 +67,30 @@ def requirement_name(requirement: str) -> str | None:
     return normalise(match.group(1)) if match else None
 
 
+def requirement_extras(requirement: str) -> frozenset[str]:
+    """The extras a requirement asks for: ``pip-audit[doc, test]`` -> {doc, test}."""
+    match = _REQUIREMENT_EXTRAS.match(requirement)
+    if not match:
+        return frozenset()
+    return frozenset(part.strip().lower() for part in match.group(1).split(",") if part.strip())
+
+
+def _is_optional(requirement: str, wanted_extras: frozenset[str]) -> bool:
+    """True when this requirement exists only to serve an extra nobody asked for.
+
+    Presence-based on purpose, with the ambiguity resolved toward keeping it: a
+    marker that names an extra we did want, or that could be satisfied without the
+    extra at all (``extra == "x" or sys_platform == "win32"``), is not optional.
+    """
+    marker = requirement.partition(";")[2]
+    named = {name.lower() for name in _MARKER_EXTRA.findall(marker)}
+    if not named:
+        return False
+    if named & wanted_extras:
+        return False
+    return " or " not in marker
+
+
 def declared_dependencies(pyproject: Path) -> set[str]:
     """Every distribution the project declares, across all groups.
 
@@ -71,6 +104,18 @@ def declared_dependencies(pyproject: Path) -> set[str]:
     also the correct answer for a project with no dependencies, and a check must be
     able to distinguish those two.
     """
+    return set(declared_requirements(pyproject))
+
+
+def declared_requirements(pyproject: Path) -> dict[str, set[str]]:
+    """Every declared distribution mapped to the extras the project asked of it.
+
+    ``pip-audit[doc]`` in the manifest means ``pdoc`` is this project's dependency,
+    so the extras have to survive parsing rather than being stripped off the name.
+
+    ``[build-system].requires`` counts too: the build backend executes over this
+    project's source, which is the same reason the dev tools are included.
+    """
     try:
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
@@ -80,9 +125,15 @@ def declared_dependencies(pyproject: Path) -> set[str]:
     groups: list[object] = [project.get("dependencies")]
     groups += (project.get("optional-dependencies") or {}).values()
     groups += (data.get("dependency-groups") or {}).values()
+    groups.append((data.get("build-system") or {}).get("requires"))
 
-    requirements = [entry for group in groups for entry in _strings(group)]
-    return {name for name in map(requirement_name, requirements) if name}
+    wanted: dict[str, set[str]] = {}
+    for group in groups:
+        for entry in _strings(group):
+            name = requirement_name(entry)
+            if name:
+                wanted.setdefault(name, set()).update(requirement_extras(entry))
+    return wanted
 
 
 def _strings(group: object) -> list[str]:
@@ -94,17 +145,21 @@ def _strings(group: object) -> list[str]:
     return [entry for entry in group if isinstance(entry, str)] if isinstance(group, list) else []
 
 
-def installed_closure(seeds: Iterable[str]) -> set[str]:
+def installed_closure(seeds: Iterable[str] | Mapping[str, set[str]]) -> set[str]:
     """``seeds`` plus every distribution reachable from them through installed metadata.
+
+    ``seeds`` may be a mapping of distribution -> requested extras (what
+    :func:`declared_requirements` returns) or a bare iterable of names.
 
     Breadth-first over ``Requires-Dist``, skipping requirements that exist only to
     serve an extra. A seed that is not installed is still kept: it is declared, so a
     report naming it is about this project even if this environment lacks it.
     """
-    pending = [normalise(seed) for seed in seeds]
+    extras: Mapping[str, set[str]] = seeds if isinstance(seeds, Mapping) else {}
+    pending = [(normalise(seed), frozenset(extras.get(seed, ()))) for seed in seeds]
     seen: set[str] = set()
     while pending:
-        name = pending.pop()
+        name, wanted = pending.pop()
         if name in seen:
             continue
         seen.add(name)
@@ -113,14 +168,15 @@ def installed_closure(seeds: Iterable[str]) -> set[str]:
         except metadata.PackageNotFoundError:
             continue  # declared but absent here — still ours, just not installed
         for requirement in requires:
-            if _EXTRA_ONLY.search(requirement):
-                continue  # optional: only pulled in when that extra is requested
+            if _is_optional(requirement, wanted):
+                continue
             child = requirement_name(requirement)
             if child and child not in seen:
-                pending.append(child)
+                # `pip-audit[doc, test]; extra == "dev"` names extras of its own.
+                pending.append((child, requirement_extras(requirement)))
     return seen
 
 
 def project_closure(pyproject: Path) -> set[str]:
     """The declared dependencies and everything they pull in, normalised."""
-    return installed_closure(declared_dependencies(pyproject))
+    return installed_closure(declared_requirements(pyproject))

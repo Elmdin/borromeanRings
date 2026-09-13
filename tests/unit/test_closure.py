@@ -15,10 +15,12 @@ import pytest
 
 from meta_harness.closure import (
     ClosureUnavailable,
+    _is_optional,
     declared_dependencies,
     installed_closure,
     normalise,
     project_closure,
+    requirement_extras,
     requirement_name,
 )
 
@@ -140,3 +142,63 @@ def test_a_dependency_cycle_terminates(monkeypatch: pytest.MonkeyPatch) -> None:
     closure = installed_closure(["alpha", "alpha"])  # duplicate seed
 
     assert closure == {"alpha", "beta"}  # gamma is extra-only; no infinite loop
+
+
+# --- #238 review: under-inclusion is the dangerous direction -------------------
+
+
+def test_an_extra_the_project_asked_for_is_followed() -> None:
+    """`pip-audit[doc]` in the manifest makes `pdoc` this project's dependency.
+
+    The first version stripped the extra off the seed and then skipped every
+    `extra ==` requirement, so `pdoc` was silently outside the scope — a CVE in it
+    would have been filtered out and the check would have reported clean. That is
+    exactly the failure class #228 exists to fix, reintroduced one level down.
+    """
+    assert "pdoc" in installed_closure({"pip-audit": {"doc"}})
+    assert "pdoc" not in installed_closure({"pip-audit": set()})  # not asked for
+
+
+def test_an_extra_named_on_a_transitive_requirement_is_followed() -> None:
+    """`pip-audit[doc, test]; extra == "dev"` names extras of its own."""
+    assert requirement_extras("pip-audit[doc, test] ; extra == 'dev'") == {"doc", "test"}
+    assert requirement_extras("plain-package >= 1") == frozenset()
+
+
+def test_build_system_requires_are_in_scope(tmp_path: Path) -> None:
+    """The build backend executes over this project's source, like the dev tools do."""
+    path = _pyproject(
+        tmp_path,
+        "[build-system]\nrequires = ['setuptools>=61']\n[project]\nname='x'\nversion='0'\n",
+    )
+    assert "setuptools" in declared_dependencies(path)
+
+
+@pytest.mark.parametrize(
+    ("requirement", "wanted", "optional"),
+    [
+        ('pdoc ; extra == "doc"', frozenset(), True),  # nobody asked: skip
+        ('pdoc ; extra == "doc"', frozenset({"doc"}), False),  # asked for: follow
+        ('x ; extra == "d" or sys_platform == "win32"', frozenset(), False),  # satisfiable without
+        ('x ; python_version < "3.11"', frozenset(), False),  # not about extras
+        ("x", frozenset(), False),  # no marker at all
+    ],
+)
+def test_a_requirement_is_optional_only_when_nothing_else_can_satisfy_it(
+    requirement: str, wanted: frozenset[str], optional: bool
+) -> None:
+    """Presence of the word `extra` is not proof a requirement is optional.
+
+    Every ambiguity resolves toward including: a false inclusion costs a look, a
+    false exclusion costs the finding.
+    """
+    assert _is_optional(requirement, wanted) is optional
+
+
+def test_an_unparseable_declaration_is_dropped_not_fatal(tmp_path: Path) -> None:
+    """A manifest can contain anything; one junk entry must not lose the rest."""
+    path = _pyproject(
+        tmp_path,
+        "[project]\nname='x'\nversion='0'\ndependencies=['requests', '', '>=1.0']\n",
+    )
+    assert declared_dependencies(path) == {"requests"}

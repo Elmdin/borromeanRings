@@ -102,7 +102,8 @@ fi
 case "$git_action" in
   commit | push)
     branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
-    reason="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - \
+    reason="$(BORROMEANRINGS_GUARD_CMD="$cmd" \
+      PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - \
       "$PROJECT_DIR/borromeanrings.toml" "$branch" 2>/dev/null <<'PY'
 import os
 import sys

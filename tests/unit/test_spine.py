@@ -259,6 +259,22 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_subject_max_length == 0
 
 
+def test_api_contracts_section_is_parsed_and_defaults_empty(tmp_path: Path) -> None:
+    cfg = tmp_path / "borromeanrings.toml"
+    cfg.write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    plain = load_config(cfg)
+    assert plain.api_contracts_rules == () and plain.api_contracts_packs == ()
+    cfg.write_text(
+        '[checks]\nrequired = ["00_build"]\n'
+        '[api_contracts]\npacks = ["python-asyncio"]\n'
+        '[[api_contracts.rules]]\nkind = "banned"\nsymbol = "malloc"\nmessage = "no heap"\n',
+        encoding="utf-8",
+    )
+    c = load_config(cfg)
+    assert c.api_contracts_packs == ("python-asyncio",)
+    assert c.api_contracts_rules == ({"kind": "banned", "symbol": "malloc", "message": "no heap"},)
+
+
 def test_prior_art_loaded_and_defaults(tmp_path: Path) -> None:
     """Defaults mirror [adr]: surveys under docs/surveys, required on feat/ branches."""
     declared = _write(

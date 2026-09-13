@@ -172,6 +172,7 @@ required = [
   "08_branch",
   "09_commits",
   "13_adr",
+  "18_api_contracts",
   "17_prior_art",
   "14_container",
   "25_provenance",

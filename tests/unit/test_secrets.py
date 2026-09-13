@@ -100,6 +100,36 @@ def test_each_planted_secret_is_detected() -> None:
         assert found[0].kind == kind, f"{kind}: matched as {found[0].kind}"
 
 
+def test_the_aws_secret_key_is_found_where_it_actually_leaks() -> None:
+    """Every real home for this credential, not just the one a test author imagines.
+
+    The first version of this pattern required quotes around the value, so it
+    missed ``~/.aws/credentials`` — the canonical location for exactly this
+    credential, whose INI format has no quotes — along with ``.env`` files,
+    Dockerfile ``ENV`` and ``export``. Caught in review. The table is the fix:
+    a shape that only matches the form the author happened to picture is a
+    scanner that reports "no secrets" over the commonest leak there is.
+    """
+    for label, line in {
+        "aws credentials file (INI)": f"aws_secret_access_key = {_AWS_SECRET}",
+        ".env / Dockerfile ENV": f"AWS_SECRET_ACCESS_KEY={_AWS_SECRET}",
+        "shell export": f"export AWS_SECRET_ACCESS_KEY={_AWS_SECRET}",
+        "python, quoted": f'AWS_SECRET_ACCESS_KEY = "{_AWS_SECRET}"',
+        "yaml": f'aws_secret_access_key: "{_AWS_SECRET}"',
+        "json": f'"aws_secret_access_key": "{_AWS_SECRET}",',
+        "os.environ subscript": f'os.environ["AWS_SECRET_ACCESS_KEY"] = "{_AWS_SECRET}"',
+        "camel case": f'AwsSecretKey = "{_AWS_SECRET}"',
+    }.items():
+        found = scan_text(line)
+        assert found, f"missed: {label}"
+        assert found[0].kind == "aws-secret-access-key", label
+
+
+def test_a_longer_base64_run_is_not_truncated_to_a_match() -> None:
+    """Requiring a terminator stops a 50-char value matching its first 40."""
+    assert not scan_text(f"aws_secret_access_key = {_AWS_SECRET}0123456789")
+
+
 def test_the_aws_secret_key_is_matched_by_name_and_shape_not_entropy() -> None:
     """The rule this module sets for itself: shapes that almost never occur by accident.
 

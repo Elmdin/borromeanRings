@@ -18,7 +18,7 @@ fails closed on any match:
 |---|---|
 | private-key-block | `-----BEGIN … PRIVATE KEY-----` |
 | aws-access-key-id | `AKIA` + 16 upper/digits — the **public** half of the pair |
-| aws-secret-access-key | an identifier matching `aws…(secret\|private)…` assigned a 40-char base64 value — the half that **grants access** |
+| aws-secret-access-key | an identifier matching `aws…(secret\|private)…` assigned a 40-char base64 value, **quoted or not** — the half that **grants access** |
 | github-pat / fine-grained | `ghp_…` / `github_pat_…` |
 | slack-token / slack-webhook | `xox[baprs]-…` / `hooks.slack.com/services/…` |
 | google-api-key | `AIza…` |
@@ -39,7 +39,11 @@ assurance, over a credential it had never been taught to see.
   *identifier* alongside the value, never by the value alone: a bare 40-character
   base64 string is also every sha256 and every short blob, and flagging it would
   be the heuristic this check rejects. `BLOB = "<40 chars>"` is not a finding;
-  `AWS_SECRET_ACCESS_KEY = "<40 chars>"` is.
+  `AWS_SECRET_ACCESS_KEY = "<40 chars>"` is. The value's **quotes are optional**,
+  because the commonest home for this credential — `~/.aws/credentials` — is INI
+  and has none, as do `.env` files, Dockerfile `ENV` and `export`. A terminator
+  (quote, whitespace or end of line) is required instead, so a longer base64 run
+  never matches its first 40 characters.
 - **Required by default.** `init.sh` puts `12_secrets` in a new project's
   required set. It is not a ratchet — there is no baseline to seed and no
   threshold to meet — so "start green" does not apply: it only ever fires when

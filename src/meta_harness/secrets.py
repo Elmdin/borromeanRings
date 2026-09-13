@@ -33,8 +33,16 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "aws-secret-access-key",
         re.compile(
+            # The value's quotes are OPTIONAL, and that is the point: the single most
+            # common home for this credential is ~/.aws/credentials, whose INI format
+            # has none (`aws_secret_access_key = wJal…`). Nor do .env files, Dockerfile
+            # ENV lines, or `export`. Requiring quotes missed every one of them.
+            # A trailing quote/whitespace/end-of-line is required instead, so a LONGER
+            # base64 run does not match its first 40 characters.
+            # `["'\]]{0,2}` lets the identifier be a quoted subscript:
+            # os.environ["AWS_SECRET_ACCESS_KEY"] = "…".
             r"(?i)aws[a-z0-9_.\-]{0,20}(?:secret|private)[a-z0-9_.\-]{0,20}"
-            r"""\s*[:=]\s*["']([A-Za-z0-9/+=]{40})["']"""
+            r"""["'\]]{0,2}\s*[:=]\s*["']?([A-Za-z0-9/+=]{40})(?:["']|\s|$)"""
         ),
     ),
     ("github-pat", re.compile(r"\bghp_[A-Za-z0-9]{36}\b")),

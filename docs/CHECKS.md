@@ -23,6 +23,9 @@ built). Each check's rationale lives in its ADR (`docs/adr/`).
   `<project>/.meta-harness/receipts/<run_id>/`, a compact `last_verdict.json`, and appends to
   `verdict_history.jsonl`. Each run is stamped with the governing `harness-version`
   (ADR-0048).
+- **Two lanes.** The **fast lane** runs on every gate; the **heavy (CI-tier) lane** runs only
+  under `./verify.sh --heavy` or in CI — expensive tool-checks that must not slow the inner
+  loop (ADR-0033).
 - **Three lanes.** The **full lane** (`./verify.sh`) runs the whole required set over
   everything. The **heavy (CI-tier) lane** (`./verify.sh --heavy`, and CI) adds expensive
   tool-checks that must not slow the inner loop (ADR-0033). The **fast (interactive) lane**
@@ -39,6 +42,8 @@ Checks a project runs are declared in its `borromeanrings.toml`:
 
 ```toml
 [checks]
+required = ["00_build", "10_format", "40_test", ...]   # fast lane — gates every run
+heavy    = ["60_mutation", "70_pip_audit", ...]        # heavy lane — gates under --heavy / CI
 required = ["00_build", "10_format", "40_test", ...]   # gates every run, in every lane
 heavy    = ["60_mutation", "70_pip_audit", ...]        # heavy lane — gates under --heavy / CI
 
@@ -96,6 +101,8 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 |-------|----------|----------------|-----|
 | `00_build` | Source compiles and the declared package imports cleanly | `[project].package`, `src_dir` | — |
 | `01_source_coherence` | **Fails** when the declared source path resolves to no files *while tracked source exists elsewhere* — the misconfiguration that makes every source-reading check pass vacuously. Genuine greenfield ⇒ `noop` | `[project].src_dir`, `package` | 0049 |
+| `10_format` | No unformatted files (black) | toolchain | — |
+| `20_lint` | No lint violations (ruff) | toolchain | — |
 | `17_prior_art` | Feature branch adding **public surface** must add/modify a survey record — the reuse question asked on the record. Ecosystem lookup deliberately advisory. No new surface ⇒ `noop` | `[prior_art].dir`, `require_prefixes` | 0051 |
 | `10_format` | No unformatted files (black) | toolchain | — |
 | `20_lint` | No lint violations (ruff) | toolchain | — |

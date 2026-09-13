@@ -26,6 +26,23 @@ from typing import Any
 from meta_harness.adopt import plan_adoption
 from meta_harness.verdict import Verdict, is_failing, read_last_verdict
 
+__all__ = [
+    "HOOK_EVENTS",
+    "HOOK_SCRIPTS",
+    "NOOP",
+    "Enforcement",
+    "ProjectStatus",
+    "Verdict",
+    "build_status",
+    "classify_enforcement",
+    "hollow_checks",
+    "obligations",
+    "read_project_verdict",
+    "render",
+    "render_self_status",
+    "summarize",
+]
+
 
 @dataclass(frozen=True)
 class ProjectStatus:
@@ -127,6 +144,10 @@ HOOK_SCRIPTS: dict[str, str] = {
     "Stop": "stop_gate.sh",
     "PostToolUse": "post_edit_format.sh",
     "PreToolUse": "pre_bash_guard.sh",
+    # Compaction is where governance state is silently lost (#137, ADR-0053): the
+    # snapshot before, and the re-injection after, are part of enforcement.
+    "PreCompact": "pre_compact.sh",
+    "SessionStart": "session_start.sh",
 }
 
 #: The hook events borromeanRings wires; all present ⇒ enforcement is automatic.
@@ -200,6 +221,27 @@ def classify_enforcement(settings: Mapping[str, Any] | None, harness_home: str) 
             f"hooks present but DISABLED (parked under '{parked[0]}') — nothing auto-gates",
         )
     return Enforcement("manual", "no borromeanRings hooks wired — the gate runs only when invoked")
+
+
+def obligations(verdict: Verdict | None) -> list[str]:
+    """What the last verdict still demands: failing checks first, then hollow ones.
+
+    The wording is what the compaction brief re-injects (ADR-0053); an empty list means
+    a clean pass, or no verdict at all — the caller says which.
+    """
+    if verdict is None:
+        return []
+    failing = [
+        f"{cid}: {status.upper()} — fix before the next Stop gate"
+        for cid, status in verdict.checks
+        if is_failing(status)
+    ]
+    hollow = [
+        f"{cid}: inspected nothing (noop) — a green here proves less than it looks"
+        for cid, status in verdict.checks
+        if status == NOOP
+    ]
+    return failing + hollow
 
 
 def hollow_checks(verdict: Verdict | None) -> tuple[str, ...]:

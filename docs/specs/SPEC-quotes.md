@@ -71,7 +71,7 @@ Let `Q` be the quote's normalised lines and `S` the span's normalised lines.
   start or end inside a word (the character before the match and the first matched
   character are not both alphanumeric; likewise the last matched character and the
   character after).
-- Several lines: `Q` must cover a **contiguous run** of `S` — `Q[0]` is the end of the
+- Two or more lines: `Q` must cover a **contiguous run** of `S` — `Q[0]` is the end of the
   run's first line (at a word boundary), `Q[-1]` is the start of its last line (at a
   word boundary), and every line between is equal. Line structure is never joined
   away: a word dropped at a line boundary (`… is not\nconclusive` quoted as

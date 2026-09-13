@@ -12,6 +12,34 @@ queue is merged.
 
 ## [Unreleased]
 
+### Changed
+- `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
+  cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,
+  per-file and per-section), and the dynamic drivers are traced and ranked — working state
+  kept in context, whole-page ingestion, unbounded fan-out, re-fetch on verification. The
+  protocol now declares an editable budget (rounds, queries/round, sources/round, extracted
+  lines/source — knobs the user approves, never gates), writes plan/log/sources/graph/report
+  to `docs/research/<slug>/`, extracts passages instead of ingesting pages, caches URLs and
+  queries, verifies against the saved passage, delegates fetch+extract to a sub-agent where
+  available, reads symbols not files on code hosts, and stops at saturation. Same contract;
+  the redundant "Tactics" section is folded into the numbered steps.
+  `.borromeanrings-context-baseline` re-seeded downward to 31690 (the ratchet tightens on
+  purpose) and a test pins the skill at ≤ 3692 B (in `tests/integration/`, which
+  mutmut skips: it reads `.claude/`, which mutmut's `mutants/` copy lacks).
+
+### Added
+- Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
+  `meta_harness.context_budget` measure what borromeanRings **itself** puts into the
+  agent's context — the prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, every installed
+  `SKILL.md`, and the message templates in `.claude/hooks/*.sh` — as bytes and approximate
+  tokens (bytes/4, no tokenizer dependency), and **ratchet the total** against
+  `.borromeanrings-context-baseline`: above the baseline fails naming both numbers, at or
+  below passes with the per-source rows in the log, nothing measurable ⇒ `noop`, an
+  unreadable baseline fails closed. Non-regression only, no absolute cap. Registered in
+  `[checks].required`, in `adopt.py` `RECOMMENDED`/`RATCHET_BASELINES` (seeded even when
+  the project declares no package), catalogued in `docs/CHECKS.md`; borromeanRings's own
+  baseline seeded at 32174 B (~8K tokens). Unit- (100% line+branch) and integration-tested
+  (pass / regression / noop / unseeded / unreadable).
 ### Fixed
 - `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,

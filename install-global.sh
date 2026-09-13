@@ -16,7 +16,19 @@ CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 mkdir -p "$CLAUDE_DIR/skills"
 
 # 1. install all skills (templated from skills/, plus project skills in .claude/skills/),
-#    substituting borromeanRings's path (the __BORROMEANRINGS_HOME__ placeholder; a no-op where absent).
+#    substituting borromeanRings's path for the ${CLAUDE_PLUGIN_ROOT} placeholder (the same
+#    token Claude Code substitutes when the skills are loaded through the plugin, ADR-0057;
+#    the legacy __BORROMEANRINGS_HOME__ spelling is still honoured; both no-ops where absent).
+# A skills/<name> entry that is a plain FILE is a symlink checked out as text (a Windows
+# clone without core.symlinks / Developer Mode). The plugin will not load that skill;
+# this installer still gets it from .claude/skills/. Say so instead of skipping silently.
+for entry in "$BORROMEANRINGS_HOME"/skills/*; do
+  [ -f "$entry" ] || continue
+  echo "warning: $entry is a plain file, not a directory — a symlink checked out as text" >&2
+  echo "         (clone without core.symlinks). The Claude Code plugin will not load that skill;" >&2
+  echo "         see docs/PLUGIN.md 'Windows checkouts'." >&2
+done
+
 installed=""
 for src in "$BORROMEANRINGS_HOME"/skills/*/ "$BORROMEANRINGS_HOME"/.claude/skills/*/; do
   [ -d "$src" ] || continue
@@ -24,7 +36,8 @@ for src in "$BORROMEANRINGS_HOME"/skills/*/ "$BORROMEANRINGS_HOME"/.claude/skill
   mkdir -p "$CLAUDE_DIR/skills/$name"
   for f in "$src"*; do
     [ -f "$f" ] || continue
-    sed "s#__BORROMEANRINGS_HOME__#$BORROMEANRINGS_HOME#g" "$f" >"$CLAUDE_DIR/skills/$name/$(basename "$f")"
+    sed -e "s#\${CLAUDE_PLUGIN_ROOT}#$BORROMEANRINGS_HOME#g" -e "s#__BORROMEANRINGS_HOME__#$BORROMEANRINGS_HOME#g" \
+      "$f" >"$CLAUDE_DIR/skills/$name/$(basename "$f")"
   done
   installed="$installed $name"
 done

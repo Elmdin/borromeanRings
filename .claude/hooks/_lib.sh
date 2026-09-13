@@ -50,6 +50,18 @@ borromeanrings_bounded() {
   fi
 }
 
+# borromeanrings_py_bounded <secs> <python args...>
+# Trusted Python under a wall-clock bound. The bound goes INSIDE the neutral-cwd
+# subshell, not around it: `timeout` is a binary and cannot run a shell function,
+# so `borromeanrings_bounded ... borromeanrings_py` exits 127 — silently, wherever
+# the caller tolerates failure. Same neutral cwd and same PYTHONPATH contract as
+# borromeanrings_py; the interpreter is still named only in this file.
+borromeanrings_py_bounded() {
+  local secs="$1"
+  shift
+  (cd / && borromeanrings_bounded "$secs" python3 "$@")
+}
+
 # borromeanrings_read_stdin — echo the hook payload from stdin, BOUNDED.
 # Regression guard for the orphaned-shell bug: if the substrate never closes
 # the pipe's write end, an unbounded `cat` blocks forever and the hook's shell

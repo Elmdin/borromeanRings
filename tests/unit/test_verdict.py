@@ -7,12 +7,17 @@ from pathlib import Path
 from meta_harness.verdict import (
     LAST_VERDICT_FILE,
     NON_FAILING_STATUSES,
+    REWRITE_CONTRACT_FILE,
+    REWRITE_STATUSES,
     VERDICT_HISTORY_FILE,
+    RewriteTally,
     Verdict,
     append_history,
+    append_rewrite_record,
     is_failing,
     read_history,
     read_last_verdict,
+    read_rewrite_tally,
     status_label,
     write_last_verdict,
 )
@@ -195,6 +200,32 @@ def test_status_matching_is_exact_not_fuzzy() -> None:
 def test_non_failing_allowlist_is_immutable_and_minimal() -> None:
     assert isinstance(NON_FAILING_STATUSES, frozenset)
     assert sorted(NON_FAILING_STATUSES) == ["noop", "pass"]
+
+
+# --- rewrite-contract records (ADR-0059) ------------------------------------------------
+
+
+def test_rewrite_record_appends_and_tallies_by_status(tmp_path: Path) -> None:
+    for status in ("honoured", "honoured", "not_honoured", "exempt", "unknown"):
+        append_rewrite_record(tmp_path, {"status": status, "prompt_hash": "h"})
+    raw = (tmp_path / REWRITE_CONTRACT_FILE).read_text(encoding="utf-8")
+    assert raw.count("\n") == 5 and raw.startswith('{"status": "honoured", "prompt_hash": "h"}\n')
+    tally = read_rewrite_tally(tmp_path)
+    assert tally == RewriteTally(honoured=2, not_honoured=1, exempt=1, unknown=1)
+    assert (tally.judged, tally.total) == (3, 5)
+
+
+def test_rewrite_tally_is_fail_soft_and_fail_closed(tmp_path: Path) -> None:
+    assert read_rewrite_tally(tmp_path) == RewriteTally()
+    path = tmp_path / REWRITE_CONTRACT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '{"status": "honoured"}\n\n{garbage\n[1]\n{"status": "forged"}\n{"no": "status"}\n',
+        encoding="utf-8",
+    )
+    # malformed lines are skipped; an unrecognised or missing status is never "honoured"
+    assert read_rewrite_tally(tmp_path) == RewriteTally(honoured=1, unknown=2)
+    assert REWRITE_STATUSES == ("honoured", "not_honoured", "exempt", "unknown")
 
 
 # --- status_label: the gate-output row text, with a check's optional one-line summary ---

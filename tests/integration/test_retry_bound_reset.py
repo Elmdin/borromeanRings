@@ -324,7 +324,7 @@ def test_every_hook_python_runs_through_the_neutral_cwd_helper() -> None:
             if re.search(r"python3?\s+-[IP]\b", line):
                 offenders.append(f"{script.name}:{number}: banned flag: {line.strip()}")
             elif _PYTHON.search(code) and not (
-                script.name == "_lib.sh" and "(cd / && python3" in code
+                script.name == "_lib.sh" and re.search(r"\(cd / &&.*\bpython3\b", code)
             ):
                 offenders.append(f"{script.name}:{number}: {line.strip()}")
     assert not offenders, "\n".join(offenders)

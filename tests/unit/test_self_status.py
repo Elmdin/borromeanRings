@@ -9,8 +9,11 @@ from __future__ import annotations
 from meta_harness.status_assess import (
     HOOK_EVENTS,
     HOOK_SCRIPTS,
+    Enforcement,
+    RewriteTally,
     classify_enforcement,
     hollow_checks,
+    render_rewrite_line,
     render_self_status,
 )
 from meta_harness.verdict import Verdict
@@ -231,3 +234,49 @@ def test_render_never_gated_project_does_not_claim_a_verdict() -> None:
     )
     assert "never" in text.lower()
     assert "PASS" not in text
+
+
+# --- rewrite-contract tally (ADR-0059) -------------------------------------------------
+
+
+def _render(tally: RewriteTally | None) -> str:
+    return render_self_status(
+        project="/p/x",
+        governed=True,
+        required=("40_test",),
+        last_verdict=None,
+        enforcement=Enforcement("auto", "6/6 hooks wired"),
+        harness_home=HOME,
+        rewrite_tally=tally,
+    )
+
+
+def test_render_rewrite_line_states_the_record_exactly() -> None:
+    assert render_rewrite_line(None) == "no record"
+    assert render_rewrite_line(RewriteTally()) == "no record"
+    assert render_rewrite_line(RewriteTally(honoured=3, not_honoured=1)) == (
+        "honoured 3 of 4 in this project"
+    )
+    assert render_rewrite_line(RewriteTally(honoured=0, not_honoured=2, exempt=5)) == (
+        "honoured 0 of 2 in this project (5 exempt)"
+    )
+    assert render_rewrite_line(RewriteTally(exempt=1, unknown=2)) == (
+        "honoured 0 of 0 in this project (1 exempt, 2 unknown)"
+    )
+
+
+def test_self_status_shows_the_rewrite_contract_tally() -> None:
+    assert "  Rewrite:      contract honoured 2 of 3 in this project (1 unknown)\n" in _render(
+        RewriteTally(honoured=2, not_honoured=1, unknown=1)
+    )
+    assert "  Rewrite:      contract no record\n" in _render(None)
+    # the default (no tally passed) is the honest "no record", never a claim
+    default = render_self_status(
+        project="/p/x",
+        governed=True,
+        required=(),
+        last_verdict=None,
+        enforcement=Enforcement("auto", "ok"),
+        harness_home=HOME,
+    )
+    assert "contract no record" in default

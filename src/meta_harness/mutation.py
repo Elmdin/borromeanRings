@@ -15,6 +15,8 @@ mutmut is the shell check's job (the tool is a module secret).
 import re
 from dataclasses import dataclass
 
+from meta_harness.ratchet import RatchetDecision
+
 # mutmut 3.x renders a progress/summary line with emoji category counters, e.g.
 #   "… 3/3  🎉 2 🫥 0  ⏰ 0  🤔 0  🙁 1  🔇 0  🧙 0"
 # Emojis are matched by escape (source stays ASCII, robust to encoding). The line
@@ -80,3 +82,22 @@ def mutation_score(counts: MutationCounts) -> float:
     escaped = counts.survived + counts.suspicious
     denominator = caught + escaped
     return caught / denominator if denominator else 1.0
+
+
+def summary_line(counts: MutationCounts, decision: RatchetDecision) -> str:
+    """The one-line ``summary`` the check writes into its receipt for the gate row.
+
+    A score alone is unreadable: a run that evaluated nothing scores a vacuous 1.0.
+    So the count leads — ``evaluated N, score S`` — and a zero-evaluated run says only
+    ``evaluated 0`` (no score, because there is none to report). On a regression the
+    baseline is named, so the row itself explains the FAIL. The gate prints this after
+    the status (see ``verdict.status_label``); nobody should have to open the log to
+    learn whether mutmut did any work. See ADR-0022, issue #187.
+    """
+    evaluated = total_evaluated(counts)
+    if evaluated == 0:
+        return "evaluated 0"
+    line = f"evaluated {evaluated}, score {mutation_score(counts):.2f}"
+    if decision.regressed:
+        line += f" < baseline {decision.baseline:.2f}"
+    return line

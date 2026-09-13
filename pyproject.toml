@@ -11,6 +11,21 @@ requires-python = ">=3.10"
 [project.optional-dependencies]
 # The check toolchain. Installed in CI via `pip install -e ".[dev]"` so the gate
 # runs the same checks on GitHub's servers as it does locally.
+# Pinned exactly, not floored — but only what DECIDES a verdict.
+#
+# A floor (or an upper bound at the next major) still lets a MINOR release change
+# the answer: ruff 0.15.8 -> 0.16.7 reformats files, so a green laptop and a red CI
+# were the same commit. The gate's toolchain is part of the gate.
+#
+# The line is drawn at "does this change the verdict", not "is this in the closure".
+# Pinning the whole resolved closure was tried first and CI rejected it: it froze
+# click, idna, msgpack and urllib3 at versions with known CVEs, and `70_pip_audit`
+# correctly went red. Networking and CLI plumbing must stay free to receive security
+# fixes, so only the deciders are pinned here. ADR-0077 has the evidence.
+#
+# coverage and libcst are transitive (via pytest-cov and mutmut) and are named anyway:
+# coverage measures the ratchet, and libcst generates mutmut's mutants, so either one
+# moving changes a score. Depending on them is real, so it is declared.
 dev = [
   "ruff>=0.6",
   "mypy>=1.10",
@@ -20,6 +35,20 @@ dev = [
   "pip-audit>=2.7",
   "mutmut>=3",
   "pip-licenses>=5",
+  # Ships the real shellcheck binary as a wheel, so CI needs no apt/brew step and
+  # local installs match CI exactly (check 16_shellcheck, ADR-0050).
+  "shellcheck-py>=0.10",
+  "ruff==0.15.8",
+  "mypy==1.19.1",
+  "pytest==9.0.3",
+  "pytest-cov==7.0.0",
+  "bandit==1.9.4",
+  "pip-audit==2.10.0",
+  "mutmut==3.6.0",
+  "pip-licenses==5.5.5",
+  "coverage==7.13.4",
+  "libcst==1.8.6",
+  "shellcheck-py==0.11.0.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -32,6 +61,12 @@ extend-exclude = ["cs130", ".meta-harness", "examples"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+# The "you reimplemented something that exists" rules — the only shipping rules of their
+# kind (ADR-0051, docs/research/AGENT-TOOLING-SURVEY.md). Selected INDIVIDUALLY, not as
+# the PIE/PERF/PL groups: measured on this tree, the groups bring 50 findings of which
+# 37 are magic-value nits and 3 are `too-many-arguments` — a numeric threshold, which is
+# exactly the arbitrary-number style this project rejects. These five are binary.
+extend-select = ["PIE807", "PERF401", "PERF402", "PERF403", "PLR0402"]
 
 [tool.mypy]
 python_version = "3.12"

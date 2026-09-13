@@ -1,5 +1,24 @@
 # borromeanRings
 
+> ## ⚠️ Work in progress — not ready for use
+>
+> borromeanRings is under active development and is **not in a stable state**. Do not
+> install it, adopt it in a project, or rely on its verdict yet.
+>
+> The specific gaps holding this notice in place, so you can judge for yourself:
+>
+> - **#230** — `12_secrets` does not detect an AWS *secret* access key, and `init.sh`
+>   leaves the secret check out of a new project's required set entirely.
+> - **#228** — two heavy-lane checks audit whatever is installed on the machine rather
+>   than the project's own dependencies, so the same commit gets different verdicts.
+> - **#229** — `06_git_identity` cannot pass under this project's own merge model and
+>   was dropped from the required set instead of being reconciled.
+> - **#144 / #145** — the gate runs the project's code as your user, so it cannot bound
+>   an agent that is actively trying to defeat it. See the trust boundary below.
+>
+> This notice goes when those close — not when the feature list is finished.
+
+
 <p align="center">
   <img src="docs/borromean-rings.png" width="200" alt="Borromean rings — three links that hold only together; remove any one and the whole comes apart">
 </p>
@@ -79,10 +98,10 @@ step-by-step way to exercise every feature on a fresh project.
 | 40 | test + coverage **ratchet** | `pytest --cov` (no absolute % target) |
 | 50 | security | `bandit` |
 
-The required set is declared in `borromeanrings.toml` `[checks].required` (nineteen gates
+The required set is declared in `borromeanrings.toml` `[checks].required` (twenty-nine gates
 on this repo; `06_git_identity` exists but is intentionally excluded so external
 contributors pass CI — see ADR-0019). The table above is the v0 core; the full set of
-**28 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
+**40 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
 keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 ## Layout
@@ -99,8 +118,49 @@ keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 - `docs/MANIFESTO.md` — **the why**: the north star; borromeanRings is the meta-harness (it enhances agent capabilities incl. deep research); the notes/Kernel is a separate product built *with* it
 - `docs/VISION.md` — the whole product borromeanRings (the meta-harness) is meant to become
 - `docs/ROADMAP.md` — **every harness feature, with status** (plus the separate products built with borromeanRings)
+- `docs/SELF-ASSESSMENT.md` — **the evidence-based self-assessment**: how the gate works, what one cycle of sub-agent reviews found (defects by class, and whether a mechanism or only review catches each), gaps in the platform's own order, prioritised improvements
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
+
+## What borromeanRings guarantees, and what it does not
+
+A gate that is not honest about its own limits is worse than no gate, because the
+people relying on it stop looking. So, plainly:
+
+**It resists accident, mistake, and naive forgery.** A change cannot reach `dev` or
+`main` without the full gate passing in CI, on GitHub's runners, against the same
+`verify.sh` a human runs locally. Branch protection requires that check and requires
+the branch to be up to date first. A failing test, a type error, an unformatted
+file or a broken architectural rule all stop the merge, and no amount of an agent
+insisting the work is done changes that. Locally, the Stop hook keeps an agent from
+declaring a task finished on a red tree, and the records that decide whether it runs
+— the retry count and the last-proven-green hash — live **outside** the project, so
+an agent confined to the project directory cannot rewrite them (ADR-0079, ADR-0082).
+
+Secret scanning is the one required check whose coverage is **partial**, and it is
+worth being specific rather than reassuring: `12_secrets` catches well-formed provider
+tokens and private-key blocks — an AWS access key *ID*, a GitHub PAT, a Slack token, a
+`BEGIN PRIVATE KEY` block — and by design does not guess at high-entropy strings. It
+does not yet catch the AWS secret access key, and `init.sh` does not put the check in a
+new project's default required set at all. Both are #230, and both are open.
+
+**It does not resist an agent that deliberately forges its verdict.** The gate runs
+the governed project's own test code, as your user, on your machine. That code can do
+anything your user can do — including reaching the state directory above, or the
+interpreter, or `verify.sh` itself. No arrangement of files inside a tree the agent
+can write can close that, and we have not pretended otherwise: every hardening in
+this repository raises the cost of a forgery, and none of them make it impossible.
+
+The distinction that matters is **confinement, not good intentions**. A real bound
+needs the gate to run somewhere the agent cannot reach — isolated execution in a
+worktree or sandbox, with the verdict produced outside the agent's blast radius.
+That is tracked as #144 and #145 and is not built yet.
+
+**What follows from this.** Treat a green local gate as strong evidence, and CI's
+green as the thing you act on: CI checks out the commit on a runner the agent never
+touched, which is precisely the confinement the local run lacks. If you are running
+an agent you have reason to distrust, borromeanRings is not the control you want —
+you want isolation, and this is a quality layer running inside it.
 
 ## Design
 
@@ -108,3 +168,11 @@ See `docs/` — the `.claude/` hooks are an Adapter over `verify.sh` (what makes
 borromeanRings harness-agnostic); checks are a uniform-contract registry; the tool a
 check uses and the substrate are module secrets. The gate is a mechanized
 Definition of Done.
+
+<!-- describe:begin -->
+**40 checks** across three lanes — 17 shared, 17 Python, 6 heavy/CI — of which **29 are required on this repo** and 6 are threshold-free ratchets.
+
+Governance matrices: AI-agent quality (partial), Security & compliance (partial), Security & compliance (documented), Delivery / DORA (documented), Operational / SRE (documented), Data / ML (documented), Product / UX (documented), Security & compliance (partial), Delivery / DORA (partial), Operational / SRE (partial), Data / ML (archetype), Product / UX (partial).
+
+Run `./describe.sh` for the generated report of every check, what it enforces, and where it applies. This block is generated; `04_self_description` fails the gate if the counts above stop matching the registry.
+<!-- describe:end -->

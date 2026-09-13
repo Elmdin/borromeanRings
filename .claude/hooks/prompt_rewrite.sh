@@ -17,11 +17,12 @@ BORROMEANRINGS_HOME="$(cd "$HERE/../.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 . "$HERE/_lib.sh"
 
-[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
+# borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
+{ [ -f "$PROJECT_DIR/borromeanrings.toml" ] || [ -f "$PROJECT_DIR/borromeo.toml" ]; } || exit 0
 
 input="$(borromeanrings_read_stdin)"
 if [ -n "$input" ]; then
-  key="$(printf '%s' "$input" | python3 -c "
+  key="$(printf '%s' "$input" | borromeanrings_py -c "
 import hashlib, json, sys
 d = json.load(sys.stdin)
 digest = hashlib.sha256(d.get('prompt', '').encode()).hexdigest()[:16]
@@ -34,10 +35,12 @@ fi
 # Empty/unparseable payload ⇒ no dedupe key ⇒ emit anyway (fail-open: a timed-out
 # read must never silently drop the directive).
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR/borromeanrings.toml" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR/borromeanrings.toml" "$PROJECT_DIR" <<'PY'
 import sys
+from pathlib import Path
 
 try:
+    from meta_harness.charter import missing_charter_reminder
     from meta_harness.prompt_rewrite import build_directive
     from meta_harness.spine import load_config
 
@@ -47,5 +50,7 @@ except Exception:
 
 if config.prompt_rewriting_enabled:
     print(build_directive(config.context))
+if config.charter_enabled and not (Path(sys.argv[2]) / config.charter_path).is_file():
+    print(missing_charter_reminder(config.charter_path))
 PY
 exit 0

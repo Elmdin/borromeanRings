@@ -226,7 +226,9 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
 # agent to rewrite the user's prompt (preserve+improve intent) using the context above, and to
 # OPEN its reply with a one-line "Reading this as: ..." rendering of the improved request
 # (confirmation-first only for irreversible or scope-changing readings). The agent performs
-# the rewrite; verifying compliance is tracked in issue #81. See SPEC-prompt-rewrite.md.
+# the rewrite; the Stop hook records whether the reply opened with that line
+# (.meta-harness/rewrite_contract.jsonl; `status.sh` tallies it — ADR-0059). See
+# SPEC-prompt-rewrite.md and SPEC-rewrite-contract.md.
 enabled = true
 
 [enhancements]

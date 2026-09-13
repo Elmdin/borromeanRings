@@ -34,6 +34,8 @@ borromeanRings reference is verified against the **current** schema: **8** requi
 | Artifact | Path | What it does | Scope-fit |
 |---|---|---|---|
 | 4D philosophy doc | `docs/AI-FLUENCY.md` (pointer from MANIFESTO) | Maps the 4D framework onto borromeanRings's existing mechanisms — the principled "why" vocabulary | Project documentation |
+| Dry-run evidence | `docs/4D-DRY-RUNS.md` (#178) | Re-authored account of 4D's two dry runs — AI-side obligations failing silently — with a finding→mechanism table and the deliberate exclusions (density threshold, severity ladder) | Project documentation |
+| Stewardship skill | `skills/ai-fluency-stewardship/SKILL.md` | Real-time governance of long agent runs: tripwires (retry > K, N steps with no reviewable artifact, irreversible action imminent, gate-logic edit attempt, orphaned process) → continue / interrupt / stop | Strong — agent governance |
 | Stewardship skill (cadence) | `skills/ai-fluency-stewardship/SKILL.md` | The schedule on which the four competencies re-run mid-task: two speeds (fast per turn, full per task); checkpoints, each named with the mechanism that detects it (Stop verdict flip, bounded-retry escalation, `22_charter`, PreCompact/SessionStart brief, rewrite-contract record); back-edges (product failure → Description, process failure → Delegation); tripwires → continue / interrupt / stop | Strong — agent governance |
 | Discernment skill | `skills/ai-fluency-discernment/SKILL.md` | Post-run trajectory audit + output review; complements the receipt system | Strong — output verification |
 | Delegation skill | `skills/ai-fluency-delegation/SKILL.md` | Authority-scope declaration + the 3 modes + 4D kickoff (absorbs the source's `scenario` skill) | Direct — scoping agent authority |

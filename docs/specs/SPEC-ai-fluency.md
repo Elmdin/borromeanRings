@@ -1,17 +1,19 @@
 # SPEC — AI Fluency collaboration skills (4D)
 
-> Status: **proposed** (awaiting Maintainer approval). Re-authored from external
-> CC BY-NC-SA course notes as original Apache-2.0 text — no source expression copied.
-> See ADR-0020 (to be written on approval).
+> Status: **accepted** (ADR-0020); amended 2026-09-09 (#177) — Stewardship is a cadence
+> over the four competencies, not a fifth. Re-authored from external CC BY-NC-SA material
+> as original Apache-2.0 text — no source expression copied.
 
 ## 1. Purpose
 Give agents working under borromeanRings a small, gated set of **collaboration-discipline
 skills** that improve how a human directs and governs an agent *while it builds software*,
 using the vocabulary of Anthropic's AI Fluency framework — the 4Ds (Delegation, Description,
-Discernment, Diligence) plus a 5th, **Stewardship**. These skills mostly *name and sharpen
-what borromeanRings already mechanizes* (the gate = automated Process Discernment; the
-prompt-rewrite hook = Description), and add the one genuinely new mechanism: real-time
-**Stewardship tripwires** for long agent runs.
+Discernment, Diligence) — plus **Stewardship**, which is not a fifth competency but the
+**cadence** on which the four are re-run during an autonomous run (ADR-0020, amendment).
+These skills mostly *name and sharpen what borromeanRings already mechanizes* (the gate =
+automated Process Discernment; the prompt-rewrite hook = Description), and add the one
+genuinely new element: the in-flight cadence — two speeds, detector-backed checkpoints,
+back-edges — for long agent runs.
 
 ## 2. Scope discipline (MANIFESTO)
 borromeanRings stays narrow: *make agents build software better.* These skills are in-scope
@@ -32,7 +34,7 @@ borromeanRings reference is verified against the **current** schema: **8** requi
 | Artifact | Path | What it does | Scope-fit |
 |---|---|---|---|
 | 4D philosophy doc | `docs/AI-FLUENCY.md` (pointer from MANIFESTO) | Maps the 4D framework onto borromeanRings's existing mechanisms — the principled "why" vocabulary | Project documentation |
-| Stewardship skill | `skills/ai-fluency-stewardship/SKILL.md` | Real-time governance of long agent runs: tripwires (retry > K, N steps with no reviewable artifact, irreversible action imminent, gate-logic edit attempt, orphaned process) → continue / interrupt / stop | Strong — agent governance |
+| Stewardship skill (cadence) | `skills/ai-fluency-stewardship/SKILL.md` | The schedule on which the four competencies re-run mid-task: two speeds (fast per turn, full per task); checkpoints, each named with the mechanism that detects it (Stop verdict flip, bounded-retry escalation, `22_charter`, PreCompact/SessionStart brief, rewrite-contract record); back-edges (product failure → Description, process failure → Delegation); tripwires → continue / interrupt / stop | Strong — agent governance |
 | Discernment skill | `skills/ai-fluency-discernment/SKILL.md` | Post-run trajectory audit + output review; complements the receipt system | Strong — output verification |
 | Delegation skill | `skills/ai-fluency-delegation/SKILL.md` | Authority-scope declaration + the 3 modes + 4D kickoff (absorbs the source's `scenario` skill) | Direct — scoping agent authority |
 | Prompting skill | `skills/ai-fluency-prompting/SKILL.md` | The 6 techniques + pattern templates + troubleshooting table (absorbs the source's `description` + `patterns`); reference for the Description the spine already enforces | Reference — supports prompt-rewrite |

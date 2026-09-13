@@ -32,7 +32,7 @@ if [ -z "$merge_base" ]; then
   exit 0
 fi
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$src_dir" "$merge_base" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$src_dir" "$merge_base" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import subprocess
 import sys
 from pathlib import Path

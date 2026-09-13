@@ -88,3 +88,15 @@ def test_an_unwritable_gitignore_is_not_an_error(tmp_path: Path) -> None:
         assert ensure_ignored(tmp_path) is None
     finally:
         gitignore.chmod(0o644)
+
+
+def test_an_unreadable_gitignore_is_not_an_error(tmp_path: Path) -> None:
+    """Adoption must survive a `.gitignore` it cannot read, not just one it cannot write.
+
+    A directory where the file should be, rather than `chmod 000`: permission bits
+    are ignored when the suite runs as root (CI containers often do), so that form
+    would pass without exercising anything.
+    """
+    (tmp_path / ".gitignore").mkdir()
+
+    assert ensure_ignored(tmp_path) is None  # must not raise

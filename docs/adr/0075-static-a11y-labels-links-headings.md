@@ -215,7 +215,7 @@ gate that cries wolf gets switched off. No browser or renderer was installed to 
 this: the reasoning is from the specifications, which is all it needs.
 
 ## Alternatives considered
-- **A new check (`16_a11y_forms` or similar)** — rejected. One HTML corpus, one parse,
+- **A separate forms/links check, under its own id** — rejected. One HTML corpus, one parse,
   one config surface, one receipt; a second check would double the discovery, the
   fail-closed git handling and the `noop` semantics, and would let the two drift.
 - **Turn the three rules on by default** — rejected, as above: un-adoptable for existing

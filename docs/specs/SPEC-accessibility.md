@@ -94,15 +94,15 @@ each, and turning them all on at once would make the gate un-adoptable (ADR-0075
      `aria-hidden="true"` on it or on an ancestor. The decorative chevron in
      `<a href="#main" aria-hidden="true" tabindex="-1">` is the common case.
    - **There is no banned-phrase list.** "Click here", "read more", "link" are
-     *discernible*; whether they are *meaningful* is a judgement about context, not a
+     *discernible*; whether they serve the reader is a judgement about context, not a
      fact about the document. A gate that guessed would be enforcing an opinion. Link
      purpose in context (SC 2.4.4) beyond the empty case stays a human/T2 concern.
    - `<a>` without an `href` is not a link (it is a name/target) and is not checked.
    - Only text that actually **renders inside the link** counts: `<script>`/`<style>`
      source is not text, and a `<template>` (or an `<img>` inside one) nested *within*
      the link is inert, so neither can give the link its name. A link that is itself
-     inside a template sits at the same depth as its own content and collects it
-     normally.
+     inside a template sits at the same depth as its own content and collects it as
+     any other element would.
 6. **`heading_structure`** — the document's heading outline is well-formed (SC 1.3.1
    Info and Relationships; axe-core `page-has-heading-one`, `heading-order`). Row U6.
    Two facts, one rule:
@@ -243,12 +243,12 @@ The rules answer what a *browser* would build, not what the text looks like:
 - **A self-closing flag on an HTML element means nothing.** The parsing spec
   acknowledges `<x/>` only in foreign content, where `<rect/>` really does close;
   `html.parser` closes every one, which made `<a href="/x" />Read the docs</a>` an empty
-  link. In an `.xhtml` file the flag *is* meaningful, and treating it as HTML there is a
+  link. In an `.xhtml` file the flag *does* close the element, and treating it as HTML there is a
   deliberate missed violation rather than an invented one. A **void** element written
   `<br/>` was already closed when it opened, and a **foreign** one (`<rect/>`) really does
   self-close.
-- **Inside an `<svg>`/`<math>` subtree a familiar tag name is usually not an HTML
-  element** — but the parsing spec has a **breakout list** of tags a browser refuses to
+- **Inside an `<svg>`/`<math>` subtree a familiar tag name is not an HTML element
+  unless the parsing spec's breakout list names it** — but the parsing spec has a **breakout list** of tags a browser refuses to
   keep there: it closes the foreign element and parses them as HTML. The list is
   `b, big, blockquote, body, br, center, code, dd, div, dl, dt, em, embed, h1, h2, h3,
   h4, h5, h6, head, hr, i, img, li, listing, menu, meta, nobr, ol, p, pre, ruby, s,

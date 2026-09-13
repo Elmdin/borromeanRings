@@ -55,6 +55,11 @@ echo "wrote $TARGET/.claude/settings.json  (hooks reference borromeanRings at $B
 if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
   mkdir -p "$TARGET/.claude/skills"
   cp -R "$BORROMEANRINGS_HOME/.claude/skills/." "$TARGET/.claude/skills/"
+  # Substitute the home placeholder, exactly as install-global.sh does. A skill that
+  # still carries it tells the agent to run a path that does not exist.
+  while IFS= read -r f; do
+    sed -i "s#__BORROMEANRINGS_HOME__#$BORROMEANRINGS_HOME#g" "$f"
+  done < <(find "$TARGET/.claude/skills" -type f -name '*.md')
   echo "installed borromeanRings skills into $TARGET/.claude/skills/ (e.g. borromeanrings-research)"
 fi
 

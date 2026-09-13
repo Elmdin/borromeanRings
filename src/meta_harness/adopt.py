@@ -28,6 +28,7 @@ RECOMMENDED: tuple[str, ...] = (
     "45_docstrings",
     "01_source_coherence",
     "17_prior_art",
+    "04_self_description",
 )
 
 # Recommended checks that are ratchets: each needs a baseline file seeded from

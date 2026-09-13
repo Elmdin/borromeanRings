@@ -1,10 +1,14 @@
 """Tests for the policy spine loader (docs/specs/SPEC-spine.md §5)."""
 
+import os
+import subprocess
+import sys
+import warnings
 from pathlib import Path
 
 import pytest
 
-from meta_harness.spine import load_config
+from meta_harness.spine import CONFIG_NAME, LEGACY_CONFIG_NAME, load_config, resolve_config_path
 
 
 def _write(tmp_path: Path, body: str) -> Path:
@@ -256,3 +260,185 @@ def test_prior_art_loaded_and_defaults(tmp_path: Path) -> None:
     default = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
     assert default.prior_art_dir == "docs/surveys"
     assert default.prior_art_require_prefixes == ("feat/",)
+
+
+def test_verification_properties_loaded_and_defaults_off(tmp_path: Path) -> None:
+    """Tier 1 of the verification ladder is opt-in: no key ⇒ the rule is off."""
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[verification]\nproperties = "tests/properties"\n',
+    )
+    assert load_config(declared).verification_properties == "tests/properties"
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).verification_properties == ""
+
+    empty_section = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n[verification]\n')
+    assert load_config(empty_section).verification_properties == ""
+
+    blank = _write(
+        tmp_path, '[checks]\nrequired = ["00_build"]\n[verification]\nproperties = "  "\n'
+    )
+    assert load_config(blank).verification_properties == ""
+
+
+def test_unknown_verification_key_is_fail_closed(tmp_path: Path) -> None:
+    """A typo'd verification claim must never read as 'nothing declared' (ADR-0074).
+
+    ``propertys = "tests/properties"`` would otherwise switch the rule off in silence —
+    a self-disabling gate, the hazard ADR-0049 exists to remove. The message must name
+    the offending key so the fix is obvious.
+    """
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[verification]\n'
+        'propertys = "tests/properties"\nsmt = []\n',
+    )
+    with pytest.raises(ValueError) as excinfo:
+        load_config(config)
+    message = str(excinfo.value)
+    assert "unknown key" in message
+    assert "propertys, smt" in message  # every unknown key, sorted, comma-separated
+    assert "Known: properties" in message  # and what the known keys actually are
+    # `endswith`, not `in`: the message must end with the reason, so a mutation that
+    # pads the literal is caught rather than shrugged at.
+    assert message.endswith("fail-closed instead.")
+
+
+def test_provenance_declared_and_parsed(tmp_path: Path) -> None:
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n\n[provenance]\n'
+        'sources = ["/sib/4D", "vendor/notes.md"]\n'
+        'paths = ["docs"]\n'
+        'allow = ["cc by-nc-sa", "from pathlib import path"]\n',
+    )
+    cfg = load_config(config)
+    assert cfg.provenance_declared is True
+    assert cfg.provenance_sources == ("/sib/4D", "vendor/notes.md")
+    assert cfg.provenance_paths == ("docs",)
+    assert cfg.provenance_allow == ("cc by-nc-sa", "from pathlib import path")
+
+
+def test_provenance_defaults_when_absent(tmp_path: Path) -> None:
+    cfg = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert cfg.provenance_declared is False
+    assert cfg.provenance_sources == ()
+    assert cfg.provenance_paths == ("docs", "skills", ".claude/skills")
+    assert cfg.provenance_allow == ()
+
+
+def test_provenance_empty_table_is_declared_with_defaults(tmp_path: Path) -> None:
+    # `[provenance]` with nothing under it: declared (so the check is ON, honestly noop
+    # with no sources), paths at their default, no allowlist.
+    cfg = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n[provenance]\n'))
+    assert cfg.provenance_declared is True
+    assert cfg.provenance_sources == ()
+    assert cfg.provenance_paths == ("docs", "skills", ".claude/skills")
+
+
+def test_predicates_defaults_off_and_loaded(tmp_path: Path) -> None:
+    """[predicates] (ADR-0064): off by default; hedges extend the built-ins."""
+    cfg = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert cfg.predicates_enabled is False
+    assert cfg.predicates_paths == ("docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE")
+    assert cfg.predicates_hedges == ()
+    assert cfg.predicates_require_reference is True
+
+    cfg = load_config(
+        _write(
+            tmp_path,
+            '[checks]\nrequired = ["00_build"]\n\n[predicates]\nenabled = true\n'
+            'paths = ["specs"]\nhedges = ["fluffy"]\nrequire_reference = false\n',
+        )
+    )
+    assert cfg.predicates_enabled is True
+    assert cfg.predicates_paths == ("specs",)
+    assert cfg.predicates_hedges == ("fluffy",)
+    assert cfg.predicates_require_reference is False
+
+
+def test_shell_source_paths_loaded_and_default_resolves_sources(tmp_path: Path) -> None:
+    """The defaults are load-bearing: they are what stops 16_shellcheck drowning in
+    "cannot follow sourced file" notes, which is why they are resolution paths rather
+    than a blanket suppression (ADR-0050)."""
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[shell]\nsource_paths = ["SCRIPTDIR/lib"]\n',
+    )
+    assert load_config(declared).shell_source_paths == ("SCRIPTDIR/lib",)
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).shell_source_paths == ("SCRIPTDIR", "SCRIPTDIR/..")
+
+
+def test_shell_exclude_loaded_and_defaults_empty(tmp_path: Path) -> None:
+    """Empty by default on purpose: a code is excluded only with a written reason."""
+    declared = _write(
+        tmp_path, '[checks]\nrequired = ["00_build"]\n[shell]\nexclude = ["SC2154"]\n'
+    )
+    assert load_config(declared).shell_exclude == ("SC2154",)
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).shell_exclude == ()
+
+
+# --- legacy config-name fallback (issue #62: borromeo.toml -> borromeanrings.toml) ---
+
+
+def test_legacy_config_name_loads_with_deprecation_warning(tmp_path: Path) -> None:
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    canonical = tmp_path / "borromeanrings.toml"
+    with pytest.warns(FutureWarning, match="borromeo.toml.*borromeanrings.toml"):
+        loaded = load_config(canonical)
+    assert loaded.required_checks == ("00_build",)
+
+
+def test_canonical_config_name_wins_over_legacy_without_warning(tmp_path: Path) -> None:
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["legacy"]\n', encoding="utf-8")
+    canonical = _write(tmp_path, '[checks]\nrequired = ["canonical"]\n')
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loaded = load_config(canonical)
+    assert loaded.required_checks == ("canonical",)
+    assert caught == []
+
+
+def test_missing_both_config_names_raises(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        load_config(tmp_path / "borromeanrings.toml")
+
+
+def test_resolve_config_path_falls_back_only_for_canonical_name(tmp_path: Path) -> None:
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    other = tmp_path / "other.toml"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert resolve_config_path(other) == other
+        assert resolve_config_path(str(other)) == other
+    assert caught == []
+    canonical = str(tmp_path / "borromeanrings.toml")
+    with pytest.warns(FutureWarning):
+        assert resolve_config_path(canonical) == tmp_path / "borromeo.toml"
+
+
+def test_legacy_notice_reaches_stderr_under_default_filters(tmp_path: Path) -> None:
+    # Review of PR #165: a DeprecationWarning is hidden by Python's default filters
+    # outside __main__, so status.sh / the hooks saw nothing. The notice must reach
+    # stderr through a plain `python3 -c` with default filters (no -W flag).
+    (tmp_path / "borromeo.toml").write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    code = (
+        "from meta_harness import status\n"  # a non-__main__ caller, like status.sh
+        f"status.gather({str(tmp_path)!r})\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[2] / "src")},
+    )
+    assert "borromeo.toml" in result.stderr and "borromeanrings.toml" in result.stderr
+    assert result.stderr.count("deprecated config name") == 1  # once per process, not per call
+
+
+def test_config_name_constants_are_the_two_spellings() -> None:
+    assert (CONFIG_NAME, LEGACY_CONFIG_NAME) == ("borromeanrings.toml", "borromeo.toml")

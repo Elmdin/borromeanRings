@@ -7,7 +7,17 @@
 set -uo pipefail
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET="${1:?usage: ./init.sh <target-dir>}"
+NO_GITIGNORE=0
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --no-gitignore) NO_GITIGNORE=1 ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- "${args[@]+"${args[@]}"}"
+
+TARGET="${1:?usage: ./init.sh [--no-gitignore] <target-dir>}"
 TARGET="$(cd "$TARGET" && pwd)"
 
 if [ ! -f "$TARGET/borromeanrings.toml" ]; then
@@ -66,6 +76,24 @@ if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
     sed -i "s#__BORROMEANRINGS_HOME__#$BORROMEANRINGS_HOME#g" "$f"
   done < <(find "$TARGET/.claude/skills" -type f -name '*.md')
   echo "installed borromeanRings skills into $TARGET/.claude/skills/ (e.g. borromeanrings-research)"
+fi
+
+# borromeanRings writes receipts, verdicts and state under .meta-harness/.
+# Unignored, that output becomes part of the state the gate examines: a governed
+# project's 12_secrets reads the git index, so `git add -A` puts the harness's own
+# check logs in it and the secret gate fails on them (#219). Never silent —
+# appending to a file the project owns is a real write, announced like the others.
+if [ "$NO_GITIGNORE" -eq 0 ]; then
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$TARGET" <<'GITIGNORE_PY'
+import sys
+from pathlib import Path
+
+from meta_harness.gitignore import ensure_ignored
+
+said = ensure_ignored(Path(sys.argv[1]))
+if said:
+    print(said)
+GITIGNORE_PY
 fi
 
 echo

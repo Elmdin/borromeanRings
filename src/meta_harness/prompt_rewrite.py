@@ -30,23 +30,25 @@ def build_directive(context: Mapping[str, Any]) -> str:
         The directive text the agent receives before acting on the user's request.
     """
     lines = [
-        "[borromeanRings] Before acting, REWRITE the user's request to preserve its "
-        "intent and improve it:",
-        "- keep the user's original intent intact; do not add scope they did not ask for;",
-        "- apply best agentic-engineering and software-engineering practices;",
+        "[borromeanRings] Before acting, REWRITE the user's request to sharpen it "
+        "without changing it:",
+        "- keep their intent; add no scope they did not ask for;",
+        "- apply best agentic- and software-engineering practice;",
     ]
     account = context.get("account")
     if account:
-        lines.append(f"- operating context/account in effect: {account};")
+        lines.append(f"- operating context: {account};")
     priorities = context.get("value_priorities")
     if priorities:
-        lines.append(f"- honor these value priorities (highest first): {', '.join(priorities)};")
+        lines.append(f"- value priorities (highest first): {', '.join(priorities)};")
     lines.append(
-        "Then act on your improved reading, and OPEN your reply with one line — "
-        f'"{MARKER} <your sharpened version of the request>" — so the user can '
-        "correct course immediately. Skip that line only for trivial follow-ups (a bare "
-        "yes/no/continue). If your reading changes the request's scope, or acting on it is "
-        "irreversible (merge, publish, delete, deploy), STOP and get confirmation first. "
-        "Never silently treat your rewrite as the user's words."
+        # The trimmed wording (#135), but built from MARKER: rewrite_contract (#81)
+        # decides whether a reply honoured the contract by looking for exactly this
+        # string, so the directive and the checker must never drift apart.
+        "Act on that reading and OPEN your reply with one line — "
+        f'"{MARKER} <your sharpened request>" — so the user can correct course. '
+        "Skip it for trivial follow-ups (yes/no/continue). If your reading changes scope, "
+        "or the act is irreversible (merge, publish, delete, deploy), STOP and confirm. "
+        "Never pass your rewrite off as the user's words."
     )
     return "\n".join(lines)

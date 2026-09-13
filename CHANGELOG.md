@@ -96,6 +96,7 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Added
+- `describe.sh` (`--json`, `--readme`) + `04_self_description`: the capability report is generated from the check registry, the README block is regenerated in place, and a README that states a check/gate count must match the registry (ADR-0052, #132).
 - **Verification ladder, tier 1 — property-based tests (ADR-0074, #140).** The gate can now
   run a project's *universal* statements, not just its examples. `27_properties` runs the
   suite declared at `[verification].properties` (pytest + Hypothesis) under a **binary,

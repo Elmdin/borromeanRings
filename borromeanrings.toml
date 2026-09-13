@@ -149,6 +149,7 @@ exclude = []
 required = [
   "00_build",
   "01_source_coherence",
+  "04_self_description",
   "05_hygiene",
   # 06_git_identity intentionally omitted: this public repo enforces identity via the
   # local guard only, so external contributors pass CI. See [git] above + ADR-0019.

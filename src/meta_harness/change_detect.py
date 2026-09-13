@@ -13,17 +13,36 @@ gated inputs, so an identical input set has an identical verdict.
 Fail-closed: any change, any missing record, any read/compute error ⇒ do NOT
 skip (run the gate). Skipping is the rare, provably-safe case; running is the
 default.
+
+**What the skip trusts** (#222). The record is an unkeyed hash and the hashing is
+in this repository, so anyone who can write the record can compute a value that
+makes the hook stand down on a red tree — no secret required. The record therefore
+lives OUTSIDE the governed tree, beside the retry counter, under
+``$XDG_STATE_HOME/borromeanrings/<project digest>/`` (:mod:`meta_harness.state_home`,
+ADR-0079). That defeats an agent confined to the project directory, which is the
+realistic case and the one the local loop exists for. It is NOT a bound against
+intent: the gate runs the project's own tests as the user, and that code can reach
+``$HOME``. A real bound needs isolated execution (#144/#145).
+
+An in-tree ``.meta-harness/last_green_state`` from an older version is never read —
+reading it would reopen exactly the hole this closes — and is removed on the next
+green so it cannot mislead a reader.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import os
+from collections.abc import Mapping
 from pathlib import Path
 
 from meta_harness.spine import Config
+from meta_harness.state_home import StateUnavailable, project_state_dir
 
-# Evidence lives with the governed project (same place as receipts), not borromeanRings.
-_STATE_FILE = ".meta-harness/last_green_state"
+_STATE_FILE = "last_green_state"
+# Written by versions before #222, inside the tree and therefore forgeable. Never read.
+_LEGACY_STATE_FILE = ".meta-harness/last_green_state"
 # Build/cache artifacts never change the gate verdict — exclude them from the hash.
 _SKIP_DIRS = frozenset(
     {"__pycache__", ".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".meta-harness"}
@@ -77,31 +96,55 @@ def compute_state_hash(project_root: Path, config: Config) -> str:
     return digest.hexdigest()
 
 
-def _state_path(project_root: Path) -> Path:
-    return project_root / _STATE_FILE
+def _state_path(project_root: Path, env: Mapping[str, str] | None = None) -> Path:
+    """Where this project's last-green record lives — outside the project (#222).
+
+    Raises :class:`StateUnavailable` when no absolute state root exists, rather
+    than falling back into the tree: a fallback would restore the forgeable
+    location on exactly the machines least able to notice.
+    """
+    resolved = str(Path(project_root).resolve())
+    return project_state_dir(os.environ if env is None else env, resolved) / _STATE_FILE
 
 
-def read_last_green(project_root: Path) -> str | None:
+def read_last_green(project_root: Path, env: Mapping[str, str] | None = None) -> str | None:
     """The hash recorded at the last green gate, or ``None`` if unavailable."""
     try:
-        return (_state_path(project_root).read_text(encoding="utf-8").strip()) or None
-    except OSError:
+        return (_state_path(project_root, env).read_text(encoding="utf-8").strip()) or None
+    except (OSError, StateUnavailable):
         return None
 
 
-def record_green(project_root: Path, config: Config) -> None:
-    """Record the current gated-input hash as the last proven-green state."""
-    path = _state_path(project_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(compute_state_hash(project_root, config), encoding="utf-8")
+def record_green(project_root: Path, config: Config, env: Mapping[str, str] | None = None) -> None:
+    """Record the current gated-input hash as the last proven-green state.
+
+    Best-effort: if the state home is unavailable the record is simply not made,
+    and the next Stop runs the gate. Failing to record costs one gate run; making
+    it inside the tree would cost the guarantee.
+    """
+    try:
+        path = _state_path(project_root, env)
+    except StateUnavailable:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(compute_state_hash(project_root, config), encoding="utf-8")
+    except OSError:
+        return
+    # A record from before #222 sits in the tree and is forgeable. It is never read,
+    # but leaving it there invites someone to "fix" the skip by reading it again.
+    with contextlib.suppress(OSError):
+        (Path(project_root) / _LEGACY_STATE_FILE).unlink(missing_ok=True)
 
 
-def should_skip_gate(project_root: Path, config: Config) -> bool:
+def should_skip_gate(
+    project_root: Path, config: Config, env: Mapping[str, str] | None = None
+) -> bool:
     """True only when the current state matches the last proven-green state.
 
     Fail-closed: returns ``False`` (run the gate) on any error or missing record.
     """
-    last = read_last_green(project_root)
+    last = read_last_green(project_root, env)
     if last is None:
         return False
     try:

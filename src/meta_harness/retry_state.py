@@ -43,6 +43,8 @@ import stat
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from meta_harness.state_home import StateUnavailable, project_digest, state_root
+
 APP_DIR = "borromeanrings"
 COUNTER_DIR = "stop_attempts"
 LEGACY_PARTS = (".meta-harness", "stop_attempts")
@@ -56,36 +58,15 @@ _DECIMAL = re.compile(r"[0-9]+")
 Resolver = Callable[[str], str]
 
 
-class StateUnavailable(Exception):
-    """The retry count cannot be located, read or written. Callers fail closed."""
-
-
 # --- pure: where the count lives ----------------------------------------------
-
-
-def state_root(env: Mapping[str, str]) -> Path:
-    """The XDG state base directory: ``$XDG_STATE_HOME`` or ``$HOME/.local/state``.
-
-    A relative ``XDG_STATE_HOME`` is ignored, as the XDG Base Directory spec
-    requires. Raises :class:`StateUnavailable` when neither yields an absolute
-    path — never guesses a location (a guess could land inside the tree).
-    """
-    xdg = env.get("XDG_STATE_HOME", "")
-    if os.path.isabs(xdg):
-        return Path(xdg)
-    home = env.get("HOME", "")
-    if os.path.isabs(home):
-        return Path(home) / ".local" / "state"
-    raise StateUnavailable("no absolute XDG_STATE_HOME or HOME to keep the count under")
+#
+# The location is shared with the last-green record (#222), so it lives in
+# meta_harness.state_home. Re-exported here: this module's callers and tests have
+# always reached these names through retry_state, and the move is not theirs.
 
 
 def _digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", "surrogateescape")).hexdigest()[:DIGEST_CHARS]
-
-
-def project_digest(resolved_project: str) -> str:
-    """Name a project by its resolved absolute path (symlinked routes share a count)."""
-    return _digest(resolved_project)
 
 
 def session_filename(session_id: str) -> str:

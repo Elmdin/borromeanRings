@@ -79,8 +79,14 @@ def _write(path: Path, entries: list[object]) -> Path:
 
 
 def test_marker_is_the_one_the_directive_asks_for() -> None:
+    """The directive must ask for exactly the string this module looks for.
+
+    Asserted as "MARKER opens the quoted example", not as the full sentence: the
+    placeholder wording after it is prose and has already been trimmed once (#135),
+    while the marker itself is the contract and must never drift.
+    """
     assert MARKER == "Reading this as:"
-    assert f'"{MARKER} <your sharpened version of the request>"' in build_directive({})
+    assert f'"{MARKER} <' in build_directive({})
 
 
 def test_prompt_hash_is_the_hooks_dedupe_digest() -> None:

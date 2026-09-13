@@ -287,7 +287,7 @@ def test_a_symlinked_legacy_dir_cannot_delete_the_real_count(tmp_path: Path, lev
     for _ in range(3):  # refused every time, never counted from zero
         result = _stop(project, env)
         first = result.stderr.splitlines()[:1]
-        assert result.returncode == 0 and "could not record" in result.stderr, first
+        assert result.returncode == 0 and "retry count unrecordable" in result.stderr, first
         assert "symlink" in result.stderr, first
     assert link.is_symlink()
 
@@ -389,7 +389,7 @@ def test_a_pass_clears_the_count(tmp_path: Path) -> None:
 def _assert_failed_closed(result: subprocess.CompletedProcess[str], project: Path) -> None:
     first = result.stderr.splitlines()[:1]
     assert result.returncode == 0, f"treated an unrecordable count as zero: {first}"
-    assert "ESCALATION" in result.stderr and "could not record" in result.stderr, first
+    assert "ESCALATION" in result.stderr and "retry count unrecordable" in result.stderr, first
     assert "RESULT: FAIL" in result.stderr  # the human still sees why the gate failed
     assert not (project / ".meta-harness" / "stop_attempts").exists()  # no in-tree fallback
 

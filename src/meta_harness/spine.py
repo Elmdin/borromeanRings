@@ -109,6 +109,11 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [charter] — session-charter gate (ADR-0063): a committed CHARTER.toml naming goal,
+    # stakes (low|high), done_when, stop_when, may_not, owner. Opt-in; off by default.
+    charter_enabled: bool = False
+    charter_path: str = "CHARTER.toml"
+    charter_high_stakes_fields: tuple[str, ...] = ("rollback", "reviewer", "blast_radius")
     # [quotes] — quote fidelity (ADR-0065): marked quotations in the Markdown under
     # `paths` must be verbatim against their saved source. Off unless enabled.
     quotes_enabled: bool = False
@@ -245,6 +250,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    charter = raw.get("charter", {})
     supply_chain = raw.get("supply_chain", {})
     provenance = raw.get("provenance", {})
     predicates = raw.get("predicates", {})
@@ -307,6 +313,11 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         ),
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
+        ),
+        charter_enabled=bool(charter.get("enabled", False)),
+        charter_path=str(charter.get("path", "CHARTER.toml")),
+        charter_high_stakes_fields=tuple(
+            charter.get("high_stakes_fields", ["rollback", "reviewer", "blast_radius"])
         ),
         quotes_enabled=bool(raw.get("quotes", {}).get("enabled", False)),
         quotes_paths=tuple(raw.get("quotes", {}).get("paths", ["docs"])),

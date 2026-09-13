@@ -135,12 +135,21 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
 | `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |
 | `74_secret_history` | No high-confidence secret in **any** blob reachable from any ref (history, not just HEAD) | `[secrets].history_allow` | 0042 |
+| `76_lockfile` | A dependency manifest (`pyproject.toml`, `package.json`) changed since the merge-base **only together with** the declared lockfile; no lockfile declared ⇒ `noop`; declared-but-missing or a git error ⇒ fail | `[supply_chain].lockfile`, `manifests` | 0061 |
+| `78_pins` | Every `[project].dependencies` requirement (and optional groups if `pin_optional`) carries an upper bound or exact pin (`==`, `~=`, `<`); each bare / `>=`-only line is named; no deps ⇒ `noop` | `[supply_chain].pin_optional` | 0061 |
 
 ## Notes
 
 - **Ratchets are threshold-free.** `32/33/40/45/60` enforce *non-regression* against a seeded
   baseline, never an arbitrary target number — you can only improve or hold, never silently
   slip. Move a baseline deliberately (a reviewed commit), never as a side effect.
+- **Advisory checks** (`55_doc_drift`, `56_critics`) require a wired model judge
+  (`[critic].judge_command`, e.g. the local `claude` CLI — no API keys). Empty ⇒ dormant; they
+  never block until you opt in.
+- **SBOM.** `./sbom.sh [--optional] [--out FILE]` emits a CycloneDX 1.5 JSON inventory of the
+  declared dependency closure from the stdlib alone (`tomllib` + `importlib.metadata`; no
+  network). An inventory, not provenance: it is **not signed or attested** and says so in its
+  metadata (ADR-0061 records the CI-dependent signing/Dependabot items as maintainer decisions).
 - **`27_properties` is not a ratchet and never counts.** It is deliberately binary: the
   declared suite passes or it does not. "Number of properties" would be the coverage-percentage
   trap one rung up (ADR-0022's reasoning), so the check cannot even see a count — its file probe

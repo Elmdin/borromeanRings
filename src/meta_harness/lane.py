@@ -64,7 +64,7 @@ def resolve_lane(args: Sequence[str], env: Mapping[str, str]) -> tuple[str, bool
     so ``--fast --heavy`` is a full heavy run, never a narrowed one — otherwise the one
     lane that blocks a merge could be told to skip most of the suite.
     """
-    heavy = env.get("BORROMEANRINGS_HEAVY", "0") == "1" or "--heavy" in args
+    heavy = env.get("BORROMEANRINGS_HEAVY") == "1" or "--heavy" in args
     lane = FAST if ("--fast" in args and not heavy) else FULL
     return lane, heavy
 
@@ -85,7 +85,7 @@ def lane_from_env(env: Mapping[str, str]) -> str:
     Anything other than an exact ``fast`` is the full lane — an unset, misspelled, or
     forged value must never *narrow* verification. Fail-closed, in the safe direction.
     """
-    return FAST if env.get(LANE_ENV, "") == FAST else FULL
+    return FAST if env.get(LANE_ENV) == FAST else FULL
 
 
 def validate_fast_paths(paths: tuple[str, ...]) -> tuple[str, ...]:

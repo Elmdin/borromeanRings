@@ -30,6 +30,7 @@ def _config(*fast_paths: str) -> Config:
 
 def test_lane_is_full_unless_the_environment_says_exactly_fast() -> None:
     assert lane_from_env({}) == FULL
+    assert lane_from_env({"OTHER": FAST}) == FULL
     assert lane_from_env({LANE_ENV: FAST}) == FAST
     # An unset, misspelled, cased, or forged value must never narrow verification.
     for forged in ("Fast", " fast", "fast ", "FAST", "1", "true", "heavy"):
@@ -73,12 +74,16 @@ def test_safe_relative_paths_survive_validation() -> None:
 
 
 def test_a_narrowed_result_names_itself_and_what_it_skipped() -> None:
-    summary = fast_lane_summary(("tests/unit",))
-    assert "FAST LANE" in summary and "tests/unit" in summary
+    # Exact-shaped, not merely containing: the gate prints this verbatim beside the
+    # status, and a label that reads as anything other than "partial" defeats the point.
+    assert fast_lane_summary(("tests/unit",)) == "FAST LANE — only tests/unit; full suite pre-merge"
+    assert fast_lane_summary(("a", "b")).startswith("FAST LANE — only a, b;")
     # The honesty contract: the note says what was not run AND where it still runs.
+    assert FAST_LANE_NOTE.startswith("FAST LANE: a partial run.")
+    assert FAST_LANE_NOTE.endswith("See ADR-0081.")
     assert "NOT run" in FAST_LANE_NOTE
-    assert "coverage" in FAST_LANE_NOTE
-    assert "CI" in FAST_LANE_NOTE and "merge" in FAST_LANE_NOTE
+    assert "coverage was NOT measured" in FAST_LANE_NOTE
+    assert "CI before merge" in FAST_LANE_NOTE
 
 
 def test_pytest_arguments_are_shell_quoted() -> None:
@@ -98,6 +103,10 @@ def test_heavy_always_resolves_to_the_full_lane() -> None:
     assert resolve_lane(["--fast"], {"BORROMEANRINGS_HEAVY": "1"}) == (FULL, True)
     # an unknown flag neither narrows nor escalates
     assert resolve_lane(["--verbose"], {}) == (FULL, False)
+    # only an exact "1" in the env escalates; an unrelated variable never does
+    assert resolve_lane([], {"BORROMEANRINGS_HEAVY": "0"}) == (FULL, False)
+    assert resolve_lane(["--fast"], {"BORROMEANRINGS_HEAVY": "yes"}) == (FAST, False)
+    assert resolve_lane([], {"BORROMEANRINGS_LANE": "1"}) == (FULL, False)
 
 
 def test_a_run_is_reported_fast_only_if_it_actually_narrowed_anything() -> None:

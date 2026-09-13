@@ -35,7 +35,8 @@ if [ -n "$branch" ] && [ "$branch" != "HEAD" ]; then
 fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" \
-  borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$branch" >"$log" 2>&1 <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$branch" "$remote_ref" "$ahead" \
+  >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.collaboration import branch_violation

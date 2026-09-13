@@ -13,10 +13,6 @@ set -uo pipefail
 # Heavy (CI-tier) lane: `--heavy` (or BORROMEANRINGS_HEAVY=1) additionally runs +
 # requires the checks/ci/ set — expensive checks (mutation, CVE audit, secret-scan
 # tools) that must NOT run on the fast inner Stop gate. Off by default. See ADR-0033.
-HEAVY="${BORROMEANRINGS_HEAVY:-0}"
-for _arg in "$@"; do
-  [ "$_arg" = "--heavy" ] && HEAVY=1
-done
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
@@ -28,6 +24,31 @@ export BORROMEANRINGS_HOME PROJECT_ROOT
 # would otherwise shadow stdlib and forge the verdict — #222).
 source "$BORROMEANRINGS_HOME/checks/_py.sh"
 CONFIG="$PROJECT_ROOT/borromeanrings.toml"
+
+# Which lanes this run is in. Fast (interactive): `--fast` runs the SAME required set, but
+# tells each check it may narrow its scope to what the project declared for interactive
+# work — today only 40_test, via [test].fast_paths. The Stop hook runs this lane so an
+# agent is not held for the whole test suite on every turn; the full suite still gates
+# pre-merge and in CI, and a project that declares no fast paths sees no change at all.
+# meta_harness.lane owns the precedence (--heavy always wins) so it is unit-testable; a
+# resolution failure refuses to run rather than guessing a lane. See ADR-0081.
+_lane_line="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$@" <<'PY'
+import os
+import sys
+
+from meta_harness.lane import resolve_lane
+
+lane, heavy = resolve_lane(sys.argv[1:], os.environ)
+print(lane, "1" if heavy else "0")
+PY
+)" || _lane_line=""
+LANE="${_lane_line%% *}"
+HEAVY="${_lane_line##* }"
+if [ -z "$LANE" ] || [ -z "$HEAVY" ] || [ "$LANE" = "$HEAVY" ]; then
+  echo "borromeanRings: could not resolve the run lane (fast/full/heavy) — refusing to run." >&2
+  exit 1
+fi
+export BORROMEANRINGS_LANE="$LANE"
 
 # Which borromeanRings version is governing this run. `git describe` on borromeanRings's own
 # repo reflects the exact code state (tag when clean, `-N-g<sha>-dirty` when ahead/modified,
@@ -81,7 +102,7 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" "$LANE" <<'PY'
 
 import json
 import os
@@ -89,14 +110,24 @@ import sys
 from pathlib import Path
 
 from meta_harness.change_detect import record_green
+from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.verdict import Verdict, append_history, is_failing, status_label, write_last_verdict
 
-config_path, receipt_dir, project_root, heavy, harness_version = sys.argv[1:6]
+config_path, receipt_dir, project_root, heavy, harness_version, lane = sys.argv[1:7]
 config = load_config(config_path)
 # Under --heavy the CI-tier heavy checks are also required; otherwise only the
 # fast required set gates (the heavy set never blocks the inner Stop gate).
+# Report the lane that describes the verification that actually happened: `--fast` in a
+# project that declared no fast paths ran everything, and must not be labelled partial.
+# An invalid declaration is already a clean FAIL receipt from 40_test; it must not also
+# cost the run its table, its last_verdict.json, and its history line.
+try:
+    lane = effective_lane(config, lane)
+except ValueError as exc:
+    print(f"\n  borromeanRings: {exc}")
+    lane = FULL
 expected = config.required_checks + (config.heavy_checks if heavy == "1" else ())
 
 rows = []
@@ -144,7 +175,12 @@ for cid, status in rows:
     # status_label validates + bounds the summary (untrusted JSON a check wrote).
     print(f"  {cid.ljust(width)}   {status_label(status, summaries.get(cid))}")
 print("  " + "-" * (width + 14))
-print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
+print(f"  RESULT: {'PASS' if ok else 'FAIL'}{' (FAST LANE)' if lane == FAST else ''}")
+# A narrowed run must say so on its own verdict line, not only inside one check's row: a
+# fast-lane PASS is not the PASS a full run would have produced, and must never be read as
+# one. See ADR-0081.
+if lane == FAST:
+    print(f"  {FAST_LANE_NOTE}")
 # A green built partly on checks that inspected NOTHING is not the same green as one
 # where every check did real work. Say so here, or the verdict over-claims (ADR-0049).
 hollow = [cid for cid, status in rows if status == "NOOP"]
@@ -167,6 +203,7 @@ try:
         run_id=os.path.basename(receipt_dir),
         digest=digest,
         harness_version=harness_version,
+        lane=lane,
     )
     write_last_verdict(Path(project_root), _verdict)
     append_history(Path(project_root), _verdict)

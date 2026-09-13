@@ -41,6 +41,10 @@ class Config:
     package: str = ""  # importable package name (optional; "" → skip import check)
     src_dir: str = "src"
     tests_dir: str = "tests"
+    # [test].fast_paths — the subset of the test suite the FAST (interactive) lane
+    # runs. Empty (the default) ⇒ no fast lane: every lane runs the whole suite,
+    # exactly as before. See meta_harness.lane and ADR-0081.
+    test_fast_paths: tuple[str, ...] = ()
     language: str = "python"  # selects checks/<language>/ — the per-language check set
     # [git] — declared commit identity; empty ⇒ identity enforcement is off.
     git_name: str = ""
@@ -211,6 +215,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     licenses = raw.get("licenses", {})
     provenance = raw.get("provenance", {})
     predicates = raw.get("predicates", {})
+    test = raw.get("test", {})
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
@@ -220,6 +225,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         package=str(project.get("package", "")),
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
+        test_fast_paths=tuple(str(p) for p in test.get("fast_paths", [])),
         language=str(project.get("language", "python")),
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),

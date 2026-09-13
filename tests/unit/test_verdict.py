@@ -129,8 +129,21 @@ def test_to_dict_is_json_shaped() -> None:
         "run_id": "r",
         "digest": "d",
         "harness_version": "v1.2.3",
+        "lane": "",
         "checks": [["00_build", "pass"]],
     }
+
+
+def test_lane_round_trips_and_defaults_to_unmarked(tmp_path: Path) -> None:
+    # A partial (fast-lane) green has to stay distinguishable from a full one once it is
+    # written down, not only in the console output it scrolled past. See ADR-0081.
+    write_last_verdict(tmp_path, Verdict(ok=True, lane="fast"))
+    got = read_last_verdict(tmp_path)
+    assert got is not None and got.lane == "fast"
+    # A record written before lanes existed reads back as "" — never as a fast one.
+    (tmp_path / LAST_VERDICT_FILE).write_text('{"ok": true, "checks": []}', encoding="utf-8")
+    legacy = read_last_verdict(tmp_path)
+    assert legacy is not None and legacy.lane == ""
 
 
 def test_harness_version_round_trips(tmp_path: Path) -> None:

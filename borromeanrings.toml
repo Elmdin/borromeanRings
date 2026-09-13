@@ -150,6 +150,15 @@ source_paths = ["SCRIPTDIR", "SCRIPTDIR/.."]
 # entry here a written justification.
 exclude = []
 
+[test]
+# The FAST (interactive) lane's test scope — what `verify.sh --fast` (the Stop hook's
+# lane) runs instead of the whole suite. tests/unit is 3 s; the integration suite, which
+# spawns real gate runs in fixture projects, is ~400 s and held every turn for 7 minutes
+# (#226). It still runs on `./verify.sh`, on `--heavy`, and in CI before merge — a
+# fast-lane pass is marked as partial everywhere it is reported. Empty ⇒ no fast lane.
+# See ADR-0081.
+fast_paths = ["tests/unit"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [

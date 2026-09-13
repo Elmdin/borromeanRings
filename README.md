@@ -48,6 +48,15 @@ waits for the PR's CI checks too, but is still explicitly invoked per-merge (no
 standing, unattended mode). See `docs/adr/0007-gated-explicit-merge.md` and
 `docs/adr/0009-command-orchestrated-auto-merge.md`.
 
+## Install as a Claude Code plugin (one line)
+
+```bash
+claude plugin marketplace add Elmdin/borromeanRings && claude plugin install borromeanrings@borromeanrings
+```
+
+Wires the six hooks and the skills into every session; a project is governed only once it
+has a `borromeanrings.toml`. See `docs/PLUGIN.md` (ADR-0057).
+
 ## Govern another project (portable, by reference)
 
 borromeanRings can govern *any* project without being copied into it — its code stays here,

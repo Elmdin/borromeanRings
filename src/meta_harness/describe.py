@@ -108,8 +108,7 @@ def discover_checks(checks_root: Path | str) -> list[CheckInfo]:
         lane_dir = root / lane
         if not lane_dir.is_dir():
             continue
-        for script in lane_dir.glob("[0-9]*.sh"):
-            found.append(_describe_script(script, lane))
+        found.extend(_describe_script(script, lane) for script in lane_dir.glob("[0-9]*.sh"))
     return sorted(found, key=lambda c: c.id)
 
 

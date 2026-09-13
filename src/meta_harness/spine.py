@@ -85,6 +85,11 @@ class Config:
     # an ADR. adr_dir defaults to docs/adr; require_prefixes to the feature prefix.
     adr_dir: str = "docs/adr"
     adr_require_prefixes: tuple[str, ...] = ("feat/",)
+
+    # [prior_art] — a feature branch that adds public surface must record a survey of
+    # what already existed under `dir` (ADR-0051). The 13_adr pattern applied to reuse.
+    prior_art_dir: str = "docs/surveys"
+    prior_art_require_prefixes: tuple[str, ...] = ("feat/",)
     # [api] — public-API breaking-change policy (ADR-0040). allow_breaking=true only
     # for a deliberate major-version release.
     api_allow_breaking: bool = False
@@ -248,6 +253,10 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         secrets_history_allow=tuple(raw.get("secrets", {}).get("history_allow", [])),
         adr_dir=str(raw.get("adr", {}).get("dir", "docs/adr")),
         adr_require_prefixes=tuple(raw.get("adr", {}).get("require_prefixes", ["feat/"])),
+        prior_art_dir=str(raw.get("prior_art", {}).get("dir", "docs/surveys")),
+        prior_art_require_prefixes=tuple(
+            raw.get("prior_art", {}).get("require_prefixes", ["feat/"])
+        ),
         container_dockerfile=str(raw.get("container", {}).get("dockerfile", "Dockerfile")),
         container_require=tuple(
             raw.get("container", {}).get("require", ["non_root", "pinned_base", "healthcheck"])

@@ -247,6 +247,21 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_subject_max_length == 0
 
 
+def test_prior_art_loaded_and_defaults(tmp_path: Path) -> None:
+    """Defaults mirror [adr]: surveys under docs/surveys, required on feat/ branches."""
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[prior_art]\ndir = "research"\n'
+        'require_prefixes = ["feature/", "feat/"]\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.prior_art_dir == "research"
+    assert cfg.prior_art_require_prefixes == ("feature/", "feat/")
+    default = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert default.prior_art_dir == "docs/surveys"
+    assert default.prior_art_require_prefixes == ("feat/",)
+
+
 def test_verification_properties_loaded_and_defaults_off(tmp_path: Path) -> None:
     """Tier 1 of the verification ladder is opt-in: no key ⇒ the rule is off."""
     declared = _write(

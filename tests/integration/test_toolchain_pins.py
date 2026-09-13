@@ -5,9 +5,9 @@ on a laptop and red on GitHub because ``pip install -e ".[dev]"`` resolved newer
 releases of ``ruff`` and ``mypy`` than the laptop had.
 """
 
-import importlib.metadata as metadata
 import re
 import subprocess
+from importlib import metadata
 from pathlib import Path
 
 import pytest

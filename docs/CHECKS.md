@@ -53,6 +53,8 @@ fast_paths = ["tests/unit"]   # the fast (interactive) lane's test scope; empty 
 
 - **New project:** `./init.sh <path>` writes a starter `borromeanrings.toml` + the hook wiring.
 - **Existing project:** `./adopt.sh <path>` adds the recommended quality/security set
+  (`12_secrets, 11_changelog, 32_complexity, 33_coupling, 45_docstrings, 01_source_coherence,
+  19_context_budget`), seeds each ratchet
   (`12_secrets, 11_changelog, 32_complexity, 33_coupling, 45_docstrings`), seeds each ratchet
   baseline from the current state, and rewrites `[checks].required` (idempotent — ADR-0041).
 - **Manually:** add the check ID to `[checks].required` (or `heavy`) and provide any config it
@@ -91,6 +93,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
+| `19_context_budget` | **Ratchet**: the bytes borromeanRings itself puts in the agent's context (prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, `SKILL.md` files, hook message templates) don't regress (no absolute cap; tokens ≈ bytes/4); nothing measurable ⇒ `noop` | `.borromeanrings-context-baseline`, seeded by `adopt.sh` | 0055 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass` | `[a11y].require`, `exclude` | 0045, 0049 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
 | `25_provenance` | Files changed under `paths` since the merge-base share **no unlisted 6-word shingle** with the declared read-only `sources` (re-authored, never copied); binary — every unlisted overlap fails with both locations, the human allowlists generic ones with a reason. No `[provenance]` ⇒ off (`noop`); no sources ⇒ `noop`; absent/empty source or git error ⇒ fail closed | `[provenance].sources`, `paths`, `allow`; env `BORROMEANRINGS_PROVENANCE_SOURCES` (colon-separated, machine-local) | 0070 |

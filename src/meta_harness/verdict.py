@@ -18,6 +18,7 @@ docs/specs/SPEC-status.md and ADR-0046.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,6 +27,14 @@ LAST_VERDICT_FILE = ".meta-harness/last_verdict.json"
 #: Append-only history of every gate verdict (one JSON object per line) — the raw
 #: material the effectiveness ledger summarises. See meta_harness.ledger, ADR-0047.
 VERDICT_HISTORY_FILE = ".meta-harness/verdict_history.jsonl"
+#: Append-only record of the prompt-rewrite contract, one verdict per Stop: did the reply
+#: open with the line the UserPromptSubmit directive asked for? Decided by
+#: meta_harness.rewrite_contract; tallied by the self-status view. See ADR-0059 (#81).
+REWRITE_CONTRACT_FILE = ".meta-harness/rewrite_contract.jsonl"
+#: The rewrite-contract verdict vocabulary. ``honoured``/``not_honoured`` are judged
+#: outcomes; ``exempt`` (trivial prompt) and ``unknown`` (no evidence) are not, and a
+#: record carrying any other status is counted as ``unknown`` — never as honoured.
+REWRITE_STATUSES = ("honoured", "not_honoured", "exempt", "unknown")
 
 #: Receipt statuses that do NOT fail the gate.
 #:
@@ -46,6 +55,140 @@ def is_failing(status: str) -> bool:
     return status not in NON_FAILING_STATUSES
 
 
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+
+#: Longest ``summary`` the gate prints on a row; anything longer is cut with ``...``.
+SUMMARY_MAX_CHARS = 72
+
+
+def status_label(status: str, summary: object = None) -> str:
+    """The gate-output text for one check row: ``STATUS``, plus ``(summary)`` if present.
+
+    Any check may write a free-text ``summary`` field into its receipt (``60_mutation``
+    writes ``evaluated N, score S``); the gate prints it beside the status so the row
+    answers "did the check do real work?" without a trip to the log. The field is
+    untrusted JSON a check wrote, so it is validated here: non-strings and blanks are
+    ignored, only the first line is used, and it is bounded so the table stays a table.
+    """
+    label = status.upper()
+    if not isinstance(summary, str):
+        return label
+    first_line = summary.strip().splitlines()[0].strip() if summary.strip() else ""
+    if not first_line:
+        return label
+    if len(first_line) > SUMMARY_MAX_CHARS:
+        first_line = first_line[: SUMMARY_MAX_CHARS - 3] + "..."
+    return f"{label} ({first_line})"
+
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+
 @dataclass(frozen=True)
 class Verdict:
     """One gate run's outcome: the overall pass bool and each check's status.
@@ -61,6 +204,11 @@ class Verdict:
     run_id: str = ""
     digest: str = ""
     harness_version: str = ""
+    #: Which lane produced it — ``"full"`` (or ``""`` in records written before lanes
+    #: existed) for a complete run, ``"fast"`` for the narrowed interactive run the Stop
+    #: hook makes. A reader must be able to tell a partial green from a real one, so the
+    #: lane is part of the record, not only of the console output. See ADR-0081.
+    lane: str = ""
 
     def to_dict(self) -> dict[str, object]:
         """A JSON-serialisable view (tuples become lists)."""
@@ -69,6 +217,7 @@ class Verdict:
             "run_id": self.run_id,
             "digest": self.digest,
             "harness_version": self.harness_version,
+            "lane": self.lane,
             "checks": [list(pair) for pair in self.checks],
         }
 
@@ -94,6 +243,7 @@ def _parse(data: object) -> Verdict | None:
         run_id=str(data.get("run_id", "")),
         digest=str(data.get("digest", "")),
         harness_version=str(data.get("harness_version", "")),
+        lane=str(data.get("lane", "")),
     )
 
 
@@ -157,3 +307,63 @@ def read_history(project_root: Path | str) -> list[Verdict]:
         if verdict is not None:
             history.append(verdict)
     return history
+
+
+# --- rewrite-contract records (ADR-0059) -------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RewriteTally:
+    """How often the rewrite contract was honoured in this project, from its record."""
+
+    honoured: int = 0
+    not_honoured: int = 0
+    exempt: int = 0
+    unknown: int = 0
+
+    @property
+    def judged(self) -> int:
+        """Records that carry evidence either way (exempt and unknown do not)."""
+        return self.honoured + self.not_honoured
+
+    @property
+    def total(self) -> int:
+        """Every record, whatever its status."""
+        return self.judged + self.exempt + self.unknown
+
+
+def _rewrite_path(project_root: Path | str) -> Path:
+    return Path(project_root) / REWRITE_CONTRACT_FILE
+
+
+def append_rewrite_record(project_root: Path | str, rec: Mapping[str, object]) -> None:
+    """Append one rewrite-contract record as a JSON line (creates dirs; append-only)."""
+    path = _rewrite_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(dict(rec)) + "\n")
+
+
+def read_rewrite_tally(project_root: Path | str) -> RewriteTally:
+    """Tally the project's rewrite-contract record (fail-soft: unreadable ⇒ all zeros).
+
+    A malformed line is skipped; a well-formed record with an unrecognised status counts
+    as ``unknown`` (fail-closed: it is never evidence that the contract was honoured).
+    """
+    try:
+        raw = _rewrite_path(project_root).read_text(encoding="utf-8")
+    except OSError:
+        return RewriteTally()
+    counts = dict.fromkeys(REWRITE_STATUSES, 0)
+    for line in raw.splitlines():
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        status = data.get("status")
+        counts[status if status in counts else "unknown"] += 1
+    return RewriteTally(**counts)

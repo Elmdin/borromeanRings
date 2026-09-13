@@ -11,6 +11,9 @@ requires-python = ">=3.10"
 [project.optional-dependencies]
 # The check toolchain. Installed in CI via `pip install -e ".[dev]"` so the gate
 # runs the same checks on GitHub's servers as it does locally.
+# Every entry is bounded above at the next major (78_pins, ADR-0061): the checks parse
+# these tools' CLI output and exit codes, and a major bump is where those contracts
+# change. Move a bound deliberately, in a reviewed commit that re-runs the heavy lane.
 dev = [
   "ruff>=0.6",
   "mypy>=1.10",
@@ -29,6 +32,19 @@ dev = [
   # disagree with itself between a laptop and CI, and the conformance suite would be
   # what broke. See ADR-0077 (pin the toolchain).
   "html5lib==1.1",
+  "ruff==0.15.8",
+  "mypy==1.19.1",
+  "pytest==9.0.3",
+  "pytest-cov==7.0.0",
+  "bandit==1.9.4",
+  "pip-audit==2.10.0",
+  "mutmut==3.6.0",
+  "pip-licenses==5.5.5",
+  "coverage==7.13.4",
+  "libcst==1.8.6",
+  # Ships the real shellcheck binary as a wheel, so CI needs no apt/brew step and
+  # local installs match CI exactly (check 16_shellcheck, ADR-0050).
+  "shellcheck-py==0.11.0.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -41,6 +57,12 @@ extend-exclude = ["cs130", ".meta-harness", "examples"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+# The "you reimplemented something that exists" rules — the only shipping rules of their
+# kind (ADR-0051, docs/research/AGENT-TOOLING-SURVEY.md). Selected INDIVIDUALLY, not as
+# the PIE/PERF/PL groups: measured on this tree, the groups bring 50 findings of which
+# 37 are magic-value nits and 3 are `too-many-arguments` — a numeric threshold, which is
+# exactly the arbitrary-number style this project rejects. These five are binary.
+extend-select = ["PIE807", "PERF401", "PERF402", "PERF403", "PLR0402"]
 
 [tool.mypy]
 python_version = "3.12"

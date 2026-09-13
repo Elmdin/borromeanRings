@@ -19,8 +19,8 @@ id="15_a11y"
 log="$RECEIPT_DIR/$id.log"
 cmd="static a11y invariants (lang, alt, title, labels, links, headings per [a11y].require)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$PROJECT_ROOT" >"$log" 2>&1 <<'PY'
-import subprocess  # nosec B404 — fixed argv, no shell; only queries git
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$PROJECT_ROOT" >"$log" 2>&1 <<'PY'
+import subprocess
 import sys
 from pathlib import Path
 

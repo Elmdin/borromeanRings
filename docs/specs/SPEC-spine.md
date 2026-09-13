@@ -5,7 +5,7 @@
 
 ## 1. Purpose
 A single declarative source of the **invariants this repo must always satisfy**. Declared once in
-`borromeanrings.toml`, enforced on **every** gate run. This generalizes v0's `checks/manifest.json` +
+`borromeanrings.toml`, enforced on **every** gate run. This generalizes v0's hard-coded `manifest.json` check list under `checks/` +
 receipts into a real spine — the seed of the §11 self-assurance layer ("every declared requirement
 has an executed-and-passed receipt").
 
@@ -35,6 +35,7 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
   `Config(required_checks: tuple[str, ...], context: Mapping[str, Any])`.
 - **Fail-closed:** if `[checks].required` is empty/absent, `load_config` raises — no declared checks
   is a misconfiguration, never "nothing to enforce so pass."
+- `verify.sh` reads the required set from the spine (replacing that `manifest.json` as the single
 - **Legacy name (deprecated, issue #62):** `resolve_config_path` — when the canonical
   `borromeanrings.toml` is absent and a sibling pre-rename `borromeo.toml` exists, that file
   loads instead with a `FutureWarning` on stderr — that category is shown by Python's default
@@ -42,12 +43,12 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
   per legacy file (the canonical file always wins when present; any other file name is never
   redirected). `verify.sh` and the hooks accept either name so an already-governed project never
   silently falls out of governance. Migration: `docs/RENAME.md`.
-- `verify.sh` reads the required set from the spine (replacing `checks/manifest.json` as the single
+- `verify.sh` reads the required set from the spine (replacing the former per-check manifest as the single
   source — Single Choice Principle) and enforces config-compliance: every required check must have a
   pass receipt.
 
 ## 5. Test plan
-`tests/test_spine.py` (keeps coverage at the ratchet baseline):
+`tests/unit/test_spine.py` (keeps coverage at the ratchet baseline):
 - valid config → correct `required_checks` + `context`
 - empty/absent `[checks].required` → raises (fail-closed)
 - absent `[context]` → empty mapping (no crash)

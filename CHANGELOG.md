@@ -12,7 +12,279 @@ queue is merged.
 
 ## [Unreleased]
 
+### Changed
+- `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
+  cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,
+  per-file and per-section), and the dynamic drivers are traced and ranked — working state
+  kept in context, whole-page ingestion, unbounded fan-out, re-fetch on verification. The
+  protocol now declares an editable budget (rounds, queries/round, sources/round, extracted
+  lines/source — knobs the user approves, never gates), writes plan/log/sources/graph/report
+  to `docs/research/<slug>/`, extracts passages instead of ingesting pages, caches URLs and
+  queries, verifies against the saved passage, delegates fetch+extract to a sub-agent where
+  available, reads symbols not files on code hosts, and stops at saturation. Same contract;
+  the redundant "Tactics" section is folded into the numbered steps.
+  `.borromeanrings-context-baseline` re-seeded downward to 31690 (the ratchet tightens on
+  purpose) and a test pins the skill at ≤ 3692 B (in `tests/integration/`, which
+  mutmut skips: it reads `.claude/`, which mutmut's `mutants/` copy lacks).
+
+### Added
+- **Static a11y rules for labels, link text and heading structure** (ADR-0075, #159) —
+  matrix rows U4–U6 of `docs/matrices/06-product-ux.md`, added to `15_a11y` (not a second
+  check) and **opt-in** via `[a11y].require`, so a project adopts one at a time:
+  `control_label` (every `<select>`/`<textarea>`/`<input>` except
+  `hidden|submit|button|reset|image` has an accessible name — a wrapping or
+  `for=`-associated `<label>`, a non-empty `aria-label`, or an `aria-labelledby` naming an
+  id that **exists**; WCAG 2.2 SC 3.3.2, 4.1.2), `link_text` (every `<a href>` has
+  non-empty text, an ARIA name, or an `<img alt="...">` inside it; SC 2.4.4), and
+  `heading_structure` (a full document has exactly one `<h1>`; no heading skips a level;
+  `<template>` and comment content excluded; SC 1.3.1). Findings now carry a source line
+  and are reported as `file:line — [rule] — what is wrong` (an absence, such as a missing
+  `<title>` or `<h1>`, prints without a line rather than inventing one). Defaults are
+  unchanged — `[a11y].require` still defaults to the three ADR-0045 rules, and `adopt`'s
+  `RECOMMENDED` set is untouched.
+  Deliberately **not** built and specified instead (#210): contrast, keyboard
+  reachability/visible focus, target size and the axe-core violation ratchet (rows
+  U7–U9, U18) are properties of the *rendered* page, not the source. No banned-phrase
+  ("click here") list either: link purpose *in context* is a judgement, not a fact.
+
 ### Fixed
+- `15_a11y` treated `<script src="a.js"/>` as an element that never ends, so everything
+  after it was dropped and an `<a href>` past it was reported as an unnamed link where a
+  browser has no link at all. A regression introduced by the self-closing fix below and
+  caught by verification: `html.parser` skips its raw-text switch on the `/>` form, so
+  the run of text is now started explicitly. A void `<br/>` is still closed once, and a
+  foreign `<rect/>` still self-closes.
+- `15_a11y` reported an empty `<title>` for `<title><b></b></title>`, where a browser
+  shows the literal string `<b></b>` and the title is not empty. Tag-shaped text inside a
+  text-only element is now kept as text (start tags via `get_starttag_text()`, end tags
+  and comments reconstructed), instead of being dropped as markup that was never there.
+- `15_a11y` checked `<math><a href>` for link text. The SVG-anchor departure is a
+  judgement about links a user clicks; MathML has no anchor element, so there is nothing
+  there to click and nothing to judge.
+- `15_a11y` judged some rules against the accessibility tree and others against the DOM.
+  **Every rule that judges rendered content now skips `hidden`/`aria-hidden` subtrees**,
+  the heading outline included. The outline was exempted at first on the argument that
+  dropping an element out of a *sequence* could invent a finding; verification showed the
+  argument inverted. `<h1><h2><div hidden><h3></div><h4>` and `<h1><h2><h4>` are the same
+  document to a screen reader and were given opposite verdicts — counting the hidden
+  heading **masked** a real skipped level rather than preventing an invented one. It also
+  ran the other way: `<div hidden><h1>Dup</h1></div><h1>Real</h1>` reported "a further
+  `<h1>`" on a page where nothing can perceive two. `page_title` and `html_lang` are
+  unaffected, and for a different reason than the one first given: a `<title>` and the
+  `<html>` element are *document metadata*, which `hidden` cannot remove. Each case is
+  pinned by a test, including one that fails if the rule ever spreads to `page_title`.
+- `15_a11y` **failed correct markup** in four ways, each found by an adversarial review of
+  PR #211 and each now pinned against html5lib:
+  - **A text-only element's content was read as markup.** The HTML tokenizer reads
+    `<textarea>`, `<title>`, `<iframe>`, `<xmp>`, `<noembed>`, `<noframes>` and
+    `<plaintext>` as raw text or RCDATA; `html.parser` knows this for `script`/`style`
+    only. So `<textarea><img src="cat.png"></textarea>` — a "paste your markup here" box
+    that every browser renders correctly — raised `img_alt`, a **default-gated** rule,
+    where html5lib finds no image at all.
+  - **HTML integration points were tested as the union of both namespaces.**
+    `<foreignObject>`/`<desc>`/`<title>` are SVG's and `<mtext>`/`<mi>`/`<mo>`/`<mn>`/
+    `<ms>`/`<annotation-xml>` are MathML's, so `<svg><mtext><input>` was a form control
+    and `<math><desc><title>Icon</title></desc></math>` silenced `page_title` — the same
+    defect the previous commit set out to retire, in both directions. The namespace is
+    also **inherited** now rather than read off the nearest `<svg>`/`<math>` tag name
+    (html5lib confirms the `<svg>` in `<math><svg>` is a MathML element), and
+    `<annotation-xml encoding>` is matched whole and untrimmed.
+  - **A `<script>`/`<style>` inside an `<svg>` swallowed the document.** A browser parses
+    the content of a foreign one as markup; `html.parser` switched to CDATA regardless,
+    and with no `</script>` to return at it lost the rest of the page — *inventing*
+    "document has no `<h1>`". Disclosed as an unfixable departure in the previous commit;
+    it was neither unfixable nor purely a missed violation. `_Collector` now overrides
+    `set_cdata_mode` so a foreign `<script>`/`<style>` stays in markup mode.
+  - **A self-closing HTML element closed itself.** The parsing spec acknowledges the flag
+    only in foreign content, so `<a href="/x" />Read the docs</a>` is a link *with* that
+    text; `html.parser` closed it and the check reported an empty link.
+- `15_a11y` flagged three more shapes that axe-core passes: a link named only by a `title`
+  attribute (HTML-AAM's last-resort source, now accepted for `link_text` — though still
+  **not** for `control_label`, where a tooltip is a poor label); anything marked `hidden`
+  or `aria-hidden="true"`, which is out of the accessibility tree entirely and is now
+  skipped by `control_label` and `link_text`; and placeholder links and controls inside a
+  `<template>`. **`<template>` content is now inert for every rule**, resolving an
+  asymmetry (inert for the outline and the title, live for the element rules) that had no
+  defence: a template is a stamp whose text, `href` and `alt` arrive at clone time, and
+  the source cannot tell an unfinished stamp from a finished element. Each of these
+  trades a missed violation for not failing conformant markup, and each is stated in
+  SPEC-accessibility.md under "What these rules do not catch".
+- `15_a11y`'s remaining recited constants are now **derived from html5lib** like the
+  breakout list. The review showed that adding `iframe` to `_VOID_TAGS` passed all 211
+  tests — nothing guarded it — and that `_RAW_TEXT_TAGS` was the recited list that was
+  actually wrong. The void list gained `basefont`, `bgsound` and `keygen` from the
+  derivation; `<col>` is asserted separately because a browser drops it outside a
+  `<colgroup>`, where no probe can reach it.
+- `15_a11y` suppressed headings inside `<svg>`/`<math>`, which is the **opposite** of what
+  a browser does (PR #211 follow-up review). `h1`–`h6` are in the HTML parsing spec's
+  foreign-content *breakout* list: a browser hoists `<svg><h1>` out into a genuine
+  heading and closes the `<svg>` doing it. The old behaviour both invented a "no `<h1>`"
+  finding for a page whose heading sat in an `<svg>` and hid a duplicate `<h1>`. The
+  **whole** breakout list is now implemented (`b, big, blockquote, body, br, center,
+  code, dd, div, dl, dt, em, embed, h1`–`h6`, `head, hr, i, img, li, listing, menu, meta,
+  nobr, ol, p, pre, ruby, s, small, span, strike, strong, sub, sup, table, tt, u, ul,
+  var`, plus `font` with `color`/`face`/`size`), along with `<annotation-xml>`'s
+  `encoding` condition — and it is **derived from html5lib by a new conformance suite**
+  rather than recited, since reciting it is what got it wrong twice. `html5lib` joins the
+  `dev` extra as a test oracle only — **pinned** (`==1.1`), because an oracle whose
+  version drifts can disagree with itself between a laptop and CI (ADR-0077); the
+  harness itself still runs on the stdlib alone.
+- `15_a11y` treated an accessible *name* as present when only the **mechanism** was
+  present (PR #211 review). `<label><input></label>`, `<label for="q"></label>` and an
+  `aria-labelledby` pointing at an empty element all passed while announcing nothing;
+  and `<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>` — the commonest
+  icon-link idiom there is — was **flagged**, because only `<img alt>` was credited from
+  inside a link. Names are now resolved from content: every element accumulates its
+  subtree text plus the `alt`/`aria-label` of any descendant, and `aria-labelledby` is
+  resolved (one level) after the parse.
+- `15_a11y` let an `<svg><title>` satisfy the **default-on** `page_title` rule, so a page
+  with no `<head><title>` at all passed if it contained one titled icon (pre-existing,
+  undisclosed). Inside an `<svg>`/`<math>` subtree a familiar tag name is no longer taken
+  for an HTML element — `<title>`, `h1`–`h6` and form controls are all namespace-aware,
+  and HTML resumes at an integration point such as `<foreignObject>`.
+- `15_a11y` read the HTML tree in three ways a browser does not (found in review of
+  #159, and applying to the rules shipped in ADR-0045 as well): **duplicate attributes**
+  resolved last-wins where the HTML parsing spec keeps the *first*
+  (`<html lang="" lang="en">` was read as valid); **`<script>`/`<style>` source** was
+  treated as rendered text, so a link containing only code looked named; and
+  **`<template>` content** — inert until cloned — could supply a document's `<title>` or
+  an enclosing link's name. Each is now resolved the way the DOM would, with tests in
+  both directions.
+- Citation-resolution gate `26_citations` (ADR-0073) — the deterministic half of the
+  largest defect class this repo's review cycle found: **doc overclaim**, 13 findings
+  across 11 PRs. Most instances were not judgements but path-resolution facts (a doc
+  citing `docs/HANDOFF.md` (lands with #147) on a base that lacks it; `ADR-0057` (lands with #166)
+  cited bare where the records stop at 0047; `docs/CHECKS.md` described as being "on this
+  base" when it is not). On a branch that changed Markdown under
+  `[citations].paths`, every repo-relative path, heading anchor, `ADR-NNNN` reference and
+  check id it cites must resolve against **git-tracked** paths on this branch, reported as
+  `file:line — citation — does not exist on this branch`. The decision core
+  (`src/meta_harness/citations.py`) is pure with an **injected** resolver — no filesystem,
+  no network, 100% line+branch coverage, with every real review instance as a fixture.
+  Deliberately and permanently out of scope, stated in the SPEC and the check header
+  rather than implied away: **external URLs** (needs a network; this runs on every gate)
+  and **issue/PR numbers** (GitHub state, off-machine and mutable) — a real `#53`-for-`#82`
+  defect stays a review concern, as does whether prose *describes* the code correctly
+  (`55_doc_drift`, ADR-0030). A deliberate forward reference is written in one narrow
+  recognised form immediately after the citation: `docs/PLUGIN.md` (lands with #166), or
+  `docs/PLUGIN.md` (on `feat/claude-plugin`) — `(on line 5)` is not a marker, because a hatch ordinary prose could
+  open by accident is a hole. Off unless `[citations].enabled`; `noop` when a branch
+  changed no documentation; fails closed on an unreadable config, an unreadable document,
+  or a git error inside a repository. Turned on for this repo, which surfaced **24**
+  unresolved citations in the existing tree — moved test paths after the `unit/` +
+  `integration/` regrouping, two broken relative links in one spec, a planned check id
+  whose number was already taken, and several historical paths written in citation shape.
+  Every one was fixed in the document; none suppressed. Not added to `adopt.py`'s
+  `RECOMMENDED` set: going red on accumulated dead references should be a maintainer's
+  choice, not a surprise from `adopt.sh`. Anchor slugs reproduce GitHub's **duplicate
+  disambiguation** (two "Setup" sections answer to `#setup` and `#setup-1`), and
+  **indented code blocks** are skipped alongside fenced ones — list-aware, because four
+  spaces inside a list is continuation, not code. See `docs/specs/SPEC-citations.md`.
+- Executor and generator interfaces, spec-first (#143, ADR-0071): `docs/specs/SPEC-executor.md` names the contract for "run this check against this snapshot and return a receipt" — snapshot identity (head + dirty-tree OID + branch), receipt/log/sidecar outputs, eight guarantees (isolation, determinism as equivalence, boundedness, fail-closed `error`/125 receipt on executor failure, no rewriting in transit, same harness, same branch) — and three executors: `local` (today, the reference), `worktree` (a git worktree per run, basis for #144), `sandbox` (contract only, #145 builds). `docs/specs/SPEC-generator.md` names what the gate needs from whatever produces the next change (deliver verdict, request retry with failing ids, bounded retry then a human, identity as self-declared provenance in `intent.generator`) and two generators: `claude-code` (the Stop hook as it is) and `headless` (a scripted, model-free generator for tests and #144). Conformance tests are the definition of done; `local` and the hooked agent stay the only implementations until #201 / #202 land. Substrate (ADR-0069), executor and generator are stated as three separate axes. Docs only — nothing built.
+- Multi-harness substrate research and spec (#142, ADR-0069): `docs/research/HARNESS-SUBSTRATES.md` surveys Codex CLI, Gemini CLI, OpenCode, Hermes, Aider, Cline and Roo Code from their public docs (dated, URL per cell, "not documented" never guessed); `docs/specs/SPEC-substrate-adapter.md` writes down the stdin/stdout/exit contract the six hooks already implement, the `adapters/<name>/` wiring-only shape, the capability matrix, degraded modes and the conformance test. Decision: one gate and one hook set with per-substrate wiring adapters; phase-1 target Codex CLI filed as #194. Docs only — nothing built.
+- Claude Code plugin distribution: `.claude-plugin/plugin.json`, a self-hosted single-plugin marketplace, `hooks/hooks.json` wiring the six hooks through `${CLAUDE_PLUGIN_ROOT}` (scripts unchanged), project skills exposed by symlink; one-line install from a checkout or the GitHub URL, per-project opt-in untouched. `docs/PLUGIN.md` (ADR-0057, #136).
+- PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
+
+- `docs/4D-DRY-RUNS.md` (#178): re-authored account of 4D's two dry runs — a research capture that published a false count with every AI-side obligation failing silently, and a shipped PR where they held — with a fifteen-row finding→mechanism table (22_charter, the rewrite-contract receipt, the compaction brief, #174–#177, and six honest "no mechanism; open" rows) and the deliberate exclusions: the 100 wpm transcript-density threshold (a metric target; ratchet alternative described and still declined) and the three-level severity ladder (a dial; replaced by the charter's binary tiers). Linked from `docs/AI-FLUENCY.md` and the SPEC-ai-fluency artifact table. Docs only.
+- Session charter gate (ADR-0063, #173): a committed `CHARTER.toml` (goal, stakes `low`|`high` — two opt-in tiers, never a dial — done_when/stop_when/may_not, owner; `high` also requires rollback/reviewer/blast_radius) validated fail-closed by `22_charter` via the pure `meta_harness.charter` (every violation as `field — reason`, hedged `done_when` items rejected, unknown keys/stakes rejected, never `noop`); `[charter]` spine block; a sub-120-byte UserPromptSubmit reminder when enabled and the file is missing; this repo declares its own high-stakes charter. Mechanism re-authored from a CC BY-NC-SA source — no text or code copied.
+- PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
+
+- Session charter gate (ADR-0063, #173): a committed `CHARTER.toml` (goal, stakes `low`|`high` — two opt-in tiers, never a dial — done_when/stop_when/may_not, owner; `high` also requires rollback/reviewer/blast_radius) validated fail-closed by `22_charter` via the pure `meta_harness.charter` (every violation as `field — reason`, hedged `done_when` items rejected, unknown keys/stakes rejected, never `noop`); `[charter]` spine block; a sub-120-byte UserPromptSubmit reminder when enabled and the file is missing; this repo declares its own high-stakes charter. Mechanism re-authored from a CC BY-NC-SA source — no text or code copied.
+- PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
+
+- Quote fidelity (ADR-0065, issue #175, sub-issue of #172): `24_quotes` +
+  `meta_harness.quotes` verify that every quotation a Markdown document marks with a source
+  (`> …` then `— source: docs/research/<slug>/<file>#L<a>-L<b>`, or the
+  `<!-- quote: … -->` comment form) is **verbatim** against that saved span — the mechanism
+  behind the research skill's fail-closed citation promise. Both sides are normalised the
+  same way (curly → straight quotes, whitespace collapsed, one wrapping `"` pair and trailing
+  sentence punctuation dropped) and nothing else; outcomes are verbatim / drifted (with a
+  unified diff) / missing / out-of-range / orphan marker, each listed as `file:line`. Opt-in
+  via `[quotes].enabled` + `paths`; no marked quotation ⇒ `noop`; an unreadable document or
+  source fails closed; no network. Registered in `[checks].required` here (currently `noop`:
+  no research document has a saved source yet), catalogued in `docs/CHECKS.md`;
+  `docs/specs/SPEC-quotes.md`. Unit- (100% line+branch) and integration-tested. The research
+  skill's §5 now requires the convention for verbatim quotes in `report.md` (still ≤ 3692 B).
+  PR #182 review: matching is line-for-line at word boundaries (a one-line quote inside one
+  source line, a multi-line quote over a contiguous run of source lines) — joining the span
+  hid a word dropped at a line boundary; and the check resolves symlinks, refusing (never
+  reading or printing) any source or walked file whose real path leaves the project.
+
+### Changed
+- The research skill's ≤ 3692 B pin test moved from `tests/unit/test_context_budget.py` to
+  `tests/integration/test_context_budget_gate.py`: it reads the repo's `.claude/` tree, which
+  mutmut's `mutants/` copy lacks, so on the heavy lane it failed the clean-test run and
+  `60_mutation` evaluated 0 mutants (failing closed). Same assertion, still on every gate.
+- `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
+  cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,
+  per-file and per-section), and the dynamic drivers are traced and ranked — working state
+  kept in context, whole-page ingestion, unbounded fan-out, re-fetch on verification. The
+  protocol now declares an editable budget (rounds, queries/round, sources/round, extracted
+  lines/source — knobs the user approves, never gates), writes plan/log/sources/graph/report
+  to `docs/research/<slug>/`, extracts passages instead of ingesting pages, caches URLs and
+  queries, verifies against the saved passage, delegates fetch+extract to a sub-agent where
+  available, reads symbols not files on code hosts, and stops at saturation. Same contract;
+  the redundant "Tactics" section is folded into the numbered steps.
+  `.borromeanrings-context-baseline` re-seeded downward to 31690 (the ratchet tightens on
+  purpose) and a unit test pins the skill at ≤ 3692 B.
+- Supply-chain hardening (ADR-0061, #58): two heavy-lane checks and an SBOM entry point,
+  all native (stdlib only, no network, no new dependency) and threshold-free.
+  **`76_lockfile`** fails when a dependency manifest (`pyproject.toml`, `package.json`)
+  changed since the merge-base without the declared `[supply_chain].lockfile` changing —
+  working-tree and untracked changes count; no lockfile declared ⇒ `noop`, declared-but-
+  missing / non-git / git error ⇒ fail closed. **`78_pins`** requires every
+  `[project].dependencies` requirement (optional groups too with `pin_optional = true`)
+  to carry an upper bound or exact pin (`==`, `~=`, `<`; a direct URL needs a commit hash
+  or `sha256=`), naming each offending line verbatim; no requirements ⇒ `noop`; `dynamic`
+  dependencies or malformed TOML ⇒ fail. **`sbom.sh`** emits a deterministic CycloneDX 1.5
+  JSON of the declared closure via `tomllib` + `importlib.metadata` (name/version/purl +
+  dependency graph; unresolved requirements listed, never dropped) — an inventory that
+  states it is *not* signed or attested. Applied here: `lockfile = ""` (this repo has none
+  and nothing regenerates one — honest `noop`), `pin_optional = true`, and every dev
+  requirement bounded above at its next major. Dependabot, SLSA provenance/signing and
+  SHA-pinned Actions need CI or a remote service and are recorded in the ADR as maintainer
+  decisions with the exact config. Unit (100 % line + branch on both modules) + integration
+  (real `verify.sh --heavy` on fixture repos: stale lock ⇒ red; both changed ⇒ green;
+  undeclared ⇒ `noop`; missing lock and broken git index ⇒ fail closed).
+- Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
+  `meta_harness.context_budget` measure what borromeanRings **itself** puts into the
+  agent's context — the prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, every installed
+  `SKILL.md`, and the message templates in `.claude/hooks/*.sh` — as bytes and approximate
+  tokens (bytes/4, no tokenizer dependency), and **ratchet the total** against
+  `.borromeanrings-context-baseline`: above the baseline fails naming both numbers, at or
+  below passes with the per-source rows in the log, nothing measurable ⇒ `noop`, an
+  unreadable baseline fails closed. Non-regression only, no absolute cap. Registered in
+  `[checks].required`, in `adopt.py` `RECOMMENDED`/`RATCHET_BASELINES` (seeded even when
+  the project declares no package), catalogued in `docs/CHECKS.md`; borromeanRings's own
+  baseline seeded at 32174 B (~8K tokens). Unit- (100% line+branch) and integration-tested
+  (pass / regression / noop / unseeded / unreadable).
+### Fixed
+- `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
+  Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
+  the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus
+  `[a11y].exclude`) and where, and the gate output counts it under `inspected NOTHING`.
+  Clean HTML ⇒ `pass`, violations ⇒ `fail`, unchanged. The HTML walk now mirrors
+  `01_source_coherence`: a `git ls-files` failure inside a repo **fails closed** (never a
+  `noop`), and a non-git project falls back to a filesystem walk (honouring `exclude`) and
+  evaluates what it finds. Locked down by an integration suite
+  (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
+
+### Added
+- Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
+  `meta_harness.context_budget` measure what borromeanRings **itself** puts into the
+  agent's context — the prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, every installed
+  `SKILL.md`, and the message templates in `.claude/hooks/*.sh` — as bytes and approximate
+  tokens (bytes/4, no tokenizer dependency), and **ratchet the total** against
+  `.borromeanrings-context-baseline`: above the baseline fails naming both numbers, at or
+  below passes with the per-source rows in the log, nothing measurable ⇒ `noop`, an
+  unreadable baseline fails closed. Non-regression only, no absolute cap. Registered in
+  `[checks].required`, in `adopt.py` `RECOMMENDED`/`RATCHET_BASELINES` (seeded even when
+  the project declares no package), catalogued in `docs/CHECKS.md`; borromeanRings's own
+  baseline seeded at 32174 B (~8K tokens). Unit- (100% line+branch) and integration-tested
+  (pass / regression / noop / unseeded / unreadable).
+- `18_api_contracts` + `[api_contracts]`: a project's own API-usage rules (banned / forbidden_in / must_check / required_arg / paired / requires_before) enforced as deterministic AST checks, `noop` when they match nothing, with a PostToolUse preventive layer and a cited `python-asyncio` rule pack (ADR-0054, #130).
+
+### Added
 - `70_pip_audit` and `72_licenses` judge the project's own dependency closure instead of whatever is installed on the machine (#228). Both read the *installed environment*, which equals the project's dependencies only on a clean CI runner; on a developer machine the heavy lane reported 43 CVE'd and 14 GPL distributions — `torch`, `notebook`, `semgrep`, `pynput` — none of them dependencies of anything being gated. That contradicted the claim `verify.yml` makes in its own header (the same `verify.sh`, author- and environment-agnostic), and the remedy each check printed was actionable and **wrong**: following it would write a permanent exception into the project's config for a package it does not depend on. New `meta_harness.closure` resolves the declared set — including `[build-system].requires` — plus its transitive reach from installed metadata (pure stdlib). Every ambiguity resolves toward *including*: platform markers are not evaluated, an extra the project itself asked for is followed (`pip-audit[doc]` means `pdoc` is in scope), and a marker satisfiable without its extra is followed too; only a requirement guarded solely by an extra nobody requested is skipped, because following all of them turns the graph into the index (624 distributions against 79 for the real closure); both checks now report the scope size and **fail closed** if the closure cannot be determined, rather than silently widening back to everything.
 - `12_secrets` detects the AWS **secret** access key, (#230). Found by running the harness end-to-end against a fresh external project: a planted credential passed, because the pattern set covered only the `AKIA` key *ID* — the public half of the pair. The new pattern matches by **name plus shape** — an identifier saying `aws…secret…` assigned a 40-character base64 value — so the no-entropy-heuristics rule is untouched: a bare 40-char string is still not a finding. Quotes around the value are optional, because the commonest home for this credential — `~/.aws/credentials` — is INI and has none, as do `.env` files, Dockerfile `ENV` and `export`; a terminator is required instead, so a longer base64 run never matches its first 40 characters. `SPEC-secrets.md`'s table is now the exhaustive covered set, enforced by a test that fails if a pattern ships without a planted example. The same end-to-end run showed `init.sh` does not put `12_secrets` in a new project's required set either; that is #236, because the check fails closed without a git repository and `init.sh` must start green — a genuine design conflict rather than a patch.
 - Adoption now gives a governed project the `.gitignore` entries borromeanRings always assumed it had (#219). Without them the gate's own output is untracked-but-not-ignored, so `git add -A` puts the receipt logs into the index that `12_secrets` reads — and a check log quoting a secret-shaped line makes the secret gate fail **on generated files, still failing after the offending source is deleted**, telling the user to rotate a secret that no longer exists. `init.sh` and `adopt.sh` now ensure `.meta-harness/` and `.coverage` are ignored: created when there is no `.gitignore`, appended (and announced on stdout) when there is, and left alone when already present in any spelling git honours. `--no-gitignore` opts out, because "deliberately absent" cannot be inferred from an absence.
@@ -506,6 +778,16 @@ queue is merged.
     (ADR-0033).
 
 ### Changed
+- Stewardship reconciled as a **cadence over the four AI Fluency competencies**, not a fifth
+  (ADR-0020 amendment, #177): its three questions reduce to Delegation, Discernment and
+  Diligence asked mid-run, and the framework's authors never proposed a fifth. The
+  `ai-fluency-stewardship` skill is rewritten as that schedule — two speeds (fast per turn,
+  full per task), checkpoints each tied to a detector this repo has (Stop verdict flip and
+  bounded-retry escalation, `22_charter`, PreCompact/SessionStart brief, the rewrite-contract
+  record once merged), and back-edges (product failure → Description, process failure →
+  Delegation). `docs/AI-FLUENCY.md` gains a Cadence section; SPEC-ai-fluency and MANIFESTO
+  drop the "plus a 5th" wording. Docs and skill text only; skill growth paid for by trims in
+  the same file.
 - Enforcement-coverage map corrected to reality: coverage-ratchet was mis-claimed
   ✅ but no check exists (now ❌ candidate); coupling (`33_coupling`), public-API
   breaking-change (`34_api_diff`), and the adoption path (`adopt.sh`) marked ✅;

@@ -259,6 +259,75 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_subject_max_length == 0
 
 
+def test_charter_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["22_charter"]\n[charter]\nenabled = true\n'
+        'path = "docs/charter.toml"\nhigh_stakes_fields = ["approver"]\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.charter_enabled is True
+    assert cfg.charter_path == "docs/charter.toml"
+    assert cfg.charter_high_stakes_fields == ("approver",)
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.charter_enabled is False
+    assert off.charter_path == "CHARTER.toml"
+    assert off.charter_high_stakes_fields == ("rollback", "reviewer", "blast_radius")
+
+    # [charter] present but `enabled` absent ⇒ still off (opt-in).
+    dormant = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n[charter]\npath = "C.toml"\n')
+    assert load_config(dormant).charter_enabled is False
+
+
+def test_quotes_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[quotes]\nenabled = true\npaths = ["docs", "notes"]\n',
+    )
+    config = load_config(declared)
+    assert config.quotes_enabled is True
+    assert config.quotes_paths == ("docs", "notes")
+    default = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert default.quotes_enabled is False
+    assert default.quotes_paths == ("docs",)
+
+
+def test_supply_chain_loaded_and_defaults(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[supply_chain]\n'
+        'lockfile = "uv.lock"\nmanifests = ["pyproject.toml"]\npin_optional = true\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.supply_chain_lockfile == "uv.lock"
+    assert cfg.supply_chain_manifests == ("pyproject.toml",)
+    assert cfg.supply_chain_pin_optional is True
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.supply_chain_lockfile == ""
+    assert off.supply_chain_manifests == ("pyproject.toml", "package.json")
+    assert off.supply_chain_pin_optional is False
+
+
+def test_api_contracts_section_is_parsed_and_defaults_empty(tmp_path: Path) -> None:
+    cfg = tmp_path / "borromeanrings.toml"
+    cfg.write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")
+    plain = load_config(cfg)
+    assert plain.api_contracts_rules == () and plain.api_contracts_packs == ()
+    cfg.write_text(
+        '[checks]\nrequired = ["00_build"]\n'
+        '[api_contracts]\npacks = ["python-asyncio"]\n'
+        '[[api_contracts.rules]]\nkind = "banned"\nsymbol = "malloc"\nmessage = "no heap"\n',
+        encoding="utf-8",
+    )
+    c = load_config(cfg)
+    assert c.api_contracts_packs == ("python-asyncio",)
+    assert c.api_contracts_rules == ({"kind": "banned", "symbol": "malloc", "message": "no heap"},)
+
+
 def test_prior_art_loaded_and_defaults(tmp_path: Path) -> None:
     """Defaults mirror [adr]: surveys under docs/surveys, required on feat/ branches."""
     declared = _write(

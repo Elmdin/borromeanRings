@@ -66,6 +66,10 @@ class Config:
     architecture_private: tuple[str, ...] = ()
     architecture_forbidden: tuple[tuple[str, str], ...] = ()
     architecture_forbid_cycles: bool = False
+    # [api_contracts] — the project's own API-usage rules (ADR-0054); raw rule tables are
+    # validated by meta_harness.api_contracts.parse_rules at check time (fail closed).
+    api_contracts_rules: tuple[dict[str, object], ...] = ()
+    api_contracts_packs: tuple[str, ...] = ()
     # [changelog] — Keep a Changelog discipline (ADR-0028); off when disabled.
     changelog_enabled: bool = False
     changelog_path: str = "CHANGELOG.md"
@@ -101,10 +105,28 @@ class Config:
     # rules apply is per-project (a run-and-exit gate-runner omits `healthcheck`).
     container_dockerfile: str = "Dockerfile"
     container_require: tuple[str, ...] = ("non_root", "pinned_base", "healthcheck")
+    # [citations] — citation-resolution gate (ADR-0073); off unless enabled. paths are
+    # the repo-relative prefixes whose changed *.md files are scanned.
+    citations_enabled: bool = False
+    citations_paths: tuple[str, ...] = ("docs/", "README.md", "CHANGELOG.md", "skills/")
     # [a11y] — static accessibility invariants for HTML (ADR-0045); the Product/UX
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [charter] — session-charter gate (ADR-0063): a committed CHARTER.toml naming goal,
+    # stakes (low|high), done_when, stop_when, may_not, owner. Opt-in; off by default.
+    charter_enabled: bool = False
+    charter_path: str = "CHARTER.toml"
+    charter_high_stakes_fields: tuple[str, ...] = ("rollback", "reviewer", "blast_radius")
+    # [quotes] — quote fidelity (ADR-0065): marked quotations in the Markdown under
+    # `paths` must be verbatim against their saved source. Off unless enabled.
+    quotes_enabled: bool = False
+    quotes_paths: tuple[str, ...] = ("docs",)
+    # [supply_chain] — lockfile integrity + pinned dependencies (ADR-0061). No lockfile
+    # declared ⇒ 76_lockfile is a noop; pin_optional extends 78_pins to optional groups.
+    supply_chain_lockfile: str = ""
+    supply_chain_manifests: tuple[str, ...] = ("pyproject.toml", "package.json")
+    supply_chain_pin_optional: bool = False
     # [verification] — the mathematical-verification ladder (ADR-0074). Tier 1 only:
     # the project-relative directory holding its property suite. NO default — writing
     # the key is an affirmative claim, so "" means the rule is off, and a declared
@@ -168,6 +190,35 @@ def resolve_config_path(path: str | Path) -> Path:
     return legacy
 
 
+def _validated_required(raw: Mapping[str, Any]) -> list[str]:
+    """The declared required checks, refusing an empty set.
+
+    Fail-closed: borromeanRings never reads "nothing declared" as "nothing to enforce".
+    """
+    required = list(raw.get("checks", {}).get("required", []))
+    if not required:
+        raise ValueError(
+            "borromeanrings.toml must declare a non-empty [checks].required — "
+            "no declared checks is a misconfiguration (fail-closed)."
+        )
+    return required
+
+
+def _reject_unknown_verification(raw: Mapping[str, Any]) -> None:
+    """Refuse an unrecognised ``[verification]`` key.
+
+    A misspelled verification claim would otherwise read as "nothing declared",
+    which is the silent-downgrade this project exists to prevent.
+    """
+    unknown = sorted(set(raw.get("verification", {})) - VERIFICATION_KEYS)
+    if unknown:
+        raise ValueError(
+            f"borromeanrings.toml [verification] has unknown key(s): {', '.join(unknown)}. "
+            f"Known: {', '.join(sorted(VERIFICATION_KEYS))}. A misspelled verification "
+            "claim would silently read as 'nothing declared' — fail-closed instead."
+        )
+
+
 def load_config(path: str | Path = CONFIG_NAME) -> Config:
     """Load and validate the policy spine from ``borromeanrings.toml``.
 
@@ -187,20 +238,9 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         FileNotFoundError: if neither the canonical nor the legacy file exists.
     """
     raw: dict[str, Any] = tomllib.loads(resolve_config_path(path).read_text(encoding="utf-8"))
-    required = list(raw.get("checks", {}).get("required", []))
-    if not required:
-        raise ValueError(
-            "borromeanrings.toml must declare a non-empty [checks].required — "
-            "no declared checks is a misconfiguration (fail-closed)."
-        )
+    required = _validated_required(raw)
+    _reject_unknown_verification(raw)
     verification: Mapping[str, Any] = raw.get("verification", {})
-    unknown = sorted(set(verification) - VERIFICATION_KEYS)
-    if unknown:
-        raise ValueError(
-            f"borromeanrings.toml [verification] has unknown key(s): {', '.join(unknown)}. "
-            f"Known: {', '.join(sorted(VERIFICATION_KEYS))}. A misspelled verification "
-            "claim would silently read as 'nothing declared' — fail-closed instead."
-        )
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
@@ -209,10 +249,13 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     layout = raw.get("layout", {})
     collaboration = raw.get("collaboration", {})
     architecture = raw.get("architecture", {})
+    api_contracts = raw.get("api_contracts", {})
     changelog = raw.get("changelog", {})
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    charter = raw.get("charter", {})
+    supply_chain = raw.get("supply_chain", {})
     provenance = raw.get("provenance", {})
     predicates = raw.get("predicates", {})
     test = raw.get("test", {})
@@ -243,6 +286,8 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
             (str(pair[0]), str(pair[1])) for pair in architecture.get("forbidden", [])
         ),
         architecture_forbid_cycles=bool(architecture.get("forbid_cycles", False)),
+        api_contracts_rules=tuple(dict(rule) for rule in api_contracts.get("rules", [])),
+        api_contracts_packs=tuple(str(pack) for pack in api_contracts.get("packs", [])),
         changelog_enabled=bool(changelog.get("enabled", False)),
         changelog_path=str(changelog.get("path", "CHANGELOG.md")),
         changelog_require_entry_on_src_change=bool(
@@ -267,12 +312,28 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         container_require=tuple(
             raw.get("container", {}).get("require", ["non_root", "pinned_base", "healthcheck"])
         ),
+        citations_enabled=bool(raw.get("citations", {}).get("enabled", False)),
+        citations_paths=tuple(
+            raw.get("citations", {}).get("paths", ["docs/", "README.md", "CHANGELOG.md", "skills/"])
+        ),
         a11y_require=tuple(
             raw.get("a11y", {}).get("require", ["html_lang", "img_alt", "page_title"])
         ),
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        charter_enabled=bool(charter.get("enabled", False)),
+        charter_path=str(charter.get("path", "CHARTER.toml")),
+        charter_high_stakes_fields=tuple(
+            charter.get("high_stakes_fields", ["rollback", "reviewer", "blast_radius"])
+        ),
+        quotes_enabled=bool(raw.get("quotes", {}).get("enabled", False)),
+        quotes_paths=tuple(raw.get("quotes", {}).get("paths", ["docs"])),
+        supply_chain_lockfile=str(supply_chain.get("lockfile", "")),
+        supply_chain_manifests=tuple(
+            supply_chain.get("manifests", ["pyproject.toml", "package.json"])
+        ),
+        supply_chain_pin_optional=bool(supply_chain.get("pin_optional", False)),
         verification_properties=str(verification.get("properties", "")).strip(),
         provenance_declared="provenance" in raw,
         provenance_sources=tuple(str(p) for p in provenance.get("sources", [])),

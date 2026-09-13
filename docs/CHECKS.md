@@ -53,6 +53,8 @@ fast_paths = ["tests/unit"]   # the fast (interactive) lane's test scope; empty 
 
 - **New project:** `./init.sh <path>` writes a starter `borromeanrings.toml` + the hook wiring.
 - **Existing project:** `./adopt.sh <path>` adds the recommended quality/security set
+  (`12_secrets, 11_changelog, 32_complexity, 33_coupling, 45_docstrings, 01_source_coherence,
+  19_context_budget`), seeds each ratchet
   (`12_secrets, 11_changelog, 32_complexity, 33_coupling, 45_docstrings`), seeds each ratchet
   baseline from the current state, and rewrites `[checks].required` (idempotent — ADR-0041).
 - **Manually:** add the check ID to `[checks].required` (or `heavy`) and provide any config it
@@ -90,6 +92,13 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `12_secrets` | No high-confidence provider tokens / private keys in tracked files; **fails closed on a non-git dir** | (scan; escape hatch inline) | 0032 / 0042 |
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
+| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). Opt-in per project: form controls have an accessible name, `<a href>` has discernible text, one `<h1>` and no skipped levels (WCAG 3.3.2+4.1.2/2.4.4/1.3.1). Reports `file:line — [rule] — reason`. No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass`. Contrast/focus/target size need a rendered DOM — not faked here (#210) | `[a11y].require`, `exclude` | 0045, 0049, 0075 |
+| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
+| `26_citations` | Citations in changed Markdown (repo paths, heading anchors, `ADR-NNNN`, check ids) resolve on this branch; URLs and issue numbers deliberately excluded | `[citations].enabled`, `paths` | 0073 |
+| `22_charter` | The committed session charter (`CHARTER.toml`: goal, stakes `low`\|`high`, done_when/stop_when/may_not, owner; `high` also needs rollback/reviewer/blast_radius) exists and validates fail-closed — hedged predicates, unknown keys and unknown stakes are violations; never `noop` | `[charter].enabled`, `path`, `high_stakes_fields` | 0063 |
+| `19_context_budget` | **Ratchet**: the bytes borromeanRings itself puts in the agent's context (prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, `SKILL.md` files, hook message templates) don't regress (no absolute cap; tokens ≈ bytes/4); nothing measurable ⇒ `noop` | `.borromeanrings-context-baseline`, seeded by `adopt.sh` | 0055 |
+| `24_quotes` | Every quotation marked `> …` + `— source: path#L<a>-L<b>` (or `<!-- quote: … -->`) in the Markdown under `paths` is **verbatim** against the saved source span (whitespace, curly quotes, trailing punctuation normalised; nothing else); drifted (with a diff) / missing / out-of-range / orphan ⇒ fail with `file:line`; no marked quotation ⇒ `noop`; unreadable file fails closed | `[quotes].enabled`, `paths` | 0065 |
+| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass` | `[a11y].require`, `exclude` | 0045, 0049 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
 | `25_provenance` | Files changed under `paths` since the merge-base share **no unlisted 6-word shingle** with the declared read-only `sources` (re-authored, never copied); binary — every unlisted overlap fails with both locations, the human allowlists generic ones with a reason. No `[provenance]` ⇒ off (`noop`); no sources ⇒ `noop`; absent/empty source or git error ⇒ fail closed | `[provenance].sources`, `paths`, `allow`; env `BORROMEANRINGS_PROVENANCE_SOURCES` (colon-separated, machine-local) | 0070 |
 | `23_predicates` | Acceptance predicates (SPEC Contract/Guarantees/Acceptance bullets, ADR Consequences must/never/shall bullets, issue-form task items) contain no hedge word; every SPEC names a shipped check id, an existing test file or an issue (no orphans); `noop` when off or nothing found | `[predicates].enabled`, `paths`, `hedges`, `require_reference` | 0064 |
@@ -113,6 +122,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `32_complexity` | **Ratchet**: worst-case cyclomatic complexity doesn't regress (no absolute ceiling) | baseline file, seeded by `adopt.sh` | 0031 |
 | `33_coupling` | **Ratchet**: worst efferent coupling (fan-out) doesn't regress | baseline file | 0038 |
 | `34_api_diff` | Public-API breaking change (removed/renamed symbol, new required param) fails unless allowed | `[api].allow_breaking` | 0040 |
+| `18_api_contracts` | The project's own API-usage rules hold at every call site; `noop` when none matched | `[api_contracts].rules`, `packs` | 0054 |
 | `35_architecture` | Import-direction fitness: leaves import no domain module, private modules stay unimported, no cycles | `[architecture].leaves`, `private`, `forbidden`, `forbid_cycles` | 0027 |
 | `40_test` | Tests pass **and** coverage doesn't regress (**ratchet**, not an absolute %) | `[project].tests_dir`; coverage baseline | — |
 | `45_docstrings` | **Ratchet**: public-API docstring coverage doesn't regress | baseline file | 0029 |
@@ -129,12 +139,21 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
 | `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |
 | `74_secret_history` | No high-confidence secret in **any** blob reachable from any ref (history, not just HEAD) | `[secrets].history_allow` | 0042 |
+| `76_lockfile` | A dependency manifest (`pyproject.toml`, `package.json`) changed since the merge-base **only together with** the declared lockfile; no lockfile declared ⇒ `noop`; declared-but-missing or a git error ⇒ fail | `[supply_chain].lockfile`, `manifests` | 0061 |
+| `78_pins` | Every `[project].dependencies` requirement (and optional groups if `pin_optional`) carries an upper bound or exact pin (`==`, `~=`, `<`); each bare / `>=`-only line is named; no deps ⇒ `noop` | `[supply_chain].pin_optional` | 0061 |
 
 ## Notes
 
 - **Ratchets are threshold-free.** `32/33/40/45/60` enforce *non-regression* against a seeded
   baseline, never an arbitrary target number — you can only improve or hold, never silently
   slip. Move a baseline deliberately (a reviewed commit), never as a side effect.
+- **Advisory checks** (`55_doc_drift`, `56_critics`) require a wired model judge
+  (`[critic].judge_command`, e.g. the local `claude` CLI — no API keys). Empty ⇒ dormant; they
+  never block until you opt in.
+- **SBOM.** `./sbom.sh [--optional] [--out FILE]` emits a CycloneDX 1.5 JSON inventory of the
+  declared dependency closure from the stdlib alone (`tomllib` + `importlib.metadata`; no
+  network). An inventory, not provenance: it is **not signed or attested** and says so in its
+  metadata (ADR-0061 records the CI-dependent signing/Dependabot items as maintainer decisions).
 - **`27_properties` is not a ratchet and never counts.** It is deliberately binary: the
   declared suite passes or it does not. "Number of properties" would be the coverage-percentage
   trap one rung up (ADR-0022's reasoning), so the check cannot even see a count — its file probe

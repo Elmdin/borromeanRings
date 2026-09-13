@@ -69,6 +69,19 @@ ignore_vulns = []
 deny = ["GPL-2", "GPL-3", "GPLv2", "GPLv3", "AGPL", "Affero", "SSPL", "GNU General Public"]
 allow_packages = []
 
+[supply_chain]
+# Lockfile integrity (heavy check 76_lockfile) + pinned dependencies (heavy check
+# 78_pins). ADR-0061. This repo has NO lockfile today: it is a source-installed tool
+# whose only dependencies are the dev toolchain (`pip install -e ".[dev]"` in CI), and
+# no maintainer tooling produces uv.lock/poetry.lock — so `lockfile` is empty and
+# 76_lockfile reports noop, honestly, rather than inventing a lock nothing regenerates.
+# Declare one here the day a lockfile exists (e.g. lockfile = "uv.lock"). pin_optional
+# is on because the dev group IS this project's supply chain: every check parses those
+# tools' output, so an unbounded major bump can silently change a verdict.
+lockfile = ""
+manifests = ["pyproject.toml", "package.json"]
+pin_optional = true
+
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
@@ -91,6 +104,31 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[citations]
+# Citation resolution (check 26_citations, ADR-0073): a repo-relative path, heading
+# anchor, ADR number or check id cited in changed Markdown must resolve on THIS branch.
+# Offline by construction — external URLs and issue/PR numbers are deliberately out of
+# scope (no network, no GitHub state). A deliberate forward reference is written
+# `docs/THING.md` (lands with #NNN). Off unless enabled. See SPEC-citations.md.
+enabled = true
+paths = ["docs/", "README.md", "CHANGELOG.md", "skills/", "AGENTS.md", "PLAN-v0.md"]
+[charter]
+# Session-charter gate (ADR-0063; SPEC-charter.md): the committed CHARTER.toml at the
+# repo root names the goal, the stakes tier (low | high — two opt-in tiers, never a
+# dial), done_when / stop_when / may_not predicates and the owner. At "high" the
+# high_stakes_fields are required too. Enforced fail-closed by 22_charter; a
+# UserPromptSubmit reminder fires when enabled and the file is missing. Opt-in —
+# other projects declare it only once they have a charter to keep.
+enabled = true
+path = "CHARTER.toml"
+high_stakes_fields = ["rollback", "reviewer", "blast_radius"]
+[quotes]
+# Quote fidelity (check 24_quotes, ADR-0065): a quotation marked `> ...` + `— source:
+# path#L<a>-L<b>` in the Markdown under `paths` must be verbatim against that saved span
+# (the mechanism behind the research skill's fail-closed citations). Opt-in; no marked
+# quotation ⇒ noop. See docs/specs/SPEC-quotes.md.
+enabled = true
+paths = ["docs"]
 [prior_art]
 # Prior-art discipline (check 17_prior_art, ADR-0051): on a feature branch, new public
 # surface must be accompanied by a survey record of what already existed. The 13_adr
@@ -172,13 +210,18 @@ required = [
   "08_branch",
   "09_commits",
   "13_adr",
+  "18_api_contracts",
   "17_prior_art",
   "14_container",
+  "26_citations",
+  "22_charter",
   "25_provenance",
   "23_predicates",
   "12_secrets",
   "16_shellcheck",
   "11_changelog",
+  "19_context_budget",
+  "24_quotes",
   "10_format",
   "20_lint",
   "27_properties",
@@ -197,6 +240,8 @@ heavy = [
   "70_pip_audit",
   "72_licenses",
   "74_secret_history",
+  "76_lockfile",
+  "78_pins",
 ]
 
 [hygiene]

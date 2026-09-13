@@ -39,14 +39,21 @@ import contextlib
 import hashlib
 import os
 import re
-import stat
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+
+from meta_harness.state_home import (
+    DIGEST_CHARS,
+    StateUnavailable,
+    is_inside,
+    open_nofollow,
+    project_digest,
+    state_root,
+)
 
 APP_DIR = "borromeanrings"
 COUNTER_DIR = "stop_attempts"
 LEGACY_PARTS = (".meta-harness", "stop_attempts")
-DIGEST_CHARS = 32
 """128 bits of sha256: collision-free for any real set of projects, short
 enough to keep the state path readable."""
 
@@ -56,36 +63,15 @@ _DECIMAL = re.compile(r"[0-9]+")
 Resolver = Callable[[str], str]
 
 
-class StateUnavailable(Exception):
-    """The retry count cannot be located, read or written. Callers fail closed."""
-
-
 # --- pure: where the count lives ----------------------------------------------
-
-
-def state_root(env: Mapping[str, str]) -> Path:
-    """The XDG state base directory: ``$XDG_STATE_HOME`` or ``$HOME/.local/state``.
-
-    A relative ``XDG_STATE_HOME`` is ignored, as the XDG Base Directory spec
-    requires. Raises :class:`StateUnavailable` when neither yields an absolute
-    path — never guesses a location (a guess could land inside the tree).
-    """
-    xdg = env.get("XDG_STATE_HOME", "")
-    if os.path.isabs(xdg):
-        return Path(xdg)
-    home = env.get("HOME", "")
-    if os.path.isabs(home):
-        return Path(home) / ".local" / "state"
-    raise StateUnavailable("no absolute XDG_STATE_HOME or HOME to keep the count under")
+#
+# The location is shared with the last-green record (#222), so it lives in
+# meta_harness.state_home. Re-exported here: this module's callers and tests have
+# always reached these names through retry_state, and the move is not theirs.
 
 
 def _digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", "surrogateescape")).hexdigest()[:DIGEST_CHARS]
-
-
-def project_digest(resolved_project: str) -> str:
-    """Name a project by its resolved absolute path (symlinked routes share a count)."""
-    return _digest(resolved_project)
 
 
 def session_filename(session_id: str) -> str:
@@ -116,11 +102,6 @@ def legacy_name(session_id: str) -> str | None:
     ``<project>/.meta-harness/stop_attempts/``. ``None`` for an id that was never
     safe to use as a path component."""
     return session_id if _VERBATIM_ID.fullmatch(session_id) else None
-
-
-def is_inside(path: str, root: str) -> bool:
-    """True when ``path`` is ``root`` or below it. Both must already be resolved."""
-    return os.path.commonpath([path, root]) == root
 
 
 def parse_count(text: str) -> int | None:
@@ -160,27 +141,6 @@ _LEGACY_READ_BYTES = 64
 """A count is a handful of digits; never read more of an in-tree file than this."""
 
 
-def _open_nofollow(name: str, flags: int, dir_fd: int) -> int | None:
-    """Open ``name`` under ``dir_fd`` without following a symlink.
-
-    ``None`` when it is absent or unusable. :class:`StateUnavailable` when it is
-    a symlink: the in-tree legacy path is writable by the agent, and a link there
-    could steer a read or a delete at the real count.
-    """
-    try:
-        return os.open(name, flags | os.O_NOFOLLOW, dir_fd=dir_fd)
-    except OSError as exc:
-        try:
-            mode = os.stat(name, dir_fd=dir_fd, follow_symlinks=False).st_mode
-        except OSError:
-            return None
-        if stat.S_ISLNK(mode):
-            raise StateUnavailable(
-                f"refusing to follow a symlink at the legacy counter path ({name})"
-            ) from exc
-        return None
-
-
 def _open_legacy_dirs(project: str, fds: list[int]) -> tuple[int, int] | None:
     """``(.meta-harness fd, stop_attempts fd)`` opened without following links.
 
@@ -192,7 +152,7 @@ def _open_legacy_dirs(project: str, fds: list[int]) -> tuple[int, int] | None:
     except OSError:
         return None
     for part in LEGACY_PARTS:
-        fd = _open_nofollow(part, _DIR, fds[-1])
+        fd = open_nofollow(part, _DIR, fds[-1])
         if fd is None:
             return None
         fds.append(fd)
@@ -203,7 +163,7 @@ def _read_legacy(dirs: tuple[int, int] | None, name: str | None) -> int:
     """An in-tree count, or ``0`` when there is none or it is unreadable."""
     if dirs is None or name is None:
         return 0
-    fd = _open_nofollow(name, os.O_RDONLY, dirs[1])
+    fd = open_nofollow(name, os.O_RDONLY, dirs[1])
     if fd is None:
         return 0
     try:

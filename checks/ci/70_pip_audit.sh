@@ -49,6 +49,8 @@ except ClosureUnavailable as exc:
     print(f"cannot determine the project's dependency closure ({exc}) — fail closed")
     sys.exit(1)
 print(f"scope: {len(scope)} distribution(s) — declared in {sys.argv[3]}, plus their closure")
+print("versions audited are the INSTALLED ones: this says whether YOUR environment of")
+print("the project's dependencies is vulnerable, not whether the declared pins are.")
 
 findings = parse_pip_audit(
     report.read_text(encoding="utf-8"),

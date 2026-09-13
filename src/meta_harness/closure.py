@@ -76,15 +76,22 @@ def declared_dependencies(pyproject: Path) -> set[str]:
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ClosureUnavailable(f"cannot read {pyproject}: {exc}") from exc
 
-    requirements: list[str] = []
     project = data.get("project", {})
-    requirements += project.get("dependencies", []) or []
-    for group in (project.get("optional-dependencies", {}) or {}).values():
-        requirements += group or []
-    for group in (data.get("dependency-groups", {}) or {}).values():
-        requirements += [entry for entry in (group or []) if isinstance(entry, str)]
+    groups: list[object] = [project.get("dependencies")]
+    groups += (project.get("optional-dependencies") or {}).values()
+    groups += (data.get("dependency-groups") or {}).values()
 
+    requirements = [entry for group in groups for entry in _strings(group)]
     return {name for name in map(requirement_name, requirements) if name}
+
+
+def _strings(group: object) -> list[str]:
+    """The string entries of a declared group; anything else is not a requirement.
+
+    ``[dependency-groups]`` permits ``{include-group = "..."}`` tables alongside
+    requirement strings, and a malformed manifest can put anything here.
+    """
+    return [entry for entry in group if isinstance(entry, str)] if isinstance(group, list) else []
 
 
 def installed_closure(seeds: Iterable[str]) -> set[str]:

@@ -125,14 +125,14 @@ EOF
 case "$verdict" in
   retry)
     {
-      echo "borromeanRings gate FAILED (attempt $detail/$CAP). Fix the failing checks below, then finish again."
+      echo "borromeanRings gate FAILED (attempt $detail/$CAP) — fix the checks below, then finish."
       echo "$summary"
     } >&2
     exit 2
     ;;
   escalate)
     {
-      echo "ESCALATION: borromeanRings gate failed $detail times — handing control to the human."
+      echo "ESCALATION: borromeanRings gate failed $detail times — over to the human."
       echo "$summary"
     } >&2
     exit 0
@@ -141,7 +141,7 @@ case "$verdict" in
     # Fail closed: without a durable count every Stop would read as attempt 1,
     # which is the unbounded loop this bound exists to stop. Escalate now.
     {
-      echo "ESCALATION: borromeanRings could not record the retry count (${detail:-no answer from meta_harness.retry_state}) — without it the retry bound cannot hold, so control goes to the human now instead of retrying without a limit."
+      echo "ESCALATION: retry count unrecordable (${detail:-no answer from retry_state}) — the bound cannot hold, so over to the human, not an unbounded retry."
       echo "$summary"
     } >&2
     exit 0

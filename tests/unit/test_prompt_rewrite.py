@@ -7,16 +7,39 @@ def test_directive_includes_declared_context() -> None:
     directive = build_directive(
         {"account": "Elmdin/borromeanrings", "value_priorities": ["correctness", "security"]}
     )
-    assert "preserve its intent" in directive
-    assert "Elmdin/borromeanrings" in directive
-    assert "correctness, security" in directive
+    assert "REWRITE the user's request" in directive
+    assert "operating context: Elmdin/borromeanrings" in directive
+    assert "value priorities (highest first): correctness, security" in directive
 
 
 def test_directive_without_context_omits_optional_lines() -> None:
+    """The optional lines are absent, asserted on the label the builder actually emits.
+
+    These assertions previously named "account in effect", a phrase the builder no
+    longer produces in either branch — so they passed whether the line was omitted
+    or not. A negative assertion has to name the string the positive case emits, or
+    it tests nothing.
+    """
     directive = build_directive({})
-    assert "preserve its intent" in directive
-    assert "account in effect" not in directive
+    assert "REWRITE the user's request" in directive
+    assert "operating context:" not in directive
     assert "value priorities" not in directive
+
+
+def test_the_directive_keeps_every_obligation_however_it_is_worded() -> None:
+    """Pin the obligations, not the prose (#135/ADR-0055).
+
+    The directive is injected on every prompt, so it is a standing target for
+    trimming. Wording may tighten; these five duties may not quietly disappear
+    with it. Each is asserted by a token the SPEC's contract turns on rather than
+    by a full sentence, so a rewrite that preserves meaning still passes.
+    """
+    directive = build_directive({"account": "acct", "value_priorities": ["correctness"]})
+    assert "REWRITE" in directive  # rewrite before acting
+    assert "no scope they did not ask for" in directive  # no scope creep
+    assert "Reading this as:" in directive  # the reading is visible
+    assert "irreversible" in directive and "confirm" in directive  # confirm-first
+    assert "Never pass your rewrite off as the user's words" in directive  # never impersonate
 
 
 def test_directive_contract_is_cheap_and_visible() -> None:

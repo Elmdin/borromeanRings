@@ -43,7 +43,7 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
   per legacy file (the canonical file always wins when present; any other file name is never
   redirected). `verify.sh` and the hooks accept either name so an already-governed project never
   silently falls out of governance. Migration: `docs/RENAME.md`.
-- `verify.sh` reads the required set from the spine (replacing `checks/manifest.json` as the single
+- `verify.sh` reads the required set from the spine (replacing the former per-check manifest as the single
   source — Single Choice Principle) and enforces config-compliance: every required check must have a
   pass receipt.
 

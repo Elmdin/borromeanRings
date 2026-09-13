@@ -127,7 +127,7 @@ with a non-deterministic verdict. The judgement half of doc overclaim already ha
 - Applying it here surfaced 24 unresolved citations in the existing tree — moved test
   paths (`tests/` was regrouped into `unit/` and `integration/` and the docs never
   followed), two genuinely broken relative links in one spec, a planned check id
-  whose number had already been taken by `11_changelog`, and several historical or illustrative
+  whose number had already been taken by `11_changelog`, and eleven historical or illustrative
   paths written in citation shape, plus a per-check template in `PLAN-v0.md` written
   without that document's own `<placeholder>` convention. Each was fixed in the
   document; none was suppressed.

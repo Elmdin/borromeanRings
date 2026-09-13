@@ -369,10 +369,10 @@ def render(report: Report) -> str:
     lines: list[str] = []
     if report.findings:
         lines.append(f"PREDICATE LINT — {len(report.findings)} hedged predicate(s):")
-        for f in report.findings:
-            lines.append(
-                f"  {f.predicate.path}:{f.predicate.line} — {f.predicate.text} — {f.hedge}"
-            )
+        lines.extend(
+            f"  {f.predicate.path}:{f.predicate.line} — {f.predicate.text} — {f.hedge}"
+            for f in report.findings
+        )
         lines.append(
             "  Replace the qualifier with the yes/no fact it stands for "
             "(e.g. 'meaningful HEALTHCHECK' -> 'HEALTHCHECK probes the service')."

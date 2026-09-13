@@ -59,3 +59,76 @@ def test_scan_files_reads_and_skips_binary(tmp_path: Path) -> None:
     findings = scan_files([good, binary, tmp_path / "missing.txt"])
     assert len(findings) == 1
     assert findings[0].path == str(good)
+
+
+# --- #230: every pattern is covered by a test, as a table not a memory ---------
+#
+# The AWS *secret* key gap survived because the coverage of this module was an
+# impression rather than a list. Anything added to _PATTERNS without a row here
+# is caught by test_every_pattern_has_a_planted_example below.
+
+_AWS_SECRET = "wJalrXUtnFEMI/" + "K7MDENG/bPxRfiCYEXAMPLEKEY"
+_SLACK = "xoxb-" + "1234567890abcdef"
+_STRIPE = "sk_live_" + "0123456789abcdef"
+_SLACK_HOOK = "https://hooks.slack.com/" + "services/T00/B00/XXXX"
+_GH_FINE = "github_pat_" + "a" * 82
+
+PLANTED: dict[str, str] = {
+    "private-key-block": _PRIVATE_KEY,
+    "aws-access-key-id": f"key = '{_AWS}'",
+    "aws-secret-access-key": f"AWS_SECRET_ACCESS_KEY = '{_AWS_SECRET}'",
+    "github-pat": f"t = '{_GH_PAT}'",
+    "github-fine-grained-pat": f"t = '{_GH_FINE}'",
+    "slack-token": f"t = '{_SLACK}'",
+    "google-api-key": f"t = '{_GOOGLE}'",
+    "stripe-secret-key": f"t = '{_STRIPE}'",
+    "slack-webhook": f"url = '{_SLACK_HOOK}'",
+}
+
+
+def test_every_pattern_has_a_planted_example() -> None:
+    """No pattern may ship without a row above. Coverage is a list, not a belief."""
+    from meta_harness.secrets import _PATTERNS
+
+    assert {kind for kind, _ in _PATTERNS} == set(PLANTED)
+
+
+def test_each_planted_secret_is_detected() -> None:
+    for kind, line in PLANTED.items():
+        found = scan_text(line)
+        assert found, f"{kind}: not detected"
+        assert found[0].kind == kind, f"{kind}: matched as {found[0].kind}"
+
+
+def test_the_aws_secret_key_is_matched_by_name_and_shape_not_entropy() -> None:
+    """The rule this module sets for itself: shapes that almost never occur by accident.
+
+    A bare 40-character base64 string is not such a shape — it is also every
+    sha256 and every short blob — so it must NOT be flagged on its own. The
+    identifier is what makes the pair high-confidence.
+    """
+    assert scan_text(f"AWS_SECRET_ACCESS_KEY = '{_AWS_SECRET}'")  # name + shape
+    assert scan_text(f"aws_secret_access_key: '{_AWS_SECRET}'")  # yaml/ini spelling
+    assert scan_text(f"AwsSecretKey = '{_AWS_SECRET}'")  # camel case
+
+    assert not scan_text(f"BLOB = '{_AWS_SECRET}'")  # shape alone: not a finding
+    assert not scan_text("DIGEST = '" + "a3f5c1e9b7d2048f" + "6a1c3e5b7d9f0a2c4e6b8d0f" + "'")
+    assert not scan_text("DB_PASSWORD = 'hunter2-correct-horse'")  # generic: excluded
+
+
+def test_the_allow_marker_is_line_scoped_and_a_formatter_can_break_it() -> None:
+    """Pin the sharp edge so it is a known limitation, not a surprise (#230).
+
+    ``ruff format`` — which ``10_format`` runs, and the post-edit hook runs
+    unprompted — wraps a long statement and leaves the trailing comment on the
+    closing paren, below the literal. The suppression the check's own remedy line
+    told the user to add then stops working, with no change in meaning.
+
+    Asserting it here means the day someone gives the marker a scope rule, this
+    test fails and tells them to update the docs — rather than the behaviour
+    quietly changing under a comment that still claims line scope.
+    """
+    literal = f"key = '{_AWS}'"
+    assert not scan_text(f"{literal}  # borromeanrings: allow-secret")  # on the line
+    assert scan_text(f"# borromeanrings: allow-secret\n{literal}")  # a line above: NOT honoured
+    assert scan_text(f"{literal}\n# borromeanrings: allow-secret")  # a line below: NOT honoured

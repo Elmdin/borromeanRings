@@ -23,6 +23,20 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"),
     ),
     ("aws-access-key-id", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+    # The *secret* half of the AWS pair. A bare 40-char base64 string is ambiguous —
+    # it is also every sha256 and every short blob — so this is deliberately matched
+    # by NAME PLUS SHAPE, not by entropy: an identifier that says aws…secret/private
+    # assigned a 40-character base64 value is not an accident. That keeps it inside
+    # the "well-formed token whose shape almost never occurs by accident" rule and
+    # outside the generic secret-named-assignment heuristic this module rejects.
+    # The ID (AKIA…) above is the PUBLIC half; this is the one that grants access.
+    (
+        "aws-secret-access-key",
+        re.compile(
+            r"(?i)aws[a-z0-9_.\-]{0,20}(?:secret|private)[a-z0-9_.\-]{0,20}"
+            r"""\s*[:=]\s*["']([A-Za-z0-9/+=]{40})["']"""
+        ),
+    ),
     ("github-pat", re.compile(r"\bghp_[A-Za-z0-9]{36}\b")),
     ("github-fine-grained-pat", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{82}\b")),
     ("slack-token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
@@ -49,7 +63,16 @@ def scan_text(text: str, path: str = "") -> list[SecretFinding]:
     """High-confidence secret findings in ``text`` (one per matching line).
 
     A line carrying the ``borromeanrings: allow-secret`` marker is skipped (for
-    documented examples/fixtures)."""
+    documented examples/fixtures).
+
+    The marker is **line-scoped**, and that is a known sharp edge rather than a
+    design: ``ruff format`` (which this project runs as ``10_format``) can wrap a
+    long statement and leave the trailing comment on the closing paren, below the
+    literal — silently revoking the suppression with no change in meaning. Keep a
+    marked literal short enough not to wrap, or hoist it into its own constant.
+    Making the marker survive reformatting needs a scope rule this module does not
+    have yet; tracked in #230.
+    """
     findings: list[SecretFinding] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         if _ALLOW_MARKER in line:

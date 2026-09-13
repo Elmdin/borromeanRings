@@ -12,6 +12,9 @@ queue is merged.
 
 ## [Unreleased]
 
+### Fixed
+- `12_secrets` detects the AWS **secret** access key, and `init.sh` puts the check in a new project's required set (#230). Both gaps were found by running the harness end-to-end against a fresh external project: a planted credential passed, twice over — the pattern set covered only the `AKIA` key *ID* (the public half of the pair), and a newly initialised project did not gate secrets at all. The new pattern matches by **name plus shape** — an identifier saying `aws…secret…` assigned a 40-character base64 value — so the no-entropy-heuristics rule is untouched: a bare 40-char string is still not a finding. `SPEC-secrets.md`'s table is now the exhaustive covered set, enforced by a test that fails if a pattern ships without a planted example.
+
 ### Added
 - Rewrite contract (ADR-0059, #81): the prompt-rewrite directive is now *verified*, not just injected. `meta_harness.rewrite_contract` reads the tail of the session transcript the Stop hook receives (`transcript_path`), finds the reply to the last human prompt and decides deterministically — no model call — whether it opened with `Reading this as:` (trivial yes/no/continue prompts exempt). `stop_gate.sh` appends the verdict with its evidence to `.meta-harness/rewrite_contract.jsonl` (append-only; `unknown` when the transcript is missing/malformed; never blocks), and `status.sh` shows the tally (`Rewrite: contract honoured N of M in this project`). Record, don't nag: a ratchet check is the documented next step. Unit + stdin-protocol integration tested.
 - Claude Code plugin distribution: `.claude-plugin/plugin.json`, a self-hosted single-plugin marketplace, `hooks/hooks.json` wiring the six hooks through `${CLAUDE_PLUGIN_ROOT}` (scripts unchanged), project skills exposed by symlink; one-line install from a checkout or the GitHub URL, per-project opt-in untouched. `docs/PLUGIN.md` (ADR-0057, #136).

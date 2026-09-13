@@ -17,18 +17,38 @@ fails closed on any match:
 | Kind | Shape |
 |---|---|
 | private-key-block | `-----BEGIN … PRIVATE KEY-----` |
-| aws-access-key-id | `AKIA` + 16 upper/digits |
+| aws-access-key-id | `AKIA` + 16 upper/digits — the **public** half of the pair |
+| aws-secret-access-key | an identifier matching `aws…(secret\|private)…` assigned a 40-char base64 value — the half that **grants access** |
 | github-pat / fine-grained | `ghp_…` / `github_pat_…` |
 | slack-token / slack-webhook | `xox[baprs]-…` / `hooks.slack.com/services/…` |
 | google-api-key | `AIza…` |
 | stripe-secret-key | `sk_live_…` / `rk_live_…` |
 
+**This table is the covered set, and it is exhaustive.** A pattern without a row
+here fails `test_every_pattern_has_a_planted_example`; a row without a working
+example fails `test_each_planted_secret_is_detected`. The AWS secret key gap
+(#230) survived because coverage was an impression rather than a list — the check
+reported *"no high-confidence secrets in tracked files"*, which reads as an
+assurance, over a credential it had never been taught to see.
+
 - **Deliberately low false-positive:** only well-formed provider tokens and
   private keys — shapes that almost never occur by accident. The noisy part
   (generic entropy / secret-named assignments) is left to a tool (**gitleaks**)
   on the CI heavy lane; a T0 gate that cries wolf gets disabled.
+- **Name plus shape is not entropy.** `aws-secret-access-key` is matched by the
+  *identifier* alongside the value, never by the value alone: a bare 40-character
+  base64 string is also every sha256 and every short blob, and flagging it would
+  be the heuristic this check rejects. `BLOB = "<40 chars>"` is not a finding;
+  `AWS_SECRET_ACCESS_KEY = "<40 chars>"` is.
+- **Required by default.** `init.sh` puts `12_secrets` in a new project's
+  required set. It is not a ratchet — there is no baseline to seed and no
+  threshold to meet — so "start green" does not apply: it only ever fires when
+  there really is a credential in the tree.
 - **Escape hatch:** a line carrying `borromeanrings: allow-secret` is skipped
-  (documented examples/fixtures).
+  (documented examples/fixtures). The marker is **line-scoped**, and `ruff format`
+  can wrap a long statement and carry the comment off the literal's line, silently
+  revoking it — keep a marked literal short, or hoist it into its own constant.
+  Giving the marker a layout-independent scope is open work (#230).
 - Receipts report kind + location + a **truncated** snippet (never the full
   secret).
 

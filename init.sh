@@ -18,7 +18,7 @@ src_dir = "src"
 tests_dir = "tests"
 
 [checks]
-required = ["00_build", "05_hygiene", "10_format", "20_lint", "30_typecheck", "40_test", "50_security"]
+required = ["00_build", "05_hygiene", "10_format", "12_secrets", "20_lint", "30_typecheck", "40_test", "50_security"]
 
 [context]
 account = ""

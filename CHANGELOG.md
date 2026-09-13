@@ -52,6 +52,18 @@ queue is merged.
   (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
 
 ### Added
+- Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
+  `meta_harness.context_budget` measure what borromeanRings **itself** puts into the
+  agent's context — the prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, every installed
+  `SKILL.md`, and the message templates in `.claude/hooks/*.sh` — as bytes and approximate
+  tokens (bytes/4, no tokenizer dependency), and **ratchet the total** against
+  `.borromeanrings-context-baseline`: above the baseline fails naming both numbers, at or
+  below passes with the per-source rows in the log, nothing measurable ⇒ `noop`, an
+  unreadable baseline fails closed. Non-regression only, no absolute cap. Registered in
+  `[checks].required`, in `adopt.py` `RECOMMENDED`/`RATCHET_BASELINES` (seeded even when
+  the project declares no package), catalogued in `docs/CHECKS.md`; borromeanRings's own
+  baseline seeded at 32174 B (~8K tokens). Unit- (100% line+branch) and integration-tested
+  (pass / regression / noop / unseeded / unreadable).
 - `18_api_contracts` + `[api_contracts]`: a project's own API-usage rules (banned / forbidden_in / must_check / required_arg / paired / requires_before) enforced as deterministic AST checks, `noop` when they match nothing, with a PostToolUse preventive layer and a cited `python-asyncio` rule pack (ADR-0054, #130).
 
 ### Added

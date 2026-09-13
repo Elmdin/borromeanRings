@@ -90,6 +90,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `12_secrets` | No high-confidence provider tokens / private keys in tracked files; **fails closed on a non-git dir** | (scan; escape hatch inline) | 0032 / 0042 |
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
+| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass` | `[a11y].require`, `exclude` | 0045, 0049 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2) | `[a11y].require`, `exclude` | 0045 |
 | `25_provenance` | Files changed under `paths` since the merge-base share **no unlisted 6-word shingle** with the declared read-only `sources` (re-authored, never copied); binary — every unlisted overlap fails with both locations, the human allowlists generic ones with a reason. No `[provenance]` ⇒ off (`noop`); no sources ⇒ `noop`; absent/empty source or git error ⇒ fail closed | `[provenance].sources`, `paths`, `allow`; env `BORROMEANRINGS_PROVENANCE_SOURCES` (colon-separated, machine-local) | 0070 |
@@ -114,6 +115,7 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `32_complexity` | **Ratchet**: worst-case cyclomatic complexity doesn't regress (no absolute ceiling) | baseline file, seeded by `adopt.sh` | 0031 |
 | `33_coupling` | **Ratchet**: worst efferent coupling (fan-out) doesn't regress | baseline file | 0038 |
 | `34_api_diff` | Public-API breaking change (removed/renamed symbol, new required param) fails unless allowed | `[api].allow_breaking` | 0040 |
+| `18_api_contracts` | The project's own API-usage rules hold at every call site; `noop` when none matched | `[api_contracts].rules`, `packs` | 0054 |
 | `35_architecture` | Import-direction fitness: leaves import no domain module, private modules stay unimported, no cycles | `[architecture].leaves`, `private`, `forbidden`, `forbid_cycles` | 0027 |
 | `40_test` | Tests pass **and** coverage doesn't regress (**ratchet**, not an absolute %) | `[project].tests_dir`; coverage baseline | — |
 | `45_docstrings` | **Ratchet**: public-API docstring coverage doesn't regress | baseline file | 0029 |

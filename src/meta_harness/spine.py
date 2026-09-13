@@ -66,6 +66,10 @@ class Config:
     architecture_private: tuple[str, ...] = ()
     architecture_forbidden: tuple[tuple[str, str], ...] = ()
     architecture_forbid_cycles: bool = False
+    # [api_contracts] — the project's own API-usage rules (ADR-0054); raw rule tables are
+    # validated by meta_harness.api_contracts.parse_rules at check time (fail closed).
+    api_contracts_rules: tuple[dict[str, object], ...] = ()
+    api_contracts_packs: tuple[str, ...] = ()
     # [changelog] — Keep a Changelog discipline (ADR-0028); off when disabled.
     changelog_enabled: bool = False
     changelog_path: str = "CHANGELOG.md"
@@ -168,6 +172,35 @@ def resolve_config_path(path: str | Path) -> Path:
     return legacy
 
 
+def _validated_required(raw: Mapping[str, Any]) -> list[str]:
+    """The declared required checks, refusing an empty set.
+
+    Fail-closed: borromeanRings never reads "nothing declared" as "nothing to enforce".
+    """
+    required = list(raw.get("checks", {}).get("required", []))
+    if not required:
+        raise ValueError(
+            "borromeanrings.toml must declare a non-empty [checks].required — "
+            "no declared checks is a misconfiguration (fail-closed)."
+        )
+    return required
+
+
+def _reject_unknown_verification(raw: Mapping[str, Any]) -> None:
+    """Refuse an unrecognised ``[verification]`` key.
+
+    A misspelled verification claim would otherwise read as "nothing declared",
+    which is the silent-downgrade this project exists to prevent.
+    """
+    unknown = sorted(set(raw.get("verification", {})) - VERIFICATION_KEYS)
+    if unknown:
+        raise ValueError(
+            f"borromeanrings.toml [verification] has unknown key(s): {', '.join(unknown)}. "
+            f"Known: {', '.join(sorted(VERIFICATION_KEYS))}. A misspelled verification "
+            "claim would silently read as 'nothing declared' — fail-closed instead."
+        )
+
+
 def load_config(path: str | Path = CONFIG_NAME) -> Config:
     """Load and validate the policy spine from ``borromeanrings.toml``.
 
@@ -187,20 +220,9 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         FileNotFoundError: if neither the canonical nor the legacy file exists.
     """
     raw: dict[str, Any] = tomllib.loads(resolve_config_path(path).read_text(encoding="utf-8"))
-    required = list(raw.get("checks", {}).get("required", []))
-    if not required:
-        raise ValueError(
-            "borromeanrings.toml must declare a non-empty [checks].required — "
-            "no declared checks is a misconfiguration (fail-closed)."
-        )
+    required = _validated_required(raw)
+    _reject_unknown_verification(raw)
     verification: Mapping[str, Any] = raw.get("verification", {})
-    unknown = sorted(set(verification) - VERIFICATION_KEYS)
-    if unknown:
-        raise ValueError(
-            f"borromeanrings.toml [verification] has unknown key(s): {', '.join(unknown)}. "
-            f"Known: {', '.join(sorted(VERIFICATION_KEYS))}. A misspelled verification "
-            "claim would silently read as 'nothing declared' — fail-closed instead."
-        )
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
@@ -209,6 +231,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     layout = raw.get("layout", {})
     collaboration = raw.get("collaboration", {})
     architecture = raw.get("architecture", {})
+    api_contracts = raw.get("api_contracts", {})
     changelog = raw.get("changelog", {})
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
@@ -243,6 +266,8 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
             (str(pair[0]), str(pair[1])) for pair in architecture.get("forbidden", [])
         ),
         architecture_forbid_cycles=bool(architecture.get("forbid_cycles", False)),
+        api_contracts_rules=tuple(dict(rule) for rule in api_contracts.get("rules", [])),
+        api_contracts_packs=tuple(str(pack) for pack in api_contracts.get("packs", [])),
         changelog_enabled=bool(changelog.get("enabled", False)),
         changelog_path=str(changelog.get("path", "CHANGELOG.md")),
         changelog_require_entry_on_src_change=bool(

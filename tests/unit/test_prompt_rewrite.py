@@ -38,8 +38,17 @@ def test_the_directive_keeps_every_obligation_however_it_is_worded() -> None:
     assert "REWRITE" in directive  # rewrite before acting
     assert "no scope they did not ask for" in directive  # no scope creep
     assert "Reading this as:" in directive  # the reading is visible
-    assert "irreversible" in directive and "confirm" in directive  # confirm-first
     assert "Never pass your rewrite off as the user's words" in directive  # never impersonate
+
+    # Confirm-first is asserted as the whole IMPERATIVE clause, not as the words
+    # "irreversible" and "confirm" appearing somewhere. A review of this test showed
+    # that the keyword form still passed when the duty was downgraded to a
+    # suggestion ("you may want to confirm"), which is precisely the regression the
+    # test exists to catch: a trim that keeps the vocabulary and drops the force.
+    assert "STOP and confirm" in directive
+    assert "irreversible (merge, publish, delete, deploy)" in directive
+    for hedge in ("you may want to", "consider ", "it is a good idea", "try to"):
+        assert hedge not in directive.lower(), f"an obligation was softened with {hedge!r}"
 
 
 def test_directive_contract_is_cheap_and_visible() -> None:

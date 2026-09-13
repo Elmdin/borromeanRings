@@ -55,6 +55,18 @@ the first 32 hex characters of the sha256 of the project's *resolved* absolute p
   invalidates the window.
 
 ## Consequences
+- **The primitives for touching an agent-writable path live in one place.** `state_home`
+  owns `is_inside` and `open_nofollow` as well as the path arithmetic, and `retry_state`
+  re-exports them. The review of this change found both of its own bugs in the gap between
+  the two modules: the legacy cleanup followed a symlinked `.meta-harness` (deleting a
+  same-named file anywhere on the filesystem, because `unlink` only refuses to follow a
+  *final* component), and `_state_path` had no containment guard, so a `$HOME` resolving
+  into the tree put the record back where the agent can write it while every log line still
+  said it was outside. `retry_state` already solved both. Duplicating the location logic
+  without duplicating the protections is the whole failure mode.
+- The containment guard earned itself immediately: it rejected this change's own unit
+  fixture, which had put the state home under the project root.
+
 - The skip keeps its real purpose: a session that only answered a question still does not
   re-run a green gate.
 - The record no longer travels with the project. Moving a checkout to a new absolute path,

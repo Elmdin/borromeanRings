@@ -38,11 +38,17 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from meta_harness.spine import Config
-from meta_harness.state_home import StateUnavailable, project_state_dir
+from meta_harness.state_home import (
+    DIR_FLAGS,
+    StateUnavailable,
+    is_inside,
+    open_nofollow,
+    project_state_dir,
+)
 
 _STATE_FILE = "last_green_state"
 # Written by versions before #222, inside the tree and therefore forgeable. Never read.
-_LEGACY_STATE_FILE = ".meta-harness/last_green_state"
+_LEGACY_DIR = ".meta-harness"
 # Build/cache artifacts never change the gate verdict — exclude them from the hash.
 _SKIP_DIRS = frozenset(
     {"__pycache__", ".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".meta-harness"}
@@ -102,9 +108,20 @@ def _state_path(project_root: Path, env: Mapping[str, str] | None = None) -> Pat
     Raises :class:`StateUnavailable` when no absolute state root exists, rather
     than falling back into the tree: a fallback would restore the forgeable
     location on exactly the machines least able to notice.
+
+    Also raises when the computed location turns out to be **inside** the project.
+    ``$HOME`` or ``$XDG_STATE_HOME`` pointing into the tree is not exotic — a test
+    fixture, a container, or the agent itself exporting one — and without this
+    check the record lands back where the agent can write it while every log line
+    still says it is outside. Same guard, same reason, as
+    ``retry_state.record_failure``.
     """
     resolved = str(Path(project_root).resolve())
-    return project_state_dir(os.environ if env is None else env, resolved) / _STATE_FILE
+    directory = project_state_dir(os.environ if env is None else env, resolved)
+    root = str(directory.resolve()) if directory.exists() else str(directory)
+    if is_inside(root, resolved):
+        raise StateUnavailable(f"state root is inside the project ({root}) — refusing to use it")
+    return directory / _STATE_FILE
 
 
 def read_last_green(project_root: Path, env: Mapping[str, str] | None = None) -> str | None:
@@ -131,10 +148,40 @@ def record_green(project_root: Path, config: Config, env: Mapping[str, str] | No
         path.write_text(compute_state_hash(project_root, config), encoding="utf-8")
     except OSError:
         return
-    # A record from before #222 sits in the tree and is forgeable. It is never read,
-    # but leaving it there invites someone to "fix" the skip by reading it again.
-    with contextlib.suppress(OSError):
-        (Path(project_root) / _LEGACY_STATE_FILE).unlink(missing_ok=True)
+    _retire_legacy(Path(project_root))
+
+
+def _retire_legacy(project_root: Path) -> None:
+    """Remove a pre-#222 in-tree record, without following a link on the way.
+
+    ``unlink`` only refuses to follow a symlink as the FINAL component. The
+    directory above it — ``.meta-harness`` — is inside the tree the governed agent
+    writes, so a link planted there would redirect the delete at an arbitrary file
+    of the same name anywhere on the filesystem. Walk to the directory with
+    ``O_NOFOLLOW`` and unlink relative to that fd, exactly as
+    ``retry_state._retire_legacy`` does for the counter.
+
+    Best-effort throughout: failing to tidy an old file is never worth failing a
+    gate run over.
+    """
+    fds: list[int] = []
+    try:
+        try:
+            fds.append(os.open(str(project_root), DIR_FLAGS))
+        except OSError:
+            return
+        harness = open_nofollow(_LEGACY_DIR, DIR_FLAGS, fds[0])
+        if harness is None:
+            return
+        fds.append(harness)
+        with contextlib.suppress(OSError):
+            os.unlink(_STATE_FILE, dir_fd=harness)
+    except StateUnavailable:
+        return  # a symlink where .meta-harness should be: touch nothing
+    finally:
+        for fd in fds:
+            with contextlib.suppress(OSError):
+                os.close(fd)
 
 
 def should_skip_gate(

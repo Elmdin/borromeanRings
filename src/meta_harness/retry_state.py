@@ -39,16 +39,21 @@ import contextlib
 import hashlib
 import os
 import re
-import stat
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from meta_harness.state_home import StateUnavailable, project_digest, state_root
+from meta_harness.state_home import (
+    DIGEST_CHARS,
+    StateUnavailable,
+    is_inside,
+    open_nofollow,
+    project_digest,
+    state_root,
+)
 
 APP_DIR = "borromeanrings"
 COUNTER_DIR = "stop_attempts"
 LEGACY_PARTS = (".meta-harness", "stop_attempts")
-DIGEST_CHARS = 32
 """128 bits of sha256: collision-free for any real set of projects, short
 enough to keep the state path readable."""
 
@@ -99,11 +104,6 @@ def legacy_name(session_id: str) -> str | None:
     return session_id if _VERBATIM_ID.fullmatch(session_id) else None
 
 
-def is_inside(path: str, root: str) -> bool:
-    """True when ``path`` is ``root`` or below it. Both must already be resolved."""
-    return os.path.commonpath([path, root]) == root
-
-
 def parse_count(text: str) -> int | None:
     """A non-negative ASCII decimal count, or ``None`` for anything else."""
     stripped = text.strip()
@@ -141,27 +141,6 @@ _LEGACY_READ_BYTES = 64
 """A count is a handful of digits; never read more of an in-tree file than this."""
 
 
-def _open_nofollow(name: str, flags: int, dir_fd: int) -> int | None:
-    """Open ``name`` under ``dir_fd`` without following a symlink.
-
-    ``None`` when it is absent or unusable. :class:`StateUnavailable` when it is
-    a symlink: the in-tree legacy path is writable by the agent, and a link there
-    could steer a read or a delete at the real count.
-    """
-    try:
-        return os.open(name, flags | os.O_NOFOLLOW, dir_fd=dir_fd)
-    except OSError as exc:
-        try:
-            mode = os.stat(name, dir_fd=dir_fd, follow_symlinks=False).st_mode
-        except OSError:
-            return None
-        if stat.S_ISLNK(mode):
-            raise StateUnavailable(
-                f"refusing to follow a symlink at the legacy counter path ({name})"
-            ) from exc
-        return None
-
-
 def _open_legacy_dirs(project: str, fds: list[int]) -> tuple[int, int] | None:
     """``(.meta-harness fd, stop_attempts fd)`` opened without following links.
 
@@ -173,7 +152,7 @@ def _open_legacy_dirs(project: str, fds: list[int]) -> tuple[int, int] | None:
     except OSError:
         return None
     for part in LEGACY_PARTS:
-        fd = _open_nofollow(part, _DIR, fds[-1])
+        fd = open_nofollow(part, _DIR, fds[-1])
         if fd is None:
             return None
         fds.append(fd)
@@ -184,7 +163,7 @@ def _read_legacy(dirs: tuple[int, int] | None, name: str | None) -> int:
     """An in-tree count, or ``0`` when there is none or it is unreadable."""
     if dirs is None or name is None:
         return 0
-    fd = _open_nofollow(name, os.O_RDONLY, dirs[1])
+    fd = open_nofollow(name, os.O_RDONLY, dirs[1])
     if fd is None:
         return 0
     try:

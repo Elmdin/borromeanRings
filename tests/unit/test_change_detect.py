@@ -20,13 +20,18 @@ from meta_harness.spine import Config, load_config
 
 
 @pytest.fixture
-def state_env(tmp_path: Path) -> dict[str, str]:
-    """An isolated state home (#222).
+def state_env(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
+    """An isolated state home (#222), genuinely OUTSIDE the project.
 
     The last-green record lives outside the governed tree now, so a test that did
     not pass an env would write into the developer's real ``~/.local/state``.
+
+    It comes from ``tmp_path_factory`` rather than ``tmp_path`` on purpose: these
+    tests use ``tmp_path`` itself as the project root, so a state home under it
+    would be *inside* the tree — which ``_state_path`` now refuses, and rightly.
+    That refusal is what caught this fixture.
     """
-    return {"XDG_STATE_HOME": str(tmp_path / "state-home")}
+    return {"XDG_STATE_HOME": str(tmp_path_factory.mktemp("state-home"))}
 
 
 def _make_project(tmp_path: Path) -> Config:
@@ -136,7 +141,7 @@ def test_the_record_is_not_written_inside_the_project(
 
     assert should_skip_gate(tmp_path, config, state_env) is True
     assert not (tmp_path / ".meta-harness" / "last_green_state").exists()
-    written = list((tmp_path / "state-home").rglob("last_green_state"))
+    written = list(Path(state_env["XDG_STATE_HOME"]).rglob("last_green_state"))
     assert len(written) == 1, written
 
 
@@ -198,3 +203,43 @@ def test_a_symlinked_project_path_shares_one_record(
     record_green(project, config, state_env)
 
     assert should_skip_gate(link, config, state_env) is True
+
+
+def test_a_state_root_inside_the_project_is_refused(tmp_path: Path) -> None:
+    """A $HOME resolving into the tree must not silently re-open the hole (#232 review).
+
+    Without this the record lands back where the agent can write it while every
+    log line still claims it is outside. Same guard as ``retry_state``'s.
+    """
+    config = _make_project(tmp_path)
+    inside = {"XDG_STATE_HOME": str(tmp_path / "state")}
+
+    record_green(tmp_path, config, inside)
+
+    assert not (tmp_path / "state").exists(), "wrote the record inside the project"
+    assert should_skip_gate(tmp_path, config, inside) is False
+
+
+def test_a_symlinked_meta_harness_cannot_steer_the_legacy_delete(
+    tmp_path: Path, state_env: dict[str, str]
+) -> None:
+    """``.meta-harness`` is agent-writable, so the delete must not follow it (#232 review).
+
+    ``unlink`` refuses to follow a symlink only as the FINAL component. With
+    ``.meta-harness`` itself a link, the tidy-up of the pre-#222 record would
+    delete a same-named file anywhere on the filesystem.
+    """
+    project = tmp_path / "proj"
+    project.mkdir()
+    config = _make_project(project)
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    bystander = elsewhere / "last_green_state"
+    bystander.write_text("someone else's file", encoding="utf-8")
+    (project / ".meta-harness").symlink_to(elsewhere, target_is_directory=True)
+
+    record_green(project, config, state_env)
+
+    assert bystander.exists(), "followed a planted symlink and deleted an outside file"
+    assert bystander.read_text(encoding="utf-8") == "someone else's file"

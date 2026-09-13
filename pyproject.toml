@@ -15,14 +15,6 @@ requires-python = ">=3.10"
 # these tools' CLI output and exit codes, and a major bump is where those contracts
 # change. Move a bound deliberately, in a reviewed commit that re-runs the heavy lane.
 dev = [
-  "ruff>=0.6",
-  "mypy>=1.10",
-  "pytest>=8",
-  "pytest-cov>=5",
-  "bandit>=1.7",
-  "pip-audit>=2.7",
-  "mutmut>=3",
-  "pip-licenses>=5",
   # Test-only ORACLE, never imported by the harness itself: a spec-conformant HTML5
   # tree builder that tests/unit/test_accessibility_conformance.py parses each fixture
   # with, so 15_a11y's namespace rules are *derived* from a real parser instead of
@@ -76,3 +68,4 @@ addopts = "-q"
 [tool.coverage.run]
 source = ["src"]
 branch = true
+

@@ -126,8 +126,10 @@ def measure_context_budget(project_root: str | Path, directive: str = "") -> Con
         file = root / name
         if file.is_file():
             rows.append(_source("instructions", name, file.stat().st_size))
-    for file in _skill_files(root):
-        rows.append(_source("skill", file.relative_to(root).as_posix(), file.stat().st_size))
+    rows.extend(
+        _source("skill", file.relative_to(root).as_posix(), file.stat().st_size)
+        for file in _skill_files(root)
+    )
     for file in sorted((root / _HOOKS_DIR).glob("*.sh")):
         n_bytes = hook_message_bytes(file.read_text(encoding="utf-8", errors="replace"))
         if n_bytes:

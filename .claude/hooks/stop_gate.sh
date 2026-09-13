@@ -78,8 +78,12 @@ PY
 # Bounded: a hanging check inside the gate must fail closed here, not park this
 # hook (and its children) until the substrate's own hook timeout — or forever.
 # Keep the bound under the Stop hook's 600s budget in .claude/settings.json.
+# --fast: the interactive lane. Same required checks; 40_test runs only the project's
+# declared [test].fast_paths (none declared ⇒ the whole suite, as before). The full
+# suite still gates on `./verify.sh`, `--heavy`, and in CI — a turn is not a merge.
+# See ADR-0081, issue #226.
 summary="$(BORROMEANRINGS_PROJECT="$PROJECT_DIR" borromeanrings_bounded \
-  "${BORROMEANRINGS_GATE_TIMEOUT:-540}" bash "$BORROMEANRINGS_HOME/verify.sh" 2>&1)"
+  "${BORROMEANRINGS_GATE_TIMEOUT:-540}" bash "$BORROMEANRINGS_HOME/verify.sh" --fast 2>&1)"
 gate_code=$?
 if [ "$gate_code" -eq 0 ]; then
   borromeanrings_retry_state clear "$PROJECT_DIR" "$session_id" >/dev/null

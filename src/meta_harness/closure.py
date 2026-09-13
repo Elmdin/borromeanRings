@@ -163,18 +163,28 @@ def installed_closure(seeds: Iterable[str] | Mapping[str, set[str]]) -> set[str]
         if name in seen:
             continue
         seen.add(name)
-        try:
-            requires = metadata.requires(name) or []
-        except metadata.PackageNotFoundError:
-            continue  # declared but absent here — still ours, just not installed
-        for requirement in requires:
-            if _is_optional(requirement, wanted):
-                continue
-            child = requirement_name(requirement)
-            if child and child not in seen:
-                # `pip-audit[doc, test]; extra == "dev"` names extras of its own.
-                pending.append((child, requirement_extras(requirement)))
+        pending += _children(name, wanted)
     return seen
+
+
+def _children(name: str, wanted: frozenset[str]) -> list[tuple[str, frozenset[str]]]:
+    """The distributions ``name`` requires, given the extras asked of it.
+
+    A distribution that is declared but not installed here has no metadata to walk;
+    it stays in the closure (the caller has already recorded it) but contributes no
+    children. ``pip-audit[doc, test]; extra == "dev"`` names extras of its own, so
+    each child carries its own request forward.
+    """
+    try:
+        requires = metadata.requires(name) or []
+    except metadata.PackageNotFoundError:
+        return []
+    children = []
+    for requirement in requires:
+        child = requirement_name(requirement)
+        if child and not _is_optional(requirement, wanted):
+            children.append((child, requirement_extras(requirement)))
+    return children
 
 
 def project_closure(pyproject: Path) -> set[str]:

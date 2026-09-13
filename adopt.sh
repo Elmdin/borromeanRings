@@ -13,6 +13,16 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BORROMEANRINGS_HOME="$HERE"
+NO_GITIGNORE=0
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --no-gitignore) NO_GITIGNORE=1 ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- "${args[@]+"${args[@]}"}"
+
 PROJECT_DIR="${1:-$PWD}"
 PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || {
   echo "adopt: no such directory: ${1:-$PWD}" >&2
@@ -21,18 +31,38 @@ PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || {
 
 if [ ! -f "$PROJECT_DIR/borromeanrings.toml" ]; then
   echo "adopt: $PROJECT_DIR is not borromeanRings-governed (no borromeanrings.toml)" >&2
+  [ -f "$PROJECT_DIR/borromeo.toml" ] && echo "adopt: found legacy borromeo.toml — rename it first: git mv borromeo.toml borromeanrings.toml (docs/RENAME.md)" >&2
   echo "       run ./init.sh \"$PROJECT_DIR\" first to bootstrap it." >&2
   exit 1
+fi
+
+# Refresh borromeanRings's skills in the adopted project. init.sh installs these for NEW
+# projects; without the same step here, an already-governed project would never receive a
+# newly-added skill (e.g. borromeanrings-status) and could not self-report. Copy-only —
+# it never edits the project's settings/hooks, which stay the owner's decision. Runs
+# BEFORE seeding so the context-budget baseline counts the refreshed skills (seeding
+# first would leave the very first gate run tripping its own ratchet).
+if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
+  mkdir -p "$PROJECT_DIR/.claude/skills"
+  cp -R "$BORROMEANRINGS_HOME/.claude/skills/." "$PROJECT_DIR/.claude/skills/"
+  echo "  refreshed borromeanRings skills in $PROJECT_DIR/.claude/skills/"
 fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" "$BORROMEANRINGS_HOME" <<'PY'
 import sys
 from pathlib import Path
 
-from meta_harness.adopt import RATCHET_BASELINES, plan_adoption, rewrite_required
+from meta_harness.adopt import (
+    PACKAGE_FREE_RATCHETS,
+    RATCHET_BASELINES,
+    plan_adoption,
+    rewrite_required,
+)
 from meta_harness.complexity import worst_complexity
+from meta_harness.context_budget import measure_context_budget
 from meta_harness.coupling import worst_fan_out
 from meta_harness.docstrings import measure_package
+from meta_harness.prompt_rewrite import build_directive
 from meta_harness.spine import load_config
 
 CHANGELOG_TEMPLATE = """\
@@ -45,7 +75,8 @@ All notable changes to this project are documented here, following
 
 ### Added
 - borromeanRings governance adopted: secret scanning, changelog discipline, and
-  docstring / complexity / coupling ratchets (baselines seeded from current state).
+  docstring / complexity / coupling / context-budget ratchets (baselines seeded
+  from current state).
 """
 
 project = Path(sys.argv[1])
@@ -64,15 +95,22 @@ src_root = project / config.src_dir
 package = config.package
 
 # Seed each newly-added ratchet's baseline from the project's current value. With
-# no package to measure, the ratchet is greenfield-pass, so seeding is skipped.
+# no package to measure, a package-bound ratchet is greenfield-pass, so seeding is
+# skipped; the context budget measures the tree itself and is always seeded.
 seeders = {
     "32_complexity": lambda: str(worst_complexity(src_root, package)[0]),
     "33_coupling": lambda: str(worst_fan_out(src_root, package)[0]),
     "45_docstrings": lambda: f"{measure_package(src_root, package).coverage:.6f}",
+    "19_context_budget": lambda: str(
+        measure_context_budget(
+            project,
+            build_directive(config.context) if config.prompt_rewriting_enabled else "",
+        ).total_bytes
+    ),
 }
 seeded: list[str] = []
 for check in plan.seed_baselines:
-    if not package:
+    if not package and check not in PACKAGE_FREE_RATCHETS:
         continue
     value = seeders[check]()
     (project / RATCHET_BASELINES[check]).write_text(value + "\n", encoding="utf-8")
@@ -104,4 +142,22 @@ if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
   mkdir -p "$PROJECT_DIR/.claude/skills"
   cp -R "$BORROMEANRINGS_HOME/.claude/skills/." "$PROJECT_DIR/.claude/skills/"
   echo "  refreshed borromeanRings skills in $PROJECT_DIR/.claude/skills/"
+fi
+
+# borromeanRings writes receipts, verdicts and state under .meta-harness/.
+# Unignored, that output becomes part of the state the gate examines: a governed
+# project's 12_secrets reads the git index, so `git add -A` puts the harness's own
+# check logs in it and the secret gate fails on them (#219). Never silent —
+# appending to a file the project owns is a real write, announced like the others.
+if [ "$NO_GITIGNORE" -eq 0 ]; then
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" <<'GITIGNORE_PY'
+import sys
+from pathlib import Path
+
+from meta_harness.gitignore import ensure_ignored
+
+said = ensure_ignored(Path(sys.argv[1]))
+if said:
+    print(said)
+GITIGNORE_PY
 fi

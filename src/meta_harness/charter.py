@@ -221,9 +221,7 @@ def _check_lists(charter: Charter, problems: list[Violation]) -> None:
 
 
 def _check_extras(charter: Charter, allowed: tuple[str, ...], problems: list[Violation]) -> None:
-    for key in charter.extras:
-        if key not in allowed:
-            problems.append(Violation(key, "unknown key"))
+    problems.extend(Violation(key, "unknown key") for key in charter.extras if key not in allowed)
     if charter.stakes != "high":
         return
     for key in allowed:

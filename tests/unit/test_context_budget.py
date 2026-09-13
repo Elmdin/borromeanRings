@@ -165,3 +165,23 @@ def test_format_report_lists_rows_then_total() -> None:
 def test_format_report_empty_budget_is_just_the_total() -> None:
     empty = ContextBudget(sources=(), total_bytes=0, total_tokens=0)
     assert format_report(empty) == "TOTAL             0 B  ~0 tok  (tokens ≈ bytes/4)"
+
+
+def test_a_symlinked_skill_is_counted_once(tmp_path: Path) -> None:
+    """``skills/x -> .claude/skills/x`` is one file, not two (ADR-0055).
+
+    borromeanRings itself ships two such links. Counting both names inflated the
+    measured budget by the size of every linked skill and would have driven a
+    ratchet fix that deleted real capability to pay for a measurement bug.
+    """
+    real = tmp_path / ".claude" / "skills" / "shared"
+    real.mkdir(parents=True)
+    (real / "SKILL.md").write_text("x" * 400, encoding="utf-8")
+    (tmp_path / "skills").mkdir()
+    (tmp_path / "skills" / "shared").symlink_to(real, target_is_directory=True)
+
+    budget = measure_context_budget(tmp_path)
+
+    skills = [s for s in budget.sources if s.kind == "skill"]
+    assert len(skills) == 1, [s.path for s in skills]
+    assert budget.total_bytes == 400

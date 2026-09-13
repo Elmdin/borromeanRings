@@ -256,3 +256,20 @@ def test_retiring_a_legacy_record_under_an_unopenable_project_is_not_an_error(
     has to be shown to be safe.
     """
     change_detect._retire_legacy(tmp_path / "does-not-exist")  # must not raise
+
+
+def test_a_state_home_that_cannot_be_written_records_nothing(tmp_path: Path) -> None:
+    """Failing to record costs one gate run; it must never raise or write in-tree.
+
+    A regular file where the state root should be, so ``mkdir`` fails for a reason
+    that does not depend on permission bits (ignored when the suite runs as root).
+    """
+    config = _make_project(tmp_path)
+    blocked = tmp_path.parent / "blocked-state-root"
+    blocked.write_text("not a directory", encoding="utf-8")
+    env = {"XDG_STATE_HOME": str(blocked)}
+
+    record_green(tmp_path, config, env)  # must not raise
+
+    assert not (tmp_path / ".meta-harness" / "last_green_state").exists()
+    assert should_skip_gate(tmp_path, config, env) is False

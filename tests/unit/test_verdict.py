@@ -13,6 +13,7 @@ from meta_harness.verdict import (
     is_failing,
     read_history,
     read_last_verdict,
+    status_label,
     write_last_verdict,
 )
 
@@ -128,8 +129,21 @@ def test_to_dict_is_json_shaped() -> None:
         "run_id": "r",
         "digest": "d",
         "harness_version": "v1.2.3",
+        "lane": "",
         "checks": [["00_build", "pass"]],
     }
+
+
+def test_lane_round_trips_and_defaults_to_unmarked(tmp_path: Path) -> None:
+    # A partial (fast-lane) green has to stay distinguishable from a full one once it is
+    # written down, not only in the console output it scrolled past. See ADR-0081.
+    write_last_verdict(tmp_path, Verdict(ok=True, lane="fast"))
+    got = read_last_verdict(tmp_path)
+    assert got is not None and got.lane == "fast"
+    # A record written before lanes existed reads back as "" — never as a fast one.
+    (tmp_path / LAST_VERDICT_FILE).write_text('{"ok": true, "checks": []}', encoding="utf-8")
+    legacy = read_last_verdict(tmp_path)
+    assert legacy is not None and legacy.lane == ""
 
 
 def test_harness_version_round_trips(tmp_path: Path) -> None:
@@ -181,3 +195,35 @@ def test_status_matching_is_exact_not_fuzzy() -> None:
 def test_non_failing_allowlist_is_immutable_and_minimal() -> None:
     assert isinstance(NON_FAILING_STATUSES, frozenset)
     assert sorted(NON_FAILING_STATUSES) == ["noop", "pass"]
+
+
+# --- status_label: the gate-output row text, with a check's optional one-line summary ---
+#
+# Any check may write a `summary` field into its receipt (60_mutation writes the
+# evaluated-mutant count + score). The gate prints it after the status so a reader
+# never has to open the log to see whether the check did real work. Issue #187.
+
+
+def test_status_label_without_summary_is_the_upper_status() -> None:
+    assert status_label("pass", None) == "PASS"
+    assert status_label("fail", "") == "FAIL"
+    assert status_label("noop", "   ") == "NOOP"
+
+
+def test_status_label_appends_summary_in_parentheses() -> None:
+    assert status_label("pass", "evaluated 12, score 0.83") == "PASS (evaluated 12, score 0.83)"
+    assert status_label("fail", "evaluated 0") == "FAIL (evaluated 0)"
+
+
+def test_status_label_ignores_non_string_summary() -> None:
+    # A receipt is JSON a check wrote; a malformed summary must not crash the verdict.
+    assert status_label("pass", 42) == "PASS"
+    assert status_label("pass", ["evaluated 3"]) == "PASS"
+
+
+def test_status_label_keeps_the_row_to_one_bounded_line() -> None:
+    # Only the first line survives, and an over-long summary is cut so the table stays readable.
+    assert status_label("pass", "first line\nsecond line") == "PASS (first line)"
+    long = "x" * 200
+    label = status_label("pass", long)
+    assert label.startswith("PASS (") and label.endswith("...)") and len(label) <= 100

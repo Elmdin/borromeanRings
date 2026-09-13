@@ -9,8 +9,6 @@ from __future__ import annotations
 from meta_harness.status_assess import (
     HOOK_EVENTS,
     HOOK_SCRIPTS,
-    classify_enforcement,
-    hollow_checks,
     Enforcement,
     RewriteTally,
     classify_enforcement,

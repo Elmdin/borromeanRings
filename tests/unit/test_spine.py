@@ -275,6 +275,8 @@ def test_supply_chain_loaded_and_defaults(tmp_path: Path) -> None:
     assert off.supply_chain_lockfile == ""
     assert off.supply_chain_manifests == ("pyproject.toml", "package.json")
     assert off.supply_chain_pin_optional is False
+
+
 def test_api_contracts_section_is_parsed_and_defaults_empty(tmp_path: Path) -> None:
     cfg = tmp_path / "borromeanrings.toml"
     cfg.write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")

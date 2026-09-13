@@ -124,6 +124,8 @@ NON_FAILING_STATUSES = frozenset({"pass", "noop"})
 #: forged status would sail through. Matching is exact — no case folding, no stripping —
 #: so anything that is not precisely a known-good value fails closed. See ADR-0049.
 NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+
 @dataclass(frozen=True)
 class Verdict:
     """One gate run's outcome: the overall pass bool and each check's status.

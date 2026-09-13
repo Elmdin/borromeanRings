@@ -109,6 +109,10 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [quotes] — quote fidelity (ADR-0065): marked quotations in the Markdown under
+    # `paths` must be verbatim against their saved source. Off unless enabled.
+    quotes_enabled: bool = False
+    quotes_paths: tuple[str, ...] = ("docs",)
     # [supply_chain] — lockfile integrity + pinned dependencies (ADR-0061). No lockfile
     # declared ⇒ 76_lockfile is a noop; pin_optional extends 78_pins to optional groups.
     supply_chain_lockfile: str = ""
@@ -304,6 +308,8 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        quotes_enabled=bool(raw.get("quotes", {}).get("enabled", False)),
+        quotes_paths=tuple(raw.get("quotes", {}).get("paths", ["docs"])),
         supply_chain_lockfile=str(supply_chain.get("lockfile", "")),
         supply_chain_manifests=tuple(
             supply_chain.get("manifests", ["pyproject.toml", "package.json"])

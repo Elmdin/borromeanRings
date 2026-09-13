@@ -98,10 +98,10 @@ step-by-step way to exercise every feature on a fresh project.
 | 40 | test + coverage **ratchet** | `pytest --cov` (no absolute % target) |
 | 50 | security | `bandit` |
 
-The required set is declared in `borromeanrings.toml` `[checks].required` (twenty-nine gates
+The required set is declared in `borromeanrings.toml` `[checks].required` (thirty gates
 on this repo; `06_git_identity` exists but is intentionally excluded so external
 contributors pass CI — see ADR-0019). The table above is the v0 core; the full set of
-**40 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
+**41 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
 keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 ## Layout
@@ -170,7 +170,7 @@ check uses and the substrate are module secrets. The gate is a mechanized
 Definition of Done.
 
 <!-- describe:begin -->
-**40 checks** across three lanes — 17 shared, 17 Python, 6 heavy/CI — of which **29 are required on this repo** and 6 are threshold-free ratchets.
+**41 checks** across three lanes — 18 shared, 17 Python, 6 heavy/CI — of which **30 are required on this repo** and 6 are threshold-free ratchets.
 
 Governance matrices: AI-agent quality (partial), Security & compliance (partial), Security & compliance (documented), Delivery / DORA (documented), Operational / SRE (documented), Data / ML (documented), Product / UX (documented), Security & compliance (partial), Delivery / DORA (partial), Operational / SRE (partial), Data / ML (archetype), Product / UX (partial).
 

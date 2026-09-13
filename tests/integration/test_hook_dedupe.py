@@ -211,3 +211,26 @@ def test_stop_gate_reruns_after_a_fast_retry(tmp_path: Path) -> None:
         assert result.returncode == 2, f"gate should have run and blocked: {result.stderr}"
         (counter,) = state.glob("borromeanrings/*/stop_attempts/fast-retry")
         assert counter.read_text() == expected_attempts
+
+
+def test_a_future_dated_marker_is_not_a_claim(tmp_path: Path) -> None:
+    """#222 route 2: a marker dated in the future must not shadow every occurrence.
+
+    ``claim`` compared ``now - mtime`` against the window. A marker stamped
+    tomorrow makes that difference negative, so it compared as "fresh" forever —
+    one ``touch -d tomorrow`` and the Stop hook yields on every Stop, silently,
+    for good. First prove the forgery is live under the old rule, then prove the
+    claim is granted anyway.
+    """
+    markers = tmp_path / "markers"
+    markers.mkdir()
+    assert claim(markers, "stop", "s1") is True  # first claimant creates the marker
+    marker = next(markers.iterdir())
+
+    tomorrow = time.time() + 86_400
+    os.utime(marker, (tomorrow, tomorrow))
+    assert marker.stat().st_mtime > time.time()  # the forgery is live
+    assert time.time() - marker.stat().st_mtime < 0  # ...and would read as "fresh"
+
+    assert claim(markers, "stop", "s1") is True  # granted anyway: not a claim
+    assert marker.stat().st_mtime <= time.time()  # and the forged date is gone

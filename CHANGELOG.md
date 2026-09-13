@@ -13,6 +13,8 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
+
 - Fast (interactive) lane: `verify.sh --fast` (closes #226). The Stop hook ran the full
   required set on every turn — 445 s, of which `40_test` was 404 s (91%) — so an agent
   waited over seven minutes to report finished, and three retries made the worst case ~22

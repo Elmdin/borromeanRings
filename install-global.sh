@@ -53,6 +53,9 @@ spec = {
     "Stop": [entry("stop_gate.sh", 600)],
     "PostToolUse": [entry("post_edit_format.sh", 60, "Edit|Write|MultiEdit")],
     "PreToolUse": [entry("pre_bash_guard.sh", 30, "Bash")],
+    "PreCompact": [entry("pre_compact.sh", 30)],
+    # one entry per trigger: exact-string or regex matching, either way it fires
+    "SessionStart": [entry("session_start.sh", 30, "compact"), entry("session_start.sh", 30, "resume")],
 }
 for event, entries in spec.items():
     kept = [e for e in hooks.get(event, []) if bh not in json.dumps(e)]  # drop prior borromeanRings entries

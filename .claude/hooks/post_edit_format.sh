@@ -24,7 +24,7 @@ case "$fp" in
     # writing, not at the end of the turn. Advisory here; 18_api_contracts is the backstop.
     BORROMEANRINGS_HOME="$(cd "$HERE/../.." && pwd)"
     PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
-    PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR/borromeanrings.toml" "$fp" 2>/dev/null <<'PY' || true
+    PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR/borromeanrings.toml" "$fp" 2>/dev/null <<'PY' || true
 import sys
 from pathlib import Path
 

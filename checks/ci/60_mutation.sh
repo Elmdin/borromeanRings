@@ -22,6 +22,23 @@ if ! command -v mutmut >/dev/null 2>&1; then
   exit 127
 fi
 
+# Clear the previous run's sandbox first. mutmut 3.6.0's copy_src_dir skips any
+# target that already exists and never deletes, so a test removed from tests/
+# (e.g. one that read outside src/ and broke the clean run) lingers in mutants/
+# and keeps failing the lane. Bounded to exactly $PROJECT_ROOT/mutants; refuse to
+# delete anything that resolves elsewhere (a symlink out of the project).
+mutants_dir="$PROJECT_ROOT/mutants"
+if [ -e "$mutants_dir" ]; then
+  resolved="$(cd "$mutants_dir" 2>/dev/null && pwd -P || true)"
+  if [ -n "$resolved" ] && [ "$resolved" = "$(cd "$PROJECT_ROOT" && pwd -P)/mutants" ]; then
+    rm -rf "$mutants_dir"
+  else
+    printf "refusing to clear '%s': it resolves outside the project (%s)\n" "$mutants_dir" "${resolved:-unresolvable}" >"$log"
+    emit_receipt "$id" "$cmd" 1 "$log" "fail"
+    exit 1
+  fi
+fi
+
 # mutmut's OWN exit is nonzero when mutants survive — that is NOT a check failure
 # here: the ratchet decides pass/fail on the SCORE, not on mutmut's exit. Capture
 # output (the emoji summary line) to the log regardless. Mutation over the whole
@@ -34,19 +51,21 @@ baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 
 # Parse the score from the captured output and ratchet it — both in borromeanRings's
 # own tested code (meta_harness.mutation + meta_harness.ratchet), so the shell
-# only orchestrates.
-read -r score regressed evaluated <<EOF
+# only orchestrates. The 4th field is the receipt `summary` ("evaluated N, score S"),
+# which the gate prints on this check's verdict row (issue #187); `read` gives the
+# LAST variable the rest of the line, so its spaces are safe.
+read -r score regressed evaluated summary <<EOF
 $(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$log" "$baseline" <<'PY'
 import sys
 
-from meta_harness.mutation import mutation_score, parse_mutmut_summary, total_evaluated
+from meta_harness.mutation import mutation_score, parse_mutmut_summary, summary_line, total_evaluated
 from meta_harness.ratchet import decide_ratchet
 
 text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 counts = parse_mutmut_summary(text)
 score = mutation_score(counts)
 decision = decide_ratchet(score, float(sys.argv[2]), higher_is_better=True)
-print(f"{score:.4f} {1 if decision.regressed else 0} {total_evaluated(counts)}")
+print(f"{score:.4f} {1 if decision.regressed else 0} {total_evaluated(counts)} {summary_line(counts, decision)}")
 PY
 )
 EOF
@@ -65,6 +84,9 @@ elif [ "${regressed:-1}" = "1" ]; then
   code=1
 fi
 
-extra="$(python3 -c "import json,sys; print(json.dumps({'mutation_score': float(sys.argv[1]), 'mutation_baseline': float(sys.argv[2])}))" "${score:-0}" "$baseline" 2>/dev/null || echo '')"
+# `summary` rides in the receipt (hash-covered like every field) so the gate row reads
+# "PASS (evaluated N, score S)" / "FAIL (evaluated 0)" — the count is what makes the
+# score readable (a vacuous run scores 1.0). Empty if the parse step itself died.
+extra="$(python3 -c "import json,sys; print(json.dumps({'mutation_score': float(sys.argv[1]), 'mutation_baseline': float(sys.argv[2]), 'summary': sys.argv[3]}))" "${score:-0}" "$baseline" "${summary:-}" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

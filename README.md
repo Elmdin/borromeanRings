@@ -1,5 +1,13 @@
 # borromeanRings
 
+> ## ⚠️ Work in progress — not ready for use
+>
+> borromeanRings is under active development and is **not in a stable state**. Do not
+> install it, adopt it in a project, or rely on its verdict yet. Known gaps that must
+> close first are tracked in the issues, including verdict-integrity and retry-bound
+> hardening. This notice will be removed when the harness is ready to be used.
+
+
 <p align="center">
   <img src="docs/borromean-rings.png" width="200" alt="Borromean rings — three links that hold only together; remove any one and the whole comes apart">
 </p>
@@ -70,10 +78,10 @@ step-by-step way to exercise every feature on a fresh project.
 | 40 | test + coverage **ratchet** | `pytest --cov` (no absolute % target) |
 | 50 | security | `bandit` |
 
-The required set is declared in `borromeanrings.toml` `[checks].required` (nineteen gates
+The required set is declared in `borromeanrings.toml` `[checks].required` (twenty-five gates
 on this repo; `06_git_identity` exists but is intentionally excluded so external
 contributors pass CI — see ADR-0019). The table above is the v0 core; the full set of
-**28 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
+**34 checks** across the shared / Python / heavy-CI lanes — what each enforces, its config
 keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 
 ## Layout
@@ -90,6 +98,7 @@ keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 - `docs/MANIFESTO.md` — **the why**: the north star; borromeanRings is the meta-harness (it enhances agent capabilities incl. deep research); the notes/Kernel is a separate product built *with* it
 - `docs/VISION.md` — the whole product borromeanRings (the meta-harness) is meant to become
 - `docs/ROADMAP.md` — **every harness feature, with status** (plus the separate products built with borromeanRings)
+- `docs/SELF-ASSESSMENT.md` — **the evidence-based self-assessment**: how the gate works, what one cycle of sub-agent reviews found (defects by class, and whether a mechanism or only review catches each), gaps in the platform's own order, prioritised improvements
 - `docs/` — requirements, architecture, ADRs, test plan, process (CS130-grounded)
 - `PLAN-v0.md` — the v0 spec and document hub
 
@@ -99,3 +108,11 @@ See `docs/` — the `.claude/` hooks are an Adapter over `verify.sh` (what makes
 borromeanRings harness-agnostic); checks are a uniform-contract registry; the tool a
 check uses and the substrate are module secrets. The gate is a mechanized
 Definition of Done.
+
+<!-- describe:begin -->
+**34 checks** across three lanes — 14 shared, 16 Python, 4 heavy/CI — of which **25 are required on this repo** and 5 are threshold-free ratchets.
+
+Governance matrices: AI-agent quality (partial), Security & compliance (documented), Delivery / DORA (documented), Operational / SRE (documented), Data / ML (documented), Product / UX (documented), Security & compliance (partial), Delivery / DORA (partial), Operational / SRE (partial), Data / ML (archetype), Product / UX (partial).
+
+Run `./describe.sh` for the generated report of every check, what it enforces, and where it applies. This block is generated; `04_self_description` fails the gate if the counts above stop matching the registry.
+<!-- describe:end -->

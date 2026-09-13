@@ -48,6 +48,7 @@ __all__ = [
     "read_rewrite_tally",
     "render",
     "render_rewrite_line",
+    "render",
     "render_self_status",
     "summarize",
 ]

@@ -55,6 +55,40 @@ def is_failing(status: str) -> bool:
     return status not in NON_FAILING_STATUSES
 
 
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
+
+#: Longest ``summary`` the gate prints on a row; anything longer is cut with ``...``.
+SUMMARY_MAX_CHARS = 72
+
+
+def status_label(status: str, summary: object = None) -> str:
+    """The gate-output text for one check row: ``STATUS``, plus ``(summary)`` if present.
+
+    Any check may write a free-text ``summary`` field into its receipt (``60_mutation``
+    writes ``evaluated N, score S``); the gate prints it beside the status so the row
+    answers "did the check do real work?" without a trip to the log. The field is
+    untrusted JSON a check wrote, so it is validated here: non-strings and blanks are
+    ignored, only the first line is used, and it is bounded so the table stays a table.
+    """
+    label = status.upper()
+    if not isinstance(summary, str):
+        return label
+    first_line = summary.strip().splitlines()[0].strip() if summary.strip() else ""
+    if not first_line:
+        return label
+    if len(first_line) > SUMMARY_MAX_CHARS:
+        first_line = first_line[: SUMMARY_MAX_CHARS - 3] + "..."
+    return f"{label} ({first_line})"
+
+
 @dataclass(frozen=True)
 class Verdict:
     """One gate run's outcome: the overall pass bool and each check's status.
@@ -70,6 +104,11 @@ class Verdict:
     run_id: str = ""
     digest: str = ""
     harness_version: str = ""
+    #: Which lane produced it — ``"full"`` (or ``""`` in records written before lanes
+    #: existed) for a complete run, ``"fast"`` for the narrowed interactive run the Stop
+    #: hook makes. A reader must be able to tell a partial green from a real one, so the
+    #: lane is part of the record, not only of the console output. See ADR-0081.
+    lane: str = ""
 
     def to_dict(self) -> dict[str, object]:
         """A JSON-serialisable view (tuples become lists)."""
@@ -78,6 +117,7 @@ class Verdict:
             "run_id": self.run_id,
             "digest": self.digest,
             "harness_version": self.harness_version,
+            "lane": self.lane,
             "checks": [list(pair) for pair in self.checks],
         }
 
@@ -103,6 +143,7 @@ def _parse(data: object) -> Verdict | None:
         run_id=str(data.get("run_id", "")),
         digest=str(data.get("digest", "")),
         harness_version=str(data.get("harness_version", "")),
+        lane=str(data.get("lane", "")),
     )
 
 

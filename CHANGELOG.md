@@ -28,6 +28,25 @@ queue is merged.
   mutmut skips: it reads `.claude/`, which mutmut's `mutants/` copy lacks).
 
 ### Added
+- Supply-chain hardening (ADR-0061, #58): two heavy-lane checks and an SBOM entry point,
+  all native (stdlib only, no network, no new dependency) and threshold-free.
+  **`76_lockfile`** fails when a dependency manifest (`pyproject.toml`, `package.json`)
+  changed since the merge-base without the declared `[supply_chain].lockfile` changing —
+  working-tree and untracked changes count; no lockfile declared ⇒ `noop`, declared-but-
+  missing / non-git / git error ⇒ fail closed. **`78_pins`** requires every
+  `[project].dependencies` requirement (optional groups too with `pin_optional = true`)
+  to carry an upper bound or exact pin (`==`, `~=`, `<`; a direct URL needs a commit hash
+  or `sha256=`), naming each offending line verbatim; no requirements ⇒ `noop`; `dynamic`
+  dependencies or malformed TOML ⇒ fail. **`sbom.sh`** emits a deterministic CycloneDX 1.5
+  JSON of the declared closure via `tomllib` + `importlib.metadata` (name/version/purl +
+  dependency graph; unresolved requirements listed, never dropped) — an inventory that
+  states it is *not* signed or attested. Applied here: `lockfile = ""` (this repo has none
+  and nothing regenerates one — honest `noop`), `pin_optional = true`, and every dev
+  requirement bounded above at its next major. Dependabot, SLSA provenance/signing and
+  SHA-pinned Actions need CI or a remote service and are recorded in the ADR as maintainer
+  decisions with the exact config. Unit (100 % line + branch on both modules) + integration
+  (real `verify.sh --heavy` on fixture repos: stale lock ⇒ red; both changed ⇒ green;
+  undeclared ⇒ `noop`; missing lock and broken git index ⇒ fail closed).
 - Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
   `meta_harness.context_budget` measure what borromeanRings **itself** puts into the
   agent's context — the prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, every installed

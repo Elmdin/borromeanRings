@@ -109,6 +109,11 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [supply_chain] — lockfile integrity + pinned dependencies (ADR-0061). No lockfile
+    # declared ⇒ 76_lockfile is a noop; pin_optional extends 78_pins to optional groups.
+    supply_chain_lockfile: str = ""
+    supply_chain_manifests: tuple[str, ...] = ("pyproject.toml", "package.json")
+    supply_chain_pin_optional: bool = False
     # [verification] — the mathematical-verification ladder (ADR-0074). Tier 1 only:
     # the project-relative directory holding its property suite. NO default — writing
     # the key is an affirmative claim, so "" means the rule is off, and a declared
@@ -236,6 +241,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    supply_chain = raw.get("supply_chain", {})
     provenance = raw.get("provenance", {})
     predicates = raw.get("predicates", {})
     test = raw.get("test", {})
@@ -298,6 +304,11 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        supply_chain_lockfile=str(supply_chain.get("lockfile", "")),
+        supply_chain_manifests=tuple(
+            supply_chain.get("manifests", ["pyproject.toml", "package.json"])
+        ),
+        supply_chain_pin_optional=bool(supply_chain.get("pin_optional", False)),
         verification_properties=str(verification.get("properties", "")).strip(),
         provenance_declared="provenance" in raw,
         provenance_sources=tuple(str(p) for p in provenance.get("sources", [])),

@@ -26,7 +26,7 @@
 |---|---|---|
 | Gated, explicitly-requested merge command (`merge.sh` + tested policy) | ✅ | `merge.sh`, `meta_harness/merge_policy.py`, ADR-0007 |
 | CI: GitHub Action running `verify.sh` on every PR | ✅ | `.github/workflows/verify.yml`, ADR-0008 |
-| Auto-merge: `merge.sh --auto` waits for the PR's CI to pass, then merges | 🟦 in review | `merge.sh`, ADR-0009 |
+| Auto-merge: `merge.sh --auto` waits for the PR's CI to pass, then merges | ✅ | `merge.sh`, ADR-0009 |
 | ~~Server-side branch protection / native `--auto`~~ | ⛔ blocked | needs GitHub Pro/Team or a public repo (private+free can't require checks); command-orchestrated instead (ADR-0009) |
 
 ## Scope: borromeanRings enhances agent capabilities (incl. deep research)
@@ -53,11 +53,13 @@ Each is a future self-extension (build → gate → human-approved adopt).
 
 | Capability | What it is | Status |
 |---|---|---|
-| **Config/policy spine** | Declarative `borromeanrings.toml`: declare required checks + context → enforced on every run (config-compliance). First iteration: required-check set + `[context]` | 🟦 in review (ADR-0010) |
-| **Prompt rewriting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeanRings enforces it via a UserPromptSubmit hook using the spine's `[context]`; shows the rewrite; toggle in `borromeanrings.toml`. Multi-prompting deferred. | 🟦 in review (ADR-0011) |
+| **Config/policy spine** | Declarative `borromeanrings.toml`: declare required checks + context → enforced on every run (config-compliance) | ✅ (ADR-0010) — now the single source of truth for every check, ratchet baseline and rule set |
+| **Prompt rewriting** | Improve the **user's** in-the-moment prompt (preserve+improve intent); *performed by the wrapped agent*, borromeanRings enforces it via a UserPromptSubmit hook using the spine's `[context]`; shows the rewrite; toggle in `borromeanrings.toml`. Multi-prompting deferred. | ✅ (ADR-0011) — runs on every prompt in this repo |
 | **Git-identity enforcement** | Declared commit identity (`[git]`), two opt-in layers: PreToolUse guard blocks wrong-identity commit/push; gate check `06_git_identity` fails closed on any wrong-author commit. **borromeanRings's own public repo runs the guard layer only** (06 not required) so external contributors aren't blocked. | ✅ (ADR-0017, amended by ADR-0019) |
 | **Repository-layout enforcement** | Declared `[layout]`: specs under `specs_dir`, repo-root `.md` allowlist, large flat test suites grouped by type — gate check `07_layout`, fail-closed | ✅ (ADR-0018) |
 | **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⏳ |
+| **Mathematical verification (code & claims)** | Code: the verification ladder — property-based (Hypothesis) → SMT (CrossHair/z3) → formal (Lean/Dafny), opt-in per project *and* per tier. Claims: verify factual assertions, distinct from code | 🟦 tier 1 in review (`27_properties`, ADR-0074); tiers 2–3 specified, not built (#204, #205); claims still ⏳ |
+| **External rubric critic** | A *separate-model* verifier judging changes against a rubric — extends "verifier external to the generator" beyond mechanical checks | ⚠️ seam shipped, dormant (ADR-0023/0030/0036): `55_doc_drift` + `56_critics` are one config line from live; activation paused by choice (critics must use the user's own agent, never independent API keys) |
 | **Mathematical verification (code & claims)** | Code: Hypothesis → CrossHair (SMT) → mutation → formal (Lean/Dafny, opt-in). Claims: verify factual assertions, distinct from code | ⏳ |
 | **Preserve wrapped-agent autonomy** | Enforce invariants on *outcomes*, never dictate the agent's planning/decisions (red line, VISION §6) | ✅ principle locked |
 | **Tools + MCP + plug-and-play** | External/internal tools, MCP servers, plug in any skill/tool, compose with other harnesses | ⏳ |
@@ -68,6 +70,27 @@ Each is a future self-extension (build → gate → human-approved adopt).
 | **Instrumentation + A/B loop** | Measure whether the harness actually improves outcomes | ⏳ |
 | **Cloud-sandbox executor + offline prompt optimization** | Heavier execution + tuning environments | ⏳ |
 | **Full self-assurance layer** | Tool-use instrumentation, config-compliance diffing, tamper-evidence, adversarial self-testing | ⏳ (receipts seeded in v0) |
+
+## Phase 1.5 — shipped since v0 (✅ all merged unless noted)
+
+Capabilities built after the original v0/Phase-1 plan. Listed here so the roadmap stops
+under-reporting the harness; each landed only when a real need justified it.
+
+| Capability | What it is | Where |
+|---|---|---|
+| Portability by reference | `init.sh` bootstraps a NEW project; `adopt.sh` migrates an EXISTING one onto newer checks and seeds ratchet baselines | ADR-0013, ADR-0041 |
+| Example governed project | `examples/textkit` — a second archetype gated end-to-end, proving the "any project" claim | ADR-0039 |
+| Tamper-evident receipts | Content digest per receipt + fail-closed verdict + run-digest anchor | ADR-0026 |
+| Adversarial self-test corpus | The gate must reject known-bad and accept known-good | ADR-0025 |
+| Architectural fitness | Native import-direction contracts (`leaves`/`private`/`forbidden`/`forbid_cycles`) | ADR-0027 |
+| Threshold-free ratchets | Complexity, coupling, coverage, docstrings, mutation — non-regression, no absolute targets | ADR-0029/0031/0038, 0022 |
+| Public-API breaking-change detection | `34_api_diff` vs the merge-base | ADR-0040 |
+| Supply-chain / security lane | CVE audit, license compliance, secret scanning incl. full git history | ADR-0034/0035/0032/0042 |
+| Process gates | Branch, commit-convention, changelog, ADR-discipline, layout, hygiene | ADR-0018/0028/0043 |
+| Container + a11y gates | Dockerfile hygiene; static WCAG invariants | ADR-0044/0045 |
+| Portfolio status + effectiveness ledger | `status.sh` roster; `ledger.sh` — is the gate actually catching anything | ADR-0046/0047 |
+| Harness versioning | `VERSION` + every run stamped with the governing version | ADR-0048 (PR #122) |
+| Honest no-op status + self-status | `noop` receipts, source-coherence guard, single-project self-report | ADR-0049 (PR #122) |
 
 ## Separate products (built with borromeanRings — NOT on this roadmap)
 These were previously mis-scoped as borromeanRings "layers." They are **separate products**, each in its

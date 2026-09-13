@@ -84,6 +84,7 @@ every stage streams a receipt (query · engine · chosen site · read passage ·
   layer (DR-3) and the determinism log (DR-4).
 
 ## 4. Built through borromeanRings, then adopted
+Verified by `tests/unit/test_deep_research.py` (the pipeline's pure stages, no network).
 Spec'd → built on a branch → passes borromeanRings's own gate → human-approved merge. It is a **trust-root
 capability**, so it faces the **same-or-stricter** gate (full checks + the verification critic). Once
 merged, it registers as a capability borromeanRings can use, and it **augments** the agent's own research.

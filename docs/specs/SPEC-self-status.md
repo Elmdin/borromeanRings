@@ -127,6 +127,7 @@ borromeanRings status — <project>            (this project only)
 
   Governed:     yes · N required checks
   Harness:      <version that last ran> · installed <git describe>
+  Enforcement:  auto (N/N hooks wired) | MANUAL ONLY (hooks present but disabled)
   Enforcement:  auto (4/4 hooks wired) | MANUAL ONLY (hooks present but disabled)
   Last verdict: PASS · <run_id>
   Reality:      11 inspected · 7 inspected NOTHING → 00_build, 30_typecheck, …

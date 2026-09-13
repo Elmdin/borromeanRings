@@ -28,6 +28,128 @@ queue is merged.
   mutmut skips: it reads `.claude/`, which mutmut's `mutants/` copy lacks).
 
 ### Added
+- **Static a11y rules for labels, link text and heading structure** (ADR-0075, #159) —
+  matrix rows U4–U6 of `docs/matrices/06-product-ux.md`, added to `15_a11y` (not a second
+  check) and **opt-in** via `[a11y].require`, so a project adopts one at a time:
+  `control_label` (every `<select>`/`<textarea>`/`<input>` except
+  `hidden|submit|button|reset|image` has an accessible name — a wrapping or
+  `for=`-associated `<label>`, a non-empty `aria-label`, or an `aria-labelledby` naming an
+  id that **exists**; WCAG 2.2 SC 3.3.2, 4.1.2), `link_text` (every `<a href>` has
+  non-empty text, an ARIA name, or an `<img alt="...">` inside it; SC 2.4.4), and
+  `heading_structure` (a full document has exactly one `<h1>`; no heading skips a level;
+  `<template>` and comment content excluded; SC 1.3.1). Findings now carry a source line
+  and are reported as `file:line — [rule] — what is wrong` (an absence, such as a missing
+  `<title>` or `<h1>`, prints without a line rather than inventing one). Defaults are
+  unchanged — `[a11y].require` still defaults to the three ADR-0045 rules, and `adopt`'s
+  `RECOMMENDED` set is untouched.
+  Deliberately **not** built and specified instead (#210): contrast, keyboard
+  reachability/visible focus, target size and the axe-core violation ratchet (rows
+  U7–U9, U18) are properties of the *rendered* page, not the source. No banned-phrase
+  ("click here") list either: link purpose *in context* is a judgement, not a fact.
+
+### Fixed
+- `15_a11y` treated `<script src="a.js"/>` as an element that never ends, so everything
+  after it was dropped and an `<a href>` past it was reported as an unnamed link where a
+  browser has no link at all. A regression introduced by the self-closing fix below and
+  caught by verification: `html.parser` skips its raw-text switch on the `/>` form, so
+  the run of text is now started explicitly. A void `<br/>` is still closed once, and a
+  foreign `<rect/>` still self-closes.
+- `15_a11y` reported an empty `<title>` for `<title><b></b></title>`, where a browser
+  shows the literal string `<b></b>` and the title is not empty. Tag-shaped text inside a
+  text-only element is now kept as text (start tags via `get_starttag_text()`, end tags
+  and comments reconstructed), instead of being dropped as markup that was never there.
+- `15_a11y` checked `<math><a href>` for link text. The SVG-anchor departure is a
+  judgement about links a user clicks; MathML has no anchor element, so there is nothing
+  there to click and nothing to judge.
+- `15_a11y` judged some rules against the accessibility tree and others against the DOM.
+  **Every rule that judges rendered content now skips `hidden`/`aria-hidden` subtrees**,
+  the heading outline included. The outline was exempted at first on the argument that
+  dropping an element out of a *sequence* could invent a finding; verification showed the
+  argument inverted. `<h1><h2><div hidden><h3></div><h4>` and `<h1><h2><h4>` are the same
+  document to a screen reader and were given opposite verdicts — counting the hidden
+  heading **masked** a real skipped level rather than preventing an invented one. It also
+  ran the other way: `<div hidden><h1>Dup</h1></div><h1>Real</h1>` reported "a further
+  `<h1>`" on a page where nothing can perceive two. `page_title` and `html_lang` are
+  unaffected, and for a different reason than the one first given: a `<title>` and the
+  `<html>` element are *document metadata*, which `hidden` cannot remove. Each case is
+  pinned by a test, including one that fails if the rule ever spreads to `page_title`.
+- `15_a11y` **failed correct markup** in four ways, each found by an adversarial review of
+  PR #211 and each now pinned against html5lib:
+  - **A text-only element's content was read as markup.** The HTML tokenizer reads
+    `<textarea>`, `<title>`, `<iframe>`, `<xmp>`, `<noembed>`, `<noframes>` and
+    `<plaintext>` as raw text or RCDATA; `html.parser` knows this for `script`/`style`
+    only. So `<textarea><img src="cat.png"></textarea>` — a "paste your markup here" box
+    that every browser renders correctly — raised `img_alt`, a **default-gated** rule,
+    where html5lib finds no image at all.
+  - **HTML integration points were tested as the union of both namespaces.**
+    `<foreignObject>`/`<desc>`/`<title>` are SVG's and `<mtext>`/`<mi>`/`<mo>`/`<mn>`/
+    `<ms>`/`<annotation-xml>` are MathML's, so `<svg><mtext><input>` was a form control
+    and `<math><desc><title>Icon</title></desc></math>` silenced `page_title` — the same
+    defect the previous commit set out to retire, in both directions. The namespace is
+    also **inherited** now rather than read off the nearest `<svg>`/`<math>` tag name
+    (html5lib confirms the `<svg>` in `<math><svg>` is a MathML element), and
+    `<annotation-xml encoding>` is matched whole and untrimmed.
+  - **A `<script>`/`<style>` inside an `<svg>` swallowed the document.** A browser parses
+    the content of a foreign one as markup; `html.parser` switched to CDATA regardless,
+    and with no `</script>` to return at it lost the rest of the page — *inventing*
+    "document has no `<h1>`". Disclosed as an unfixable departure in the previous commit;
+    it was neither unfixable nor purely a missed violation. `_Collector` now overrides
+    `set_cdata_mode` so a foreign `<script>`/`<style>` stays in markup mode.
+  - **A self-closing HTML element closed itself.** The parsing spec acknowledges the flag
+    only in foreign content, so `<a href="/x" />Read the docs</a>` is a link *with* that
+    text; `html.parser` closed it and the check reported an empty link.
+- `15_a11y` flagged three more shapes that axe-core passes: a link named only by a `title`
+  attribute (HTML-AAM's last-resort source, now accepted for `link_text` — though still
+  **not** for `control_label`, where a tooltip is a poor label); anything marked `hidden`
+  or `aria-hidden="true"`, which is out of the accessibility tree entirely and is now
+  skipped by `control_label` and `link_text`; and placeholder links and controls inside a
+  `<template>`. **`<template>` content is now inert for every rule**, resolving an
+  asymmetry (inert for the outline and the title, live for the element rules) that had no
+  defence: a template is a stamp whose text, `href` and `alt` arrive at clone time, and
+  the source cannot tell an unfinished stamp from a finished element. Each of these
+  trades a missed violation for not failing conformant markup, and each is stated in
+  SPEC-accessibility.md under "What these rules do not catch".
+- `15_a11y`'s remaining recited constants are now **derived from html5lib** like the
+  breakout list. The review showed that adding `iframe` to `_VOID_TAGS` passed all 211
+  tests — nothing guarded it — and that `_RAW_TEXT_TAGS` was the recited list that was
+  actually wrong. The void list gained `basefont`, `bgsound` and `keygen` from the
+  derivation; `<col>` is asserted separately because a browser drops it outside a
+  `<colgroup>`, where no probe can reach it.
+- `15_a11y` suppressed headings inside `<svg>`/`<math>`, which is the **opposite** of what
+  a browser does (PR #211 follow-up review). `h1`–`h6` are in the HTML parsing spec's
+  foreign-content *breakout* list: a browser hoists `<svg><h1>` out into a genuine
+  heading and closes the `<svg>` doing it. The old behaviour both invented a "no `<h1>`"
+  finding for a page whose heading sat in an `<svg>` and hid a duplicate `<h1>`. The
+  **whole** breakout list is now implemented (`b, big, blockquote, body, br, center,
+  code, dd, div, dl, dt, em, embed, h1`–`h6`, `head, hr, i, img, li, listing, menu, meta,
+  nobr, ol, p, pre, ruby, s, small, span, strike, strong, sub, sup, table, tt, u, ul,
+  var`, plus `font` with `color`/`face`/`size`), along with `<annotation-xml>`'s
+  `encoding` condition — and it is **derived from html5lib by a new conformance suite**
+  rather than recited, since reciting it is what got it wrong twice. `html5lib` joins the
+  `dev` extra as a test oracle only — **pinned** (`==1.1`), because an oracle whose
+  version drifts can disagree with itself between a laptop and CI (ADR-0077); the
+  harness itself still runs on the stdlib alone.
+- `15_a11y` treated an accessible *name* as present when only the **mechanism** was
+  present (PR #211 review). `<label><input></label>`, `<label for="q"></label>` and an
+  `aria-labelledby` pointing at an empty element all passed while announcing nothing;
+  and `<a href="/tw"><svg role="img" aria-label="Twitter"></svg></a>` — the commonest
+  icon-link idiom there is — was **flagged**, because only `<img alt>` was credited from
+  inside a link. Names are now resolved from content: every element accumulates its
+  subtree text plus the `alt`/`aria-label` of any descendant, and `aria-labelledby` is
+  resolved (one level) after the parse.
+- `15_a11y` let an `<svg><title>` satisfy the **default-on** `page_title` rule, so a page
+  with no `<head><title>` at all passed if it contained one titled icon (pre-existing,
+  undisclosed). Inside an `<svg>`/`<math>` subtree a familiar tag name is no longer taken
+  for an HTML element — `<title>`, `h1`–`h6` and form controls are all namespace-aware,
+  and HTML resumes at an integration point such as `<foreignObject>`.
+- `15_a11y` read the HTML tree in three ways a browser does not (found in review of
+  #159, and applying to the rules shipped in ADR-0045 as well): **duplicate attributes**
+  resolved last-wins where the HTML parsing spec keeps the *first*
+  (`<html lang="" lang="en">` was read as valid); **`<script>`/`<style>` source** was
+  treated as rendered text, so a link containing only code looked named; and
+  **`<template>` content** — inert until cloned — could supply a document's `<title>` or
+  an enclosing link's name. Each is now resolved the way the DOM would, with tests in
+  both directions.
 - Citation-resolution gate `26_citations` (ADR-0073) — the deterministic half of the
   largest defect class this repo's review cycle found: **doc overclaim**, 13 findings
   across 11 PRs. Most instances were not judgements but path-resolution facts (a doc

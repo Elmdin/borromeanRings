@@ -131,12 +131,18 @@ people relying on it stop looking. So, plainly:
 `main` without the full gate passing in CI, on GitHub's runners, against the same
 `verify.sh` a human runs locally. Branch protection requires that check and requires
 the branch to be up to date first. A failing test, a type error, an unformatted
-file, a hardcoded provider token or a broken architectural rule all stop the merge,
-and no amount of an agent insisting the work is done changes that. Locally, the Stop
-hook keeps an agent from declaring a task finished on a red tree, and the records
-that decide whether it runs — the retry count and the last-proven-green hash — live
-**outside** the project, so an agent confined to the project directory cannot rewrite
-them (ADR-0079, ADR-0082).
+file or a broken architectural rule all stop the merge, and no amount of an agent
+insisting the work is done changes that. Locally, the Stop hook keeps an agent from
+declaring a task finished on a red tree, and the records that decide whether it runs
+— the retry count and the last-proven-green hash — live **outside** the project, so
+an agent confined to the project directory cannot rewrite them (ADR-0079, ADR-0082).
+
+Secret scanning is the one required check whose coverage is **partial**, and it is
+worth being specific rather than reassuring: `12_secrets` catches well-formed provider
+tokens and private-key blocks — an AWS access key *ID*, a GitHub PAT, a Slack token, a
+`BEGIN PRIVATE KEY` block — and by design does not guess at high-entropy strings. It
+does not yet catch the AWS secret access key, and `init.sh` does not put the check in a
+new project's default required set at all. Both are #230, and both are open.
 
 **It does not resist an agent that deliberately forges its verdict.** The gate runs
 the governed project's own test code, as your user, on your machine. That code can do

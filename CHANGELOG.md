@@ -28,6 +28,41 @@ queue is merged.
   mutmut skips: it reads `.claude/`, which mutmut's `mutants/` copy lacks).
 
 ### Added
+- Quote fidelity (ADR-0065, issue #175, sub-issue of #172): `24_quotes` +
+  `meta_harness.quotes` verify that every quotation a Markdown document marks with a source
+  (`> …` then `— source: docs/research/<slug>/<file>#L<a>-L<b>`, or the
+  `<!-- quote: … -->` comment form) is **verbatim** against that saved span — the mechanism
+  behind the research skill's fail-closed citation promise. Both sides are normalised the
+  same way (curly → straight quotes, whitespace collapsed, one wrapping `"` pair and trailing
+  sentence punctuation dropped) and nothing else; outcomes are verbatim / drifted (with a
+  unified diff) / missing / out-of-range / orphan marker, each listed as `file:line`. Opt-in
+  via `[quotes].enabled` + `paths`; no marked quotation ⇒ `noop`; an unreadable document or
+  source fails closed; no network. Registered in `[checks].required` here (currently `noop`:
+  no research document has a saved source yet), catalogued in `docs/CHECKS.md`;
+  `docs/specs/SPEC-quotes.md`. Unit- (100% line+branch) and integration-tested. The research
+  skill's §5 now requires the convention for verbatim quotes in `report.md` (still ≤ 3692 B).
+  PR #182 review: matching is line-for-line at word boundaries (a one-line quote inside one
+  source line, a multi-line quote over a contiguous run of source lines) — joining the span
+  hid a word dropped at a line boundary; and the check resolves symlinks, refusing (never
+  reading or printing) any source or walked file whose real path leaves the project.
+
+### Changed
+- The research skill's ≤ 3692 B pin test moved from `tests/unit/test_context_budget.py` to
+  `tests/integration/test_context_budget_gate.py`: it reads the repo's `.claude/` tree, which
+  mutmut's `mutants/` copy lacks, so on the heavy lane it failed the clean-test run and
+  `60_mutation` evaluated 0 mutants (failing closed). Same assertion, still on every gate.
+- `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
+  cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,
+  per-file and per-section), and the dynamic drivers are traced and ranked — working state
+  kept in context, whole-page ingestion, unbounded fan-out, re-fetch on verification. The
+  protocol now declares an editable budget (rounds, queries/round, sources/round, extracted
+  lines/source — knobs the user approves, never gates), writes plan/log/sources/graph/report
+  to `docs/research/<slug>/`, extracts passages instead of ingesting pages, caches URLs and
+  queries, verifies against the saved passage, delegates fetch+extract to a sub-agent where
+  available, reads symbols not files on code hosts, and stops at saturation. Same contract;
+  the redundant "Tactics" section is folded into the numbered steps.
+  `.borromeanrings-context-baseline` re-seeded downward to 31690 (the ratchet tightens on
+  purpose) and a unit test pins the skill at ≤ 3692 B.
 - Supply-chain hardening (ADR-0061, #58): two heavy-lane checks and an SBOM entry point,
   all native (stdlib only, no network, no new dependency) and threshold-free.
   **`76_lockfile`** fails when a dependency manifest (`pyproject.toml`, `package.json`)

@@ -104,6 +104,13 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[quotes]
+# Quote fidelity (check 24_quotes, ADR-0065): a quotation marked `> ...` + `— source:
+# path#L<a>-L<b>` in the Markdown under `paths` must be verbatim against that saved span
+# (the mechanism behind the research skill's fail-closed citations). Opt-in; no marked
+# quotation ⇒ noop. See docs/specs/SPEC-quotes.md.
+enabled = true
+paths = ["docs"]
 [prior_art]
 # Prior-art discipline (check 17_prior_art, ADR-0051): on a feature branch, new public
 # surface must be accompanied by a survey record of what already existed. The 13_adr
@@ -194,6 +201,7 @@ required = [
   "16_shellcheck",
   "11_changelog",
   "19_context_budget",
+  "24_quotes",
   "10_format",
   "20_lint",
   "27_properties",

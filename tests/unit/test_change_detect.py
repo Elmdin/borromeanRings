@@ -243,3 +243,16 @@ def test_a_symlinked_meta_harness_cannot_steer_the_legacy_delete(
 
     assert bystander.exists(), "followed a planted symlink and deleted an outside file"
     assert bystander.read_text(encoding="utf-8") == "someone else's file"
+
+
+def test_retiring_a_legacy_record_under_an_unopenable_project_is_not_an_error(
+    tmp_path: Path,
+) -> None:
+    """Tidying an old file must never be able to fail a gate run.
+
+    Exercised through the private helper on purpose: this is the branch where the
+    project directory cannot be opened at all, which the public path cannot reach
+    (hashing the gated inputs would have failed first). A defensive branch still
+    has to be shown to be safe.
+    """
+    change_detect._retire_legacy(tmp_path / "does-not-exist")  # must not raise

@@ -107,6 +107,15 @@ NON_FAILING_STATUSES = frozenset({"pass", "noop"})
 #: so anything that is not precisely a known-good value fails closed. See ADR-0049.
 NON_FAILING_STATUSES = frozenset({"pass", "noop"})
 
+#: Receipt statuses that do NOT fail the gate.
+#:
+#: An explicit allowlist, deliberately never a negation. ``noop`` (the check ran but had
+#: nothing to inspect) has to be non-failing, and the moment a second non-failing value
+#: exists, the old ``status != "pass"`` test becomes a hole: any unknown, misspelled, or
+#: forged status would sail through. Matching is exact — no case folding, no stripping —
+#: so anything that is not precisely a known-good value fails closed. See ADR-0049.
+NON_FAILING_STATUSES = frozenset({"pass", "noop"})
+
 
 @dataclass(frozen=True)
 class Verdict:

@@ -180,6 +180,7 @@ required = [
   "12_secrets",
   "16_shellcheck",
   "11_changelog",
+  "19_context_budget",
   "10_format",
   "20_lint",
   "27_properties",

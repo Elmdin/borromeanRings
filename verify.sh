@@ -22,6 +22,11 @@ BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 export BORROMEANRINGS_HOME PROJECT_ROOT
+
+# borromeanrings_py: the gate's trusted Python must run from a neutral directory,
+# never with the governed project on sys.path (a planted json.py / meta_harness/
+# would otherwise shadow stdlib and forge the verdict — #222).
+source "$BORROMEANRINGS_HOME/checks/_py.sh"
 CONFIG="$PROJECT_ROOT/borromeanrings.toml"
 
 # Which borromeanRings version is governing this run. `git describe` on borromeanRings's own
@@ -34,13 +39,19 @@ HARNESS_VERSION="$(git -C "$BORROMEANRINGS_HOME" describe --tags --always --dirt
 export HARNESS_VERSION
 
 if [ ! -f "$CONFIG" ]; then
-  echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
-  exit 1
+  if [ -f "$PROJECT_ROOT/borromeo.toml" ]; then
+    # Pre-rename config name (issue #62): still honored (meta_harness.spine falls back to
+    # it), but deprecated — say so on every run until the project renames the file.
+    echo "borromeanRings: DEPRECATED config name borromeo.toml in $PROJECT_ROOT — still honored; rename it: git mv borromeo.toml borromeanrings.toml (see docs/RENAME.md)." >&2
+  else
+    echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
+    exit 1
+  fi
 fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
-language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
+language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
 case "$language" in
   "" | *[!a-z0-9_-]*)
@@ -70,7 +81,8 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
+
 import json
 import os
 import sys
@@ -79,7 +91,7 @@ from pathlib import Path
 from meta_harness.change_detect import record_green
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
-from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
+from meta_harness.verdict import Verdict, append_history, is_failing, status_label, write_last_verdict
 
 config_path, receipt_dir, project_root, heavy, harness_version = sys.argv[1:6]
 config = load_config(config_path)
@@ -90,6 +102,9 @@ expected = config.required_checks + (config.heavy_checks if heavy == "1" else ()
 rows = []
 ok = True
 intact_hashes = []
+# Optional per-check one-liners (a receipt's `summary` field, e.g. 60_mutation's
+# "evaluated N, score S"), printed beside the status. Only intact receipts contribute.
+summaries = {}
 for cid in expected:
     rpath = os.path.join(receipt_dir, f"{cid}.json")
     if not os.path.exists(rpath):
@@ -118,6 +133,7 @@ for cid in expected:
     if is_failing(status):
         ok = False
     rows.append((cid, status.upper()))
+    summaries[cid] = receipt.get("summary")
 
 width = max(len(c) for c, _ in rows)
 print()
@@ -125,7 +141,8 @@ print(f"  borromeanRings gate  (project: {project_root})")
 print(f"  harness-version: {harness_version}")
 print("  " + "-" * (width + 14))
 for cid, status in rows:
-    print(f"  {cid.ljust(width)}   {status}")
+    # status_label validates + bounds the summary (untrusted JSON a check wrote).
+    print(f"  {cid.ljust(width)}   {status_label(status, summaries.get(cid))}")
 print("  " + "-" * (width + 14))
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
 # A green built partly on checks that inspected NOTHING is not the same green as one

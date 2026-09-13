@@ -91,6 +91,59 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[verification]
+# The mathematical-verification ladder (tier 1 of 3; SPEC-verification-ladder.md, ADR-0074).
+# `properties` is the project-relative directory holding the property suite that check
+# 27_properties runs. There is NO default — writing the key is an affirmative claim, so an
+# empty value means the tier is OFF, and a declared directory with no property tests FAILS
+# (a verification claim with no evidence is the vacuity ADR-0049 exists to catch). An
+# unknown key under [verification] fails config loading closed, so a typo can't silently
+# switch the rule off. borromeanRings declares none yet: 27_properties reports `noop` here
+# (rule off), and no property suite was invented to make it look busy. Tiers 2 (SMT) and 3
+# (formal proof) are specified, not built — see the SPEC and issues #204 / #205.
+properties = ""
+[provenance]
+# Re-authored text must not reproduce its declared source (check 25_provenance; ADR-0070,
+# SPEC-provenance.md). Protects the ADR-0020 rule for the 4D merge (#172): ideas port,
+# expression never does. `sources` are read-only paths whose text must not appear in a
+# changed file under `paths`; every overlapping 6-word shingle not covered by `allow`
+# fails, with both locations. The sibling project lives at a MACHINE-LOCAL path, which
+# is never committed: keep `sources = []` here and point the check at it per machine —
+#
+#   BORROMEANRINGS_PROVENANCE_SOURCES=/path/to/sibling ./verify.sh
+#
+# (colon-separated; read after the config). With no sources the check is honestly
+# `noop`. `allow` is the human's classification of generic overlaps — a license name, a
+# stdlib idiom — one entry per phrase WITH a comment saying why; the diff is the review.
+sources = []
+paths = ["docs", "skills", ".claude/skills"]
+allow = [
+  "CC BY-NC-SA",              # license identifier, not authorial expression
+  "from pathlib import Path", # Python import boilerplate shared with any tools/*.py
+  "1 1 1 1 1 2",              # a run of table digits (CHECKS.md) vs a catalog page; not prose
+  "how to turn it on and",    # ordinary English (CHECKS.md intro) vs a third-party canon capture
+  "mypy cache pytest cache ruff cache",  # tool cache-dir names (SPEC-provenance skip list) vs a .gitignore
+]
+[predicates]
+# Predicate lint (check 23_predicates, ADR-0064): SPEC Contract/Guarantees/Acceptance
+# bullets, ADR Consequences bullets phrased must/never/shall, and issue-form task items
+# must be checkable — no hedge words ("appropriately", "as needed", "reasonable"); and
+# every SPEC must name a shipped check id, an existing test file or an issue (no
+# orphans). Opt-in; `hedges` EXTENDS the built-in list. See SPEC-predicates.md.
+enabled = true
+paths = ["docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE"]
+hedges = []
+require_reference = true
+[shell]
+# Shell lint (check 16_shellcheck, ADR-0050). borromeanRings is ~half bash and that bash
+# is the trust root, so it faces the same fail-closed treatment as the Python.
+# source_paths are shellcheck -P entries so `source`d libraries resolve statically
+# (SCRIPTDIR = the checked script's own directory) instead of being suppressed as SC1091.
+source_paths = ["SCRIPTDIR", "SCRIPTDIR/.."]
+# Per-code escape hatch. Keep empty: resolve findings rather than mute them, and give any
+# entry here a written justification.
+exclude = []
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
@@ -105,10 +158,14 @@ required = [
   "09_commits",
   "13_adr",
   "14_container",
+  "25_provenance",
+  "23_predicates",
   "12_secrets",
+  "16_shellcheck",
   "11_changelog",
   "10_format",
   "20_lint",
+  "27_properties",
   "30_typecheck",
   "32_complexity",
   "33_coupling",

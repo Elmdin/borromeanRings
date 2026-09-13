@@ -28,7 +28,7 @@ if [ -n "$base" ]; then
 fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" BORROMEANRINGS_CHANGED="$changed" \
-  python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import os
 import sys
 from pathlib import Path

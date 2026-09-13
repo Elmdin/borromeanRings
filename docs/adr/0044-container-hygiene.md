@@ -53,7 +53,7 @@ missing HEALTHCHECK.
   the single, always-present artifact for the container archetype; start there.
 
 ## Consequences
-- (+) A container can no longer silently run as root or float its base image. borromeo
+- (+) A container can no longer silently run as root or float its base image. borromeanRings
   dogfoods it on its own (now non-root) image; AutoApply gets a real, actionable
   finding (missing HEALTHCHECK) the moment it opts in.
 - (+) Deterministic, threshold-free, native (no docker/hadolint), unit-tested (13

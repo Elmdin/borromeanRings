@@ -12,6 +12,9 @@ queue is merged.
 
 ## [Unreleased]
 
+### Fixed
+- Adoption now gives a governed project the `.gitignore` entries borromeanRings always assumed it had (#219). Without them the gate's own output is untracked-but-not-ignored, so `git add -A` puts the receipt logs into the index that `12_secrets` reads — and a check log quoting a secret-shaped line makes the secret gate fail **on generated files, still failing after the offending source is deleted**, telling the user to rotate a secret that no longer exists. `init.sh` and `adopt.sh` now ensure `.meta-harness/` and `.coverage` are ignored: created when there is no `.gitignore`, appended (and announced on stdout) when there is, and left alone when already present in any spelling git honours. `--no-gitignore` opts out, because "deliberately absent" cannot be inferred from an absence.
+
 ### Added
 - Rewrite contract (ADR-0059, #81): the prompt-rewrite directive is now *verified*, not just injected. `meta_harness.rewrite_contract` reads the tail of the session transcript the Stop hook receives (`transcript_path`), finds the reply to the last human prompt and decides deterministically — no model call — whether it opened with `Reading this as:` (trivial yes/no/continue prompts exempt). `stop_gate.sh` appends the verdict with its evidence to `.meta-harness/rewrite_contract.jsonl` (append-only; `unknown` when the transcript is missing/malformed; never blocks), and `status.sh` shows the tally (`Rewrite: contract honoured N of M in this project`). Record, don't nag: a ratchet check is the documented next step. Unit + stdin-protocol integration tested.
 - Claude Code plugin distribution: `.claude-plugin/plugin.json`, a self-hosted single-plugin marketplace, `hooks/hooks.json` wiring the six hooks through `${CLAUDE_PLUGIN_ROOT}` (scripts unchanged), project skills exposed by symlink; one-line install from a checkout or the GitHub URL, per-project opt-in untouched. `docs/PLUGIN.md` (ADR-0057, #136).

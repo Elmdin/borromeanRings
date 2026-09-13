@@ -90,9 +90,24 @@ def _source(kind: str, path: str, n_bytes: int) -> ContextSource:
 
 
 def _skill_files(root: Path) -> list[Path]:
+    """Every SKILL.md reachable under the skill roots, each counted ONCE.
+
+    ``skills/<name>`` may be a symlink to ``.claude/skills/<name>`` — this repo
+    ships two of them — so the naive glob finds the same file down two paths and
+    the ratchet reads a 7.5KB regression that does not exist. Deduplicate by
+    ``resolve()``: one file on disk is one thing in the agent's context, however
+    many names point at it. The first path encountered is the one reported, so the
+    row order stays stable across runs.
+    """
     files: list[Path] = []
+    seen: set[Path] = set()
     for skills_root in _SKILL_ROOTS:
-        files.extend(sorted((root / skills_root).glob("*/SKILL.md")))
+        for file in sorted((root / skills_root).glob("*/SKILL.md")):
+            real = file.resolve()
+            if real in seen:
+                continue
+            seen.add(real)
+            files.append(file)
     return files
 
 
@@ -111,8 +126,10 @@ def measure_context_budget(project_root: str | Path, directive: str = "") -> Con
         file = root / name
         if file.is_file():
             rows.append(_source("instructions", name, file.stat().st_size))
-    for file in _skill_files(root):
-        rows.append(_source("skill", file.relative_to(root).as_posix(), file.stat().st_size))
+    rows.extend(
+        _source("skill", file.relative_to(root).as_posix(), file.stat().st_size)
+        for file in _skill_files(root)
+    )
     for file in sorted((root / _HOOKS_DIR).glob("*.sh")):
         n_bytes = hook_message_bytes(file.read_text(encoding="utf-8", errors="replace"))
         if n_bytes:

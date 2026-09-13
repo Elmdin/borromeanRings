@@ -54,3 +54,24 @@ def test_reports_matched_pattern() -> None:
 
 def test_no_deny_patterns_passes_everything() -> None:
     assert license_violations(parse_pip_licenses(_SAMPLE), deny=()) == []
+
+
+def test_a_package_outside_the_project_closure_is_not_a_violation() -> None:
+    """pip-licenses reports every installed distribution (#228).
+
+    Measured on a developer machine: 14 GPL-licensed packages — semgrep, pynput,
+    ndspy, shiboken6 — none of them dependencies of anything being gated.
+    """
+    packages = [
+        PackageLicense("mine", "1.0", "GPL-3.0-only"),
+        PackageLicense("semgrep", "1.0", "LGPL-2.1-or-later"),
+    ]
+
+    violations = license_violations(packages, deny=("GPL",), scope=frozenset({"mine"}))
+
+    assert [v.name for v in violations] == ["mine"]
+
+
+def test_licence_scope_comparison_is_name_normalised() -> None:
+    packages = [PackageLicense("Typing_Extensions", "4", "GPL-3.0-only")]
+    assert license_violations(packages, deny=("GPL",), scope=frozenset({"typing-extensions"}))

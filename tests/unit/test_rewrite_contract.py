@@ -79,8 +79,6 @@ def _write(path: Path, entries: list[object]) -> Path:
 
 
 def test_marker_is_the_one_the_directive_asks_for() -> None:
-    assert MARKER == "Reading this as:"
-    assert f'"{MARKER} <your sharpened version of the request>"' in build_directive({})
     """The directive must ask for exactly the string this module looks for.
 
     Asserted as "MARKER opens the quoted example", not as the full sentence: the

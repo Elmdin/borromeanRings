@@ -24,6 +24,7 @@ queue is merged.
   (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
 
 ### Added
+- Session charter gate (ADR-0063, #173): a committed `CHARTER.toml` (goal, stakes `low`|`high` — two opt-in tiers, never a dial — done_when/stop_when/may_not, owner; `high` also requires rollback/reviewer/blast_radius) validated fail-closed by `22_charter` via the pure `meta_harness.charter` (every violation as `field — reason`, hedged `done_when` items rejected, unknown keys/stakes rejected, never `noop`); `[charter]` spine block; a sub-120-byte UserPromptSubmit reminder when enabled and the file is missing; this repo declares its own high-stakes charter. Mechanism re-authored from a CC BY-NC-SA source — no text or code copied.
 - Application archetypes (ADR-0062, #79 phase 1): a project declares what KIND of app it
   is — `[project].archetypes = ["cli", "library"]` (vocabulary: `library`, `cli`,
   `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`; unknown ⇒ fail closed at config

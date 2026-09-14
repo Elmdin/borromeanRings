@@ -12,6 +12,7 @@ Delegation competency (ADR-0020); borromeanRings had the vocabulary and no artif
 
 A sibling project of the maintainer's (the 4D fluency compact, `/Elmdin/4D`, licensed
 **CC BY-NC-SA**) has a working charter mechanism whose two load-bearing ideas are worth
+carrying over: the validator has no lenient path (an invalid charter is refused whole, with every problem listed), and the fields
 carrying over: a charter is never repaired, defaulted, or partially accepted, and the fields
 it requires grow with the stakes it declares. That project's license is incompatible with
 this Apache-2.0 repository, so its text and code cannot be carried over.
@@ -57,6 +58,7 @@ source's charter uses a different and larger field set, and the one name the two
   and the layout gate would need a new root-doc exception; TOML is the spine's format.
 - **Three or more stakes tiers** — rejected: a dial. See decision 2.
 - **Inferring a charter from the conversation** — rejected: the owner must name what they
+  keep; if the gate filled in `may_not` on the author's behalf, the one field that records what the agent must not do would be the one field the agent wrote.
   keep; an inferred `may_not` is exactly the drift the gate exists to catch.
 - **Failing the prompt hook when the charter is invalid** — rejected: prompt hooks are
   advisory; a blocking prompt hook in a governed project would stop the user from writing

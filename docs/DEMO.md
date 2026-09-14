@@ -25,7 +25,7 @@ project's `.meta-harness/` directory receives the receipts.
 |---|---|---|---|---|
 | 1 | Govern an empty project | `init.sh <dir>` | exit 0; `borromeanrings.toml` and `.claude/settings.json` exist | governance is opt-in and by reference — two files, no copy |
 | 2 | Gate the empty project | `verify.sh` | `RESULT: PASS` **and** `inspected NOTHING: 4 of 7` | a **hollow green**: greenfield is not red, but the gate names every check that inspected nothing (ADR-0049) |
-| 3 | Add `src/app/core.py`, a test, `pyproject.toml`; set `[project].package` | `verify.sh` | `RESULT: PASS` and **no** `inspected NOTHING` line | a **real green**: every required check inspected something |
+| 3 | Add a module under the package, a test, `pyproject.toml`; set `[project].package` | `verify.sh` | `RESULT: PASS` and **no** `inspected NOTHING` line | a **real green**: every required check inspected something |
 | 4 | Change `add()` to `return "oops"` | `verify.sh` | exit 1; `RESULT: FAIL`; `30_typecheck FAIL`; `40_test FAIL` | the gate **fails closed** on a violation, and says which checks caught it |
 | 5 | Restore `add()` | `verify.sh` | `RESULT: PASS` | the fix is verified by the same gate, not by the author's word |
 | 6 | Adopt the recommended set | `adopt.sh <dir>` then `verify.sh` | `added [`, `seeded`; then `RESULT: PASS` | `adopt.sh` seeds each ratchet baseline from the current state, so the stricter gate is green on its first run and holds the line from there (ADR-0041) |

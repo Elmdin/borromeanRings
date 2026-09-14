@@ -7,16 +7,26 @@
 >
 > The specific gaps holding this notice in place, so you can judge for yourself:
 >
-> - **#230** — `12_secrets` does not detect an AWS *secret* access key, and `init.sh`
->   leaves the secret check out of a new project's required set entirely.
-> - **#228** — two heavy-lane checks audit whatever is installed on the machine rather
->   than the project's own dependencies, so the same commit gets different verdicts.
-> - **#229** — `06_git_identity` cannot pass under this project's own merge model and
->   was dropped from the required set instead of being reconciled.
+> - **#236** — `12_secrets` is not in the required set a new project gets from
+>   `init.sh`, because it fails closed outside a git repository while `init.sh` must
+>   produce a project that gates green. So a freshly initialised project does not gate
+>   secrets at all until it is configured to.
+> - **#229** — a check that is registered but not required still runs and still writes
+>   a `fail` receipt that the verdict never mentions, so the run directory and the
+>   verdict disagree about what happened.
 > - **#144 / #145** — the gate runs the project's code as your user, so it cannot bound
 >   an agent that is actively trying to defeat it. See the trust boundary below.
+> - The PR queue is still draining, so `dev` is moving daily.
 >
-> This notice goes when those close — not when the feature list is finished.
+> Closed since this notice was written, and no longer blocking: **#222** (the Stop hook
+> could be made to stand down on a red tree), **#230** (`12_secrets` missed the AWS
+> *secret* access key — the half that grants access), **#228** (two heavy-lane checks
+> audited whatever was installed on the machine rather than the project's own
+> dependencies), **#219** (adoption never gave a project the ignore entry the harness
+> assumes, which made the secret gate fail on the harness's own logs and stay failing
+> after the secret was deleted).
+>
+> This notice goes when the rest close — not when the feature list is finished.
 
 
 <p align="center">

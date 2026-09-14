@@ -72,8 +72,35 @@ fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
+# An invalid config is NOT refused here. Every check fails closed on its own and writes
+# a receipt saying why, which is better evidence than one message and no receipts — see
+# tests/integration/*::*_fails_closed_not_noop, which assert exactly that.
 language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
+
+# An UNKNOWN ARCHETYPE is the exception, and refuses before any check runs (#79). The
+# distinction is deliberate: a malformed config is a fact each check can report on, but
+# `archetypes = ["firmware"]` is a claim about what this project IS, and every
+# archetype-derived requirement below it would be silently vacuous. Narrow on purpose —
+# it refuses only for that error, so the fail-closed-per-check behaviour above is intact.
+archetype_error="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" 2>&1 <<'PY' || true
+import sys
+
+from meta_harness.spine import load_config
+
+try:
+    load_config(sys.argv[1])
+except ValueError as exc:
+    if "archetype" in str(exc):
+        print(str(exc))
+except Exception:
+    pass  # any other config problem is the individual checks' to report
+PY
+)"
+if [ -n "$archetype_error" ]; then
+  echo "borromeanRings: refusing to run — $archetype_error" >&2
+  exit 1
+fi
 case "$language" in
   "" | *[!a-z0-9_-]*)
     echo "borromeanRings: invalid [project].language: '$language' (use [a-z0-9_-])." >&2
@@ -109,6 +136,7 @@ import os
 import sys
 from pathlib import Path
 
+from meta_harness.archetypes import non_noop_violations
 from meta_harness.change_detect import record_green
 from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
 from meta_harness.receipts import run_digest, verify_receipt
@@ -175,6 +203,19 @@ for cid, status in rows:
     # status_label validates + bounds the summary (untrusted JSON a check wrote).
     print(f"  {cid.ljust(width)}   {status_label(status, summaries.get(cid))}")
 print("  " + "-" * (width + 14))
+# A declared archetype names features the project must actually have. A check that
+# noops where the archetype demands a real result is a violation, not an absence:
+# "this project claims to be a CLI" and "no CLI entry point was inspected" cannot
+# both be true (#79). Computed BEFORE the verdict because it DECIDES the verdict —
+# printed after it, the line was an annotation on a run that still exited 0.
+archetype_failures = non_noop_violations(
+    config.archetypes, {cid: status.lower() for cid, status in rows}
+)
+for msg in archetype_failures:
+    print(f"  ARCHETYPE: {msg}")
+if archetype_failures:
+    ok = False
+
 print(f"  RESULT: {'PASS' if ok else 'FAIL'}{' (FAST LANE)' if lane == FAST else ''}")
 # A narrowed run must say so on its own verdict line, not only inside one check's row: a
 # fast-lane PASS is not the PASS a full run would have produced, and must never be read as

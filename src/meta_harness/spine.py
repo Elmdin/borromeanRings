@@ -15,6 +15,19 @@ from typing import Any
 
 import tomllib
 
+#: The closed vocabulary of application archetypes a project may declare in
+#: ``[project].archetypes``. Lives here (not in meta_harness.archetypes) because the spine
+#: is an architecture leaf and must import no domain module; the catalog is keyed by
+#: exactly these names and a unit test binds the two. See SPEC-archetypes.md, ADR-0062.
+ARCHETYPES: tuple[str, ...] = (
+    "library",
+    "cli",
+    "web-api",
+    "web-app",
+    "ml",
+    "embedded",
+    "data-pipeline",
+)
 #: Every key `[verification]` understands. An unknown key there is a hard error
 #: (see :func:`load_config`): a typo'd verification claim must never read as
 #: "nothing declared", which would silently switch the rule off. ADR-0074.
@@ -46,6 +59,10 @@ class Config:
     # exactly as before. See meta_harness.lane and ADR-0081.
     test_fast_paths: tuple[str, ...] = ()
     language: str = "python"  # selects checks/<language>/ — the per-language check set
+    # [project].archetypes — what KIND of application this is (ADR-0062). Selects the
+    # required-feature set 21_archetype gates and which checks must be non-noop. Empty ⇒
+    # the archetype dimension is off. Validated against ARCHETYPES (fail-closed).
+    archetypes: tuple[str, ...] = ()
     # [git] — declared commit identity; empty ⇒ identity enforcement is off.
     git_name: str = ""
     git_email: str = ""
@@ -156,6 +173,18 @@ class Config:
     shell_exclude: tuple[str, ...] = ()
 
 
+def _archetypes(project: Mapping[str, Any]) -> tuple[str, ...]:
+    """``[project].archetypes`` validated against :data:`ARCHETYPES`; unknown ⇒ raise."""
+    declared = tuple(str(name) for name in project.get("archetypes", []))
+    unknown = [name for name in declared if name not in ARCHETYPES]
+    if unknown:
+        raise ValueError(
+            f"borromeanrings.toml [project].archetypes has unknown archetype(s) "
+            f"{', '.join(unknown)} — known: {', '.join(ARCHETYPES)} (fail-closed)."
+        )
+    return declared
+
+
 def resolve_config_path(path: str | Path) -> Path:
     """Resolve the spine path, falling back to a sibling legacy ``borromeo.toml``.
 
@@ -232,6 +261,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         The validated :class:`Config`.
 
     Raises:
+        ValueError: if no required checks are declared, or an archetype is unknown.
         ValueError: if no required checks are declared, or if ``[verification]``
             carries a key borromeanRings does not understand.
         ValueError: if no required checks are declared.
@@ -270,6 +300,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         tests_dir=str(project.get("tests_dir", "tests")),
         test_fast_paths=tuple(str(p) for p in test.get("fast_paths", [])),
         language=str(project.get("language", "python")),
+        archetypes=_archetypes(project),
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),
         specs_dir=str(layout.get("specs_dir", "")),

@@ -13,7 +13,7 @@ tested is a promise, not a guarantee — and this project's whole thesis is the
 difference between the two.
 
 ## Decision
-Add a permanent **adversarial corpus** (`tests/test_gate_adversarial.py`,
+Add a permanent **adversarial corpus** (`tests/integration/test_gate_adversarial.py`,
 SPEC-adversarial-selftest.md) that runs the real gate against minimal fixture
 projects and asserts the end-to-end verdict: planted defects in a *required*
 dimension are **rejected** (and caught by the owning check), and a clean control

@@ -27,6 +27,10 @@ RECOMMENDED: tuple[str, ...] = (
     "33_coupling",
     "45_docstrings",
     "01_source_coherence",
+    "21_archetype",  # noop until [project].archetypes is declared; then fail-closed
+    "19_context_budget",
+    "18_api_contracts",
+    "17_prior_art",
     "04_self_description",
 )
 
@@ -36,7 +40,12 @@ RATCHET_BASELINES: dict[str, str] = {
     "32_complexity": ".borromeanrings-complexity-baseline",
     "33_coupling": ".borromeanrings-coupling-baseline",
     "45_docstrings": ".borromeanrings-docstring-baseline",
+    "19_context_budget": ".borromeanrings-context-baseline",
 }
+
+# Ratchets that measure the project tree itself, not its Python package — seeded
+# even when [project].package is unset (the package-bound ones are greenfield-pass).
+PACKAGE_FREE_RATCHETS: frozenset[str] = frozenset({"19_context_budget"})
 
 
 @dataclass(frozen=True)

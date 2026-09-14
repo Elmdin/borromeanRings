@@ -12,6 +12,39 @@ queue is merged.
 
 ## [Unreleased]
 
+### Fixed
+- `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
+  Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
+  the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus
+  `[a11y].exclude`) and where, and the gate output counts it under `inspected NOTHING`.
+  Clean HTML ⇒ `pass`, violations ⇒ `fail`, unchanged. The HTML walk now mirrors
+  `01_source_coherence`: a `git ls-files` failure inside a repo **fails closed** (never a
+  `noop`), and a non-git project falls back to a filesystem walk (honouring `exclude`) and
+  evaluates what it finds. Locked down by an integration suite
+  (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
+
+### Added
+- Application archetypes (ADR-0062, #79 phase 1): a project declares what KIND of app it
+  is — `[project].archetypes = ["cli", "library"]` (vocabulary: `library`, `cli`,
+  `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`; unknown ⇒ fail closed at config
+  time) — and `21_archetype` gates the **required features of that kind**: a health route
+  declared, structured logging configured, an input-validation layer, an auth mechanism,
+  a rate limiter, config from the environment (web-api); an i18n catalog, a viewport meta,
+  a bundle budget, an error page (web-app); a model card, datasheet, schema, fixed seeds,
+  lockfile, evaluation script, baseline, NaN guard, rollback command (ml); watchdog,
+  static analysis, HAL, linker script, host tests, pinned toolchain (embedded); and so on.
+  Every feature is a binary file-presence or content-regex fact with an evidence path in
+  the log (as `[<file>:<line>]`) — no model, no network, no build; what cannot be decided
+  that way lives in the archetype's advisory **playbook** instead. The catalog is versioned
+  immutable data (`meta_harness.archetypes.CATALOG`). Second half: an archetype can require
+  a check to be **non-`noop`** — the verdict now turns the run FAIL when e.g. a declared
+  `web-app`'s `15_a11y` inspected no HTML (*"required to inspect something by archetype
+  web-app"*), the #130 vacuity case; `15_a11y` accordingly reports `noop` (not `pass`) on
+  no tracked HTML. `verify.sh` refuses a config the spine rejects instead of falling back to
+  `python`. This repo declares `cli` + `library` (six features, all evidenced, nothing
+  faked). Unit (catalog integrity, evaluate on fixtures, exact render) + integration (off /
+  pass / fail / unknown / hollow-green-turned-red / negative control). Adopt-recommended.
+  Closes matrix rows O5+, O6, O7, O11, M1, M5, M6, M9, M11, M12, M16, U10s, U12d, U14s, U17.
 ### Changed
 - `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
   cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,

@@ -27,6 +27,7 @@ RECOMMENDED: tuple[str, ...] = (
     "33_coupling",
     "45_docstrings",
     "01_source_coherence",
+    "21_archetype",  # noop until [project].archetypes is declared; then fail-closed
     "19_context_budget",
     "18_api_contracts",
     "17_prior_art",

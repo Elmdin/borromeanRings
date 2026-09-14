@@ -19,6 +19,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+from meta_harness.closure import normalise
+
 
 @dataclass(frozen=True)
 class VulnerablePackage:
@@ -34,11 +36,21 @@ def parse_pip_audit(
     *,
     ignore_packages: tuple[str, ...] = (),
     ignore_vulns: tuple[str, ...] = (),
+    scope: frozenset[str] | None = None,
 ) -> list[VulnerablePackage]:
     """Vulnerable packages in ``pip-audit --format json`` output.
 
     ``ignore_packages`` (case-insensitive) and ``ignore_vulns`` (CVE ids) are
     dropped — for base tooling and explicitly-accepted advisories.
+
+    ``scope`` is the project's own dependency closure (normalised names, from
+    :mod:`meta_harness.closure`). pip-audit reports on the whole *installed*
+    environment, which on a CI runner happens to be the project's dependencies and
+    on a developer machine is everything they have ever installed. Without a scope
+    the same commit gets a different verdict per machine, and the remedy the check
+    prints — add it to ``[audit].ignore_vulns`` — is actionable and **wrong** for a
+    package the project does not depend on. ``None`` means no filtering, for
+    callers that have already narrowed the report.
     """
     data = json.loads(json_text)
     dependencies = data.get("dependencies", []) if isinstance(data, dict) else data
@@ -50,6 +62,8 @@ def parse_pip_audit(
         name = dep.get("name", "")
         if name.lower() in skip_pkgs:
             continue
+        if scope is not None and normalise(name) not in scope:
+            continue  # someone else's package, on this machine by coincidence
         ids = [v.get("id", "") for v in dep.get("vulns", []) if v.get("id") not in skip_vulns]
         deduped = tuple(dict.fromkeys(i for i in ids if i))
         if deduped:

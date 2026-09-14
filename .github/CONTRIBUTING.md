@@ -5,6 +5,11 @@ that enforces engineering standards as deterministic gates. The contribution rul
 below follow directly from that premise — the gate is the product, so every change
 must pass it.
 
+By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Critique of
+work here is direct by design — that document draws the line between critiquing work
+and critiquing people. How issues are labelled, prioritised and milestoned is in
+[`docs/TRIAGE.md`](../docs/TRIAGE.md).
+
 Read [`AGENTS.md`](../AGENTS.md) first. It states the non-obvious rules (for humans
 and AI agents alike) that you could not infer from the code.
 
@@ -65,5 +70,13 @@ See `docs/adr/0007-gated-explicit-merge.md`.
 
 ## Reporting bugs / requesting features
 
-Use the issue templates under [`.github/ISSUE_TEMPLATE/`](./ISSUE_TEMPLATE). For
+Every issue goes through one of the forms under
+[`.github/ISSUE_TEMPLATE/`](./ISSUE_TEMPLATE) — bug report, feature request, or
+research/spike — so triage has the fields it needs. Blank issues are disabled. For
 security issues, **do not** open a public issue — follow [`SECURITY.md`](./SECURITY.md).
+
+Pull requests start from [`PULL_REQUEST_TEMPLATE.md`](./PULL_REQUEST_TEMPLATE.md); its
+checklist is this repo's real definition of done (fast gate, heavy lane, sub-agent
+review), not decoration. The label and milestone vocabulary is in
+[`docs/LABELS.md`](../docs/LABELS.md); a maintainer applies it with
+`scripts/labels.sh`.

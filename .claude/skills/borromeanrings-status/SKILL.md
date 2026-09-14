@@ -51,6 +51,10 @@ A fourth line, `Rewrite: contract honoured N of M in this project`, is the recor
 whether replies opened with the `Reading this as:` reading the prompt-rewrite directive
 asks for (ADR-0059). `no record` means no Stop has been judged here yet; a low share
 means the directive is being rationalised away — mention it, and honour it yourself.
+`Rewrite: contract honoured N of M` records whether replies opened with the
+`Reading this as:` line the directive asks for (ADR-0059). `no record` = nothing
+judged here yet; a low share means the directive is being rationalised away — say
+so, and honour it yourself.
 
 ## 3. If checks are hollow, find out why
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 72_licenses — HEAVY (CI-tier) dependency license compliance.
 #
-# pip-licenses reads the installed closure (in CI = the project's declared deps).
+# pip-licenses reads the installed environment; the parser narrows it to the
 # Opt-in via [licenses].deny (case-insensitive substring patterns to reject, e.g.
 # GPL/AGPL/SSPL); off when unset. allow_packages exempts vetted deps. Runs only
 # under --heavy. See docs/specs/SPEC-licenses.md and ADR-0035.
@@ -21,10 +21,11 @@ fi
 raw="$RECEIPT_DIR/$id.report.json"
 borromeanrings_run_bounded "$RECEIPT_DIR/$id.tool.log" "pip-licenses --format=json > '$raw'" || true
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$raw" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$raw" "$PROJECT_ROOT/pyproject.toml" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 
+from meta_harness.closure import ClosureUnavailable, project_closure
 from meta_harness.licenses import license_violations, parse_pip_licenses
 from meta_harness.spine import load_config
 
@@ -38,10 +39,21 @@ if not report.exists() or not report.read_text().strip():
     print("pip-licenses produced no report (tool failure) — fail closed")
     sys.exit(1)
 
+# pip-licenses reports every INSTALLED distribution. Narrow it to what this project
+# declares plus their closure, so the verdict is about the commit rather than about
+# what else the machine happens to have (#228). Fail closed rather than widening.
+try:
+    scope = frozenset(project_closure(Path(sys.argv[3])))
+except ClosureUnavailable as exc:
+    print(f"cannot determine the project's dependency closure ({exc}) — fail closed")
+    sys.exit(1)
+print(f"scope: {len(scope)} distribution(s) — declared in {sys.argv[3]}, plus their closure")
+
 violations = license_violations(
     parse_pip_licenses(report.read_text(encoding="utf-8")),
     deny=cfg.license_deny,
     allow_packages=cfg.license_allow_packages,
+    scope=scope,
 )
 if violations:
     print(f"INCOMPATIBLE LICENSES in {len(violations)} dependency(ies):")

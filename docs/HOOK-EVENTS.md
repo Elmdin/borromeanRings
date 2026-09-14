@@ -14,7 +14,6 @@ relying on a detail.
 | `Stop` | yes | yes | the verdict itself (the gate runs here); whether the reply honoured the rewrite directive and ended with the self-report block (the transcript is only visible here) | **wired** — `stop_gate.sh`; records the rewrite-contract (ADR-0059) and self-report (ADR-0066) verdicts from `transcript_path` in one bounded step |
 | `PreCompact` | **no** | yes | last verdict, open obligations, identity policy — folded into a summary that may drop them | **wired** — `pre_compact.sh` snapshots the brief to `.meta-harness/compaction_brief.txt`; never blocks |
 | `SessionStart` (`compact`, `resume`) | yes (plain stdout) | no | same state, after the summary replaced it | **wired** — `session_start.sh` re-injects a fresh brief |
-| `SessionStart` (`startup`, `clear`, `fork`) | yes | no | none: CLAUDE.md and the status skill are already loaded | not wired (would duplicate) |
 | `PostCompact` | yes | no | same as SessionStart(compact) | not wired — one re-injection point is enough; revisit if SessionStart(compact) proves unreliable |
 | `SubagentStop` | yes | yes | a sub-agent's edits skip the Stop gate until the parent stops | **open** (#??): the parent's Stop gate still catches the tree; gating each sub-agent would multiply gate runs |
 | `PostToolUseFailure` | yes | no | none owned by borromeanRings | not wired |
@@ -28,3 +27,19 @@ Rules that held while deciding: a hook that fires where borromeanRings owns no s
 noise; every wired hook is inert outside a governed project; nothing here adds a model
 call or an API key; the self-status view reports partial wiring when any of the six is
 missing (`meta_harness.status_assess.HOOK_SCRIPTS` is the single source of that list).
+
+## Other substrates
+
+The six events above are the contract any other harness must carry. Which harnesses can
+(Codex CLI, Gemini CLI, OpenCode, Hermes, Aider, Cline, Roo Code), on what stdin/stdout/exit
+contract, and what degrades where they cannot: `docs/research/HARNESS-SUBSTRATES.md` (survey,
+dated, every cell cites its doc URL) and `docs/specs/SPEC-substrate-adapter.md` (the
+substrate-neutral contract the scripts implement, the `adapters/<name>/` wiring shape, the
+capability matrix, degraded modes and the conformance test). Decision: ADR-0069; phase-1
+target (Codex CLI): #194.
+
+The substrate is one of three swappable axes. Where the *checks* run (`local` today;
+`worktree`, `sandbox` specified) is `docs/specs/SPEC-executor.md`; who produces the *next
+change* (the agent behind the Stop hook today; a `headless` scripted generator specified) is
+`docs/specs/SPEC-generator.md`. Decision: ADR-0071; build phases #201 (worktree executor)
+and #202 (headless generator).

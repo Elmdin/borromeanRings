@@ -1,0 +1,98 @@
+name: Bug report
+description: A check, hook, script, or the gate itself does not do what it says it does.
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security issue? **Do not file it here** — use the private advisory link on the
+        issue chooser or `.github/SECURITY.md`.
+
+        A confirmed defect becomes a permanent regression check *before* it is fixed
+        (`CONTRIBUTING.md`, "Failures become permanent checks"). The more exact the
+        reproduction below, the faster that check gets written.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part misbehaved? (The triage TYPE is decided separately — docs/TRIAGE.md §2.)
+      options:
+        - The gate (verify.sh / merge.sh)
+        - A check under checks/ (name it below)
+        - A Claude Code hook (.claude/hooks/)
+        - Portability scripts (init.sh / adopt.sh / install-global.sh)
+        - Python core (src/meta_harness)
+        - Status / ledger / other command
+        - Documentation says one thing, code does another
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Exact steps and commands. If a check misbehaved, name it (e.g. `07_layout`).
+      placeholder: |
+        1. On branch feat/x with borromeanrings.toml declaring ...
+        2. Run ./verify.sh
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What the gate / check / script should have done.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What it did instead. A check that passed without inspecting anything is a bug (a hollow guarantee) — say so explicitly.
+    validations:
+      required: true
+  - type: textarea
+    id: gate-output
+    attributes:
+      label: Gate output and receipt
+      description: |
+        Paste the relevant `./verify.sh` output, and the path (or contents) of the check's
+        receipt under `.meta-harness/receipts/<run-id>/`. Redact anything secret.
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: harness-version
+    attributes:
+      label: Harness version
+      description: |
+        The `harness-version:` line printed at the top of `./verify.sh` output. If your
+        copy predates that header, use `git -C <borromeanRings checkout> describe --tags --always --dirty`.
+      placeholder: v0.3.0-4-gabc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Governing which project?
+      options:
+        - borromeanRings governing itself (this repo)
+        - Another project, governed by reference (init.sh / adopt.sh)
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, and (if relevant) shell / bash version.
+      placeholder: Ubuntu 24.04 (WSL2), Python 3.12.3, bash 5.2
+    validations:
+      required: false
+  - type: checkboxes
+    id: regression-test
+    attributes:
+      label: Regression evidence
+      options:
+        - label: I have a failing test or check that reproduces this (link or paste it in a comment).
+        - label: This is a hollow guarantee (a pass that inspected nothing) — triage as `priority:high` per docs/TRIAGE.md §3.

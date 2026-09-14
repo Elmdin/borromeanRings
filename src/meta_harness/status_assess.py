@@ -53,6 +53,9 @@ __all__ = [
     "render",
     "render_rewrite_line",
     "render_self_report_line",
+    "render",
+    "render_rewrite_line",
+    "render",
     "render_self_status",
     "summarize",
 ]

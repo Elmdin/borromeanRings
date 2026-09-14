@@ -24,6 +24,18 @@ queue is merged.
   (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
 
 ### Added
+- README quickstart + scripted demo (#66): the README now opens with a one-paragraph
+  what/why and a 60-second quickstart (`init.sh` / `adopt.sh` / `verify.sh` / `status.sh`)
+  whose green, hollow-green (`inspected NOTHING: …`) and red verdicts are real captured
+  output; `demo.sh` builds a throwaway project in a temp dir, governs it by reference,
+  walks hollow green → real green → red → green → `adopt.sh` → `status.sh`, and asserts
+  each verdict (non-zero exit on any deviation, so it is itself a test; `--keep` retains
+  the project). `docs/DEMO.md` explains what each step proves and carries the transcript.
+  Hand-written check counts are gone from README prose — the generated describe block is
+  the only source of counts — and the stale v0 check table is replaced by a lane summary
+  that links to `docs/CHECKS.md`. Read-next links: CHECKS, HANDOFF, ADR index,
+  ENFORCEMENT-COVERAGE (matrices land with #153), CONTRIBUTING, SECURITY, PLUGIN (once #166).
+- `describe.sh` (`--json`, `--readme`) + `04_self_description`: the capability report is generated from the check registry, the README block is regenerated in place, and a README that states a check/gate count must match the registry (ADR-0052, #132).
 - Session charter gate (ADR-0063, #173): a committed `CHARTER.toml` (goal, stakes `low`|`high` — two opt-in tiers, never a dial — done_when/stop_when/may_not, owner; `high` also requires rollback/reviewer/blast_radius) validated fail-closed by `22_charter` via the pure `meta_harness.charter` (every violation as `field — reason`, hedged `done_when` items rejected, unknown keys/stakes rejected, never `noop`); `[charter]` spine block; a sub-120-byte UserPromptSubmit reminder when enabled and the file is missing; this repo declares its own high-stakes charter. Mechanism re-authored from a CC BY-NC-SA source — no text or code copied.
 - Application archetypes (ADR-0062, #79 phase 1): a project declares what KIND of app it
   is — `[project].archetypes = ["cli", "library"]` (vocabulary: `library`, `cli`,

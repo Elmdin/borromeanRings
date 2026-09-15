@@ -189,7 +189,6 @@ def _archetypes(project: Mapping[str, Any]) -> tuple[str, ...]:
     return declared
 
 
-def load_config(path: str | Path = "borromeanrings.toml") -> Config:
 def resolve_config_path(path: str | Path) -> Path:
     """Resolve the spine path, falling back to a sibling legacy ``borromeo.toml``.
 

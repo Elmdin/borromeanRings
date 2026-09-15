@@ -32,10 +32,8 @@ Then run, from the project root:
 ```
 
 That prints the whole report. It is **read-only** — it reports the last known
-state and changes nothing. Asked what the project **practises, lacks, or should
-adopt next**, run `"$BORROMEANRINGS_HOME/status.sh" --swe` and answer from its
-Practises / Lacks / Adopt next sections, not from memory (SPEC-swe-state.md).
-state and changes nothing.
+state and changes nothing. Asked what the project practises, lacks, or should
+adopt next, run `status.sh --swe` and answer from its sections, not from memory.
 
 ## 2. Read the report honestly
 

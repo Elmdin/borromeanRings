@@ -340,7 +340,7 @@ queue is merged.
   lockfile, evaluation script, baseline, NaN guard, rollback command (ml); watchdog,
   static analysis, HAL, linker script, host tests, pinned toolchain (embedded); and so on.
   Every feature is a binary file-presence or content-regex fact with an evidence path in
-  the log (`[src/api/routes.py:1]`) — no model, no network, no build; what cannot be decided
+  the log (as `[<file>:<line>]`) — no model, no network, no build; what cannot be decided
   that way lives in the archetype's advisory **playbook** instead. The catalog is versioned
   immutable data (`meta_harness.archetypes.CATALOG`). Second half: an archetype can require
   a check to be **non-`noop`** — the verdict now turns the run FAIL when e.g. a declared

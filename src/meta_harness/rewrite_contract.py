@@ -230,8 +230,16 @@ def _assistant_text(entry: Mapping[str, Any]) -> str | None:
     return None
 
 
-def find_last_exchange(entries: Sequence[tuple[int, Mapping[str, Any]]]) -> Exchange | None:
-    """The last human prompt and the first assistant text after it (``None`` if no prompt)."""
+def find_last_exchange(
+    entries: Sequence[tuple[int, Mapping[str, Any]]], *, final: bool = False
+) -> Exchange | None:
+    """The last human prompt and the assistant text that answered it (``None`` if no prompt).
+
+    By default the reply is the *first* assistant text after the prompt — where this
+    contract's opening line lives. With ``final=True`` it is the *last* one: the text the
+    human reads at the end of a multi-entry turn, where the self-report block lives
+    (:mod:`meta_harness.self_report`).
+    """
     last_prompt: tuple[int, str] | None = None
     for index, (_, entry) in enumerate(entries):
         prompt = _human_prompt(entry)
@@ -240,11 +248,15 @@ def find_last_exchange(entries: Sequence[tuple[int, Mapping[str, Any]]]) -> Exch
     if last_prompt is None:
         return None
     index, prompt = last_prompt
-    for line_no, entry in entries[index + 1 :]:
-        text = _assistant_text(entry)
-        if text is not None:
-            return Exchange(prompt, text, line_no)
-    return Exchange(prompt, None, None)
+    replies = [
+        (line_no, text)
+        for line_no, entry in entries[index + 1 :]
+        if (text := _assistant_text(entry)) is not None
+    ]
+    if not replies:
+        return Exchange(prompt, None, None)
+    line_no, text = replies[-1] if final else replies[0]
+    return Exchange(prompt, text, line_no)
 
 
 # --- bounded I/O -------------------------------------------------------------------------

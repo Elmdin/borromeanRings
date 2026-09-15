@@ -11,11 +11,9 @@ relying on a detail.
 | `UserPromptSubmit` | yes | yes | the rewrite directive (ADR-0002) | **wired** — `prompt_rewrite.sh` |
 | `PreToolUse` (Bash) | yes | yes | identity policy, protected-branch pushes | **wired** — `pre_bash_guard.sh` |
 | `PostToolUse` (Edit/Write) | yes | no | formatting drift | **wired** — `post_edit_format.sh` |
-| `Stop` | yes | yes | the verdict itself (the gate runs here); whether the reply honoured the rewrite directive (the transcript is only visible here) | **wired** — `stop_gate.sh`; records the rewrite-contract verdict from `transcript_path` (ADR-0059) |
-| `Stop` | yes | yes | the verdict itself (the gate runs here) | **wired** — `stop_gate.sh` |
+| `Stop` | yes | yes | the verdict itself (the gate runs here); whether the reply honoured the rewrite directive and ended with the self-report block (the transcript is only visible here) | **wired** — `stop_gate.sh`; records the rewrite-contract (ADR-0059) and self-report (ADR-0066) verdicts from `transcript_path` in one bounded step |
 | `PreCompact` | **no** | yes | last verdict, open obligations, identity policy — folded into a summary that may drop them | **wired** — `pre_compact.sh` snapshots the brief to `.meta-harness/compaction_brief.txt`; never blocks |
 | `SessionStart` (`compact`, `resume`) | yes (plain stdout) | no | same state, after the summary replaced it | **wired** — `session_start.sh` re-injects a fresh brief |
-| `SessionStart` (`startup`, `clear`, `fork`) | yes | no | none: CLAUDE.md and the status skill are already loaded | not wired (would duplicate) |
 | `PostCompact` | yes | no | same as SessionStart(compact) | not wired — one re-injection point is enough; revisit if SessionStart(compact) proves unreliable |
 | `SubagentStop` | yes | yes | a sub-agent's edits skip the Stop gate until the parent stops | **open** (#??): the parent's Stop gate still catches the tree; gating each sub-agent would multiply gate runs |
 | `PostToolUseFailure` | yes | no | none owned by borromeanRings | not wired |

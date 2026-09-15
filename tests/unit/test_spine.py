@@ -259,6 +259,23 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_subject_max_length == 0
 
 
+def test_self_report_defaults_to_prompt_rewriting_and_can_diverge(tmp_path: Path) -> None:
+    config = tmp_path / "borromeanrings.toml"
+    base = '[checks]\nrequired = ["00_build"]\n'
+    config.write_text(base, encoding="utf-8")
+    assert load_config(config).self_report_enabled is False
+    config.write_text(base + "[prompt_rewriting]\nenabled = true\n", encoding="utf-8")
+    assert load_config(config).self_report_enabled is True
+    config.write_text(
+        base + "[prompt_rewriting]\nenabled = true\n[self_report]\nenabled = false\n",
+        encoding="utf-8",
+    )
+    assert load_config(config).self_report_enabled is False
+    config.write_text(base + "[self_report]\nenabled = true\n", encoding="utf-8")
+    loaded = load_config(config)
+    assert (loaded.prompt_rewriting_enabled, loaded.self_report_enabled) == (False, True)
+
+
 def test_archetypes_loaded_and_default_empty(tmp_path: Path) -> None:
     declared = _write(
         tmp_path,

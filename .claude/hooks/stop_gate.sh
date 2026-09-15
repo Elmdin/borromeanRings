@@ -51,11 +51,20 @@ import sys
 from pathlib import Path
 
 from meta_harness.rewrite_contract import record_from_payload
+from meta_harness.self_report import record_from_payload as record_self_report
 from meta_harness.spine import load_config
 
 project = Path(sys.argv[1])
-if load_config(project / "borromeanrings.toml").prompt_rewriting_enabled:
-    record_from_payload(project, sys.stdin.read())
+config = load_config(project / "borromeanrings.toml")
+# ONE read of stdin for BOTH records (ADR-0059 + ADR-0066): the payload arrives on a
+# pipe, so a second read would get nothing and the self-report would silently record
+# unknown on every Stop. (No backticks in this block: shellcheck reads them as a
+# command substitution that cannot expand inside the single-quoted -c argument.)
+payload = sys.stdin.read()
+if config.prompt_rewriting_enabled:
+    record_from_payload(project, payload)
+if config.self_report_enabled:
+    record_self_report(project, payload)
 ' "$PROJECT_DIR" >/dev/null 2>&1 || true
 
 # No-op guard: if the governed input state is identical to the last proven-green

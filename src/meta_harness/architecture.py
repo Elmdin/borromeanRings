@@ -111,13 +111,13 @@ def private_violations(graph: Graph, private: tuple[str, ...]) -> list[ArchViola
     for module, deps in sorted(graph.items()):
         if module in priv:
             continue
-        for target in sorted(deps & priv):
-            out.append(
-                ArchViolation(
-                    "private",
-                    f"{module} imports private module {target} (a testbed no module may depend on)",
-                )
+        out.extend(
+            ArchViolation(
+                "private",
+                f"{module} imports private module {target} (a testbed no module may depend on)",
             )
+            for target in sorted(deps & priv)
+        )
     return out
 
 

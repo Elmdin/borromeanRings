@@ -73,6 +73,19 @@ ignore_vulns = []
 deny = ["GPL-2", "GPL-3", "GPLv2", "GPLv3", "AGPL", "Affero", "SSPL", "GNU General Public"]
 allow_packages = []
 
+[supply_chain]
+# Lockfile integrity (heavy check 76_lockfile) + pinned dependencies (heavy check
+# 78_pins). ADR-0061. This repo has NO lockfile today: it is a source-installed tool
+# whose only dependencies are the dev toolchain (`pip install -e ".[dev]"` in CI), and
+# no maintainer tooling produces uv.lock/poetry.lock — so `lockfile` is empty and
+# 76_lockfile reports noop, honestly, rather than inventing a lock nothing regenerates.
+# Declare one here the day a lockfile exists (e.g. lockfile = "uv.lock"). pin_optional
+# is on because the dev group IS this project's supply chain: every check parses those
+# tools' output, so an unbounded major bump can silently change a verdict.
+lockfile = ""
+manifests = ["pyproject.toml", "package.json"]
+pin_optional = true
+
 [collaboration]
 # Tier A collaboration gates (Gitflow-lite; SPEC-collaboration.md, ADR-0021).
 # Each rule is opt-in (empty/zero ⇒ off). Enforced by checks 08_branch and
@@ -95,11 +108,105 @@ subject_max_length = 72
 dockerfile = "Dockerfile"
 require = ["non_root", "pinned_base"]
 
+[citations]
+# Citation resolution (check 26_citations, ADR-0073): a repo-relative path, heading
+# anchor, ADR number or check id cited in changed Markdown must resolve on THIS branch.
+# Offline by construction — external URLs and issue/PR numbers are deliberately out of
+# scope (no network, no GitHub state). A deliberate forward reference is written
+# `docs/THING.md` (lands with #NNN). Off unless enabled. See SPEC-citations.md.
+enabled = true
+paths = ["docs/", "README.md", "CHANGELOG.md", "skills/", "AGENTS.md", "PLAN-v0.md"]
+[charter]
+# Session-charter gate (ADR-0063; SPEC-charter.md): the committed CHARTER.toml at the
+# repo root names the goal, the stakes tier (low | high — two opt-in tiers, never a
+# dial), done_when / stop_when / may_not predicates and the owner. At "high" the
+# high_stakes_fields are required too. Enforced fail-closed by 22_charter; a
+# UserPromptSubmit reminder fires when enabled and the file is missing. Opt-in —
+# other projects declare it only once they have a charter to keep.
+enabled = true
+path = "CHARTER.toml"
+high_stakes_fields = ["rollback", "reviewer", "blast_radius"]
+[quotes]
+# Quote fidelity (check 24_quotes, ADR-0065): a quotation marked `> ...` + `— source:
+# path#L<a>-L<b>` in the Markdown under `paths` must be verbatim against that saved span
+# (the mechanism behind the research skill's fail-closed citations). Opt-in; no marked
+# quotation ⇒ noop. See docs/specs/SPEC-quotes.md.
+enabled = true
+paths = ["docs"]
+[prior_art]
+# Prior-art discipline (check 17_prior_art, ADR-0051): on a feature branch, new public
+# surface must be accompanied by a survey record of what already existed. The 13_adr
+# pattern applied to reuse. Off unless 17_prior_art is in [checks].required.
+dir = "docs/surveys"
+require_prefixes = ["feat/"]
+[verification]
+# The mathematical-verification ladder (tier 1 of 3; SPEC-verification-ladder.md, ADR-0074).
+# `properties` is the project-relative directory holding the property suite that check
+# 27_properties runs. There is NO default — writing the key is an affirmative claim, so an
+# empty value means the tier is OFF, and a declared directory with no property tests FAILS
+# (a verification claim with no evidence is the vacuity ADR-0049 exists to catch). An
+# unknown key under [verification] fails config loading closed, so a typo can't silently
+# switch the rule off. borromeanRings declares none yet: 27_properties reports `noop` here
+# (rule off), and no property suite was invented to make it look busy. Tiers 2 (SMT) and 3
+# (formal proof) are specified, not built — see the SPEC and issues #204 / #205.
+properties = ""
+[provenance]
+# Re-authored text must not reproduce its declared source (check 25_provenance; ADR-0070,
+# SPEC-provenance.md). Protects the ADR-0020 rule for the 4D merge (#172): ideas port,
+# expression never does. `sources` are read-only paths whose text must not appear in a
+# changed file under `paths`; every overlapping 6-word shingle not covered by `allow`
+# fails, with both locations. The sibling project lives at a MACHINE-LOCAL path, which
+# is never committed: keep `sources = []` here and point the check at it per machine —
+#
+#   BORROMEANRINGS_PROVENANCE_SOURCES=/path/to/sibling ./verify.sh
+#
+# (colon-separated; read after the config). With no sources the check is honestly
+# `noop`. `allow` is the human's classification of generic overlaps — a license name, a
+# stdlib idiom — one entry per phrase WITH a comment saying why; the diff is the review.
+sources = []
+paths = ["docs", "skills", ".claude/skills"]
+allow = [
+  "CC BY-NC-SA",              # license identifier, not authorial expression
+  "from pathlib import Path", # Python import boilerplate shared with any tools/*.py
+  "1 1 1 1 1 2",              # a run of table digits (CHECKS.md) vs a catalog page; not prose
+  "how to turn it on and",    # ordinary English (CHECKS.md intro) vs a third-party canon capture
+  "mypy cache pytest cache ruff cache",  # tool cache-dir names (SPEC-provenance skip list) vs a .gitignore
+]
+[predicates]
+# Predicate lint (check 23_predicates, ADR-0064): SPEC Contract/Guarantees/Acceptance
+# bullets, ADR Consequences bullets phrased must/never/shall, and issue-form task items
+# must be checkable — no hedge words ("appropriately", "as needed", "reasonable"); and
+# every SPEC must name a shipped check id, an existing test file or an issue (no
+# orphans). Opt-in; `hedges` EXTENDS the built-in list. See SPEC-predicates.md.
+enabled = true
+paths = ["docs/specs", "docs/adr", ".github/ISSUE_TEMPLATE"]
+hedges = []
+require_reference = true
+[shell]
+# Shell lint (check 16_shellcheck, ADR-0050). borromeanRings is ~half bash and that bash
+# is the trust root, so it faces the same fail-closed treatment as the Python.
+# source_paths are shellcheck -P entries so `source`d libraries resolve statically
+# (SCRIPTDIR = the checked script's own directory) instead of being suppressed as SC1091.
+source_paths = ["SCRIPTDIR", "SCRIPTDIR/.."]
+# Per-code escape hatch. Keep empty: resolve findings rather than mute them, and give any
+# entry here a written justification.
+exclude = []
+
+[test]
+# The FAST (interactive) lane's test scope — what `verify.sh --fast` (the Stop hook's
+# lane) runs instead of the whole suite. tests/unit is 3 s; the integration suite, which
+# spawns real gate runs in fixture projects, is ~400 s and held every turn for 7 minutes
+# (#226). It still runs on `./verify.sh`, on `--heavy`, and in CI before merge — a
+# fast-lane pass is marked as partial everywhere it is reported. Empty ⇒ no fast lane.
+# See ADR-0081.
+fast_paths = ["tests/unit"]
+
 [checks]
 # The required check set (replaces checks/manifest.json as the single source of truth).
 required = [
   "00_build",
   "01_source_coherence",
+  "04_self_description",
   "05_hygiene",
   # 06_git_identity intentionally omitted: this public repo enforces identity via the
   # local guard only, so external contributors pass CI. See [git] above + ADR-0019.
@@ -107,12 +214,22 @@ required = [
   "08_branch",
   "09_commits",
   "13_adr",
+  "18_api_contracts",
+  "17_prior_art",
   "14_container",
   "21_archetype",
+  "26_citations",
+  "22_charter",
+  "25_provenance",
+  "23_predicates",
   "12_secrets",
+  "16_shellcheck",
   "11_changelog",
+  "19_context_budget",
+  "24_quotes",
   "10_format",
   "20_lint",
+  "27_properties",
   "30_typecheck",
   "32_complexity",
   "33_coupling",
@@ -128,6 +245,8 @@ heavy = [
   "70_pip_audit",
   "72_licenses",
   "74_secret_history",
+  "76_lockfile",
+  "78_pins",
 ]
 
 [hygiene]
@@ -157,7 +276,16 @@ value_priorities = ["correctness", "security", "maintainability", "performance"]
 # agent to rewrite the user's prompt (preserve+improve intent) using the context above, and to
 # OPEN its reply with a one-line "Reading this as: ..." rendering of the improved request
 # (confirmation-first only for irreversible or scope-changing readings). The agent performs
-# the rewrite; verifying compliance is tracked in issue #81. See SPEC-prompt-rewrite.md.
+# the rewrite; the Stop hook records whether the reply opened with that line
+# (.meta-harness/rewrite_contract.jsonl; `status.sh` tallies it — ADR-0059). See
+# SPEC-prompt-rewrite.md and SPEC-rewrite-contract.md.
+enabled = true
+
+[self_report]
+# The Stop hook also records whether the reply ENDED with the structural VERIFICATION STATUS
+# block the ai-fluency-diligence skill asks for (Verified / Unverified / Weakest claim /
+# Assumed — never a confidence grade), to .meta-harness/self_report.jsonl (ADR-0066). Advisory;
+# never blocks. Defaults to [prompt_rewriting].enabled — set it only to diverge.
 enabled = true
 
 [enhancements]

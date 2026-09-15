@@ -12,8 +12,10 @@ enforces. This doc makes that mapping explicit — partly because the vocabulary
 contributors, and partly because naming what the gate *is* sharpens the project's own thesis:
 **standards become gates, not suggestions.**
 
-The framework has four competencies (the "4Ds"), plus a fifth that borromeanRings takes
-seriously because it governs autonomous runs: **Stewardship**.
+The framework has four competencies (the "4Ds"). borromeanRings adds no fifth: keeping
+watch over an agent mid-run — **Stewardship** — is a **cadence** on which the four are
+re-exercised, not a further competency (ADR-0020, amendment). The framework's authors never
+proposed a fifth; the cadence is this repo's own extension.
 
 ## Delegation — deciding what the agent is authorized to do
 *Setting goals and deciding whether, when, and how to engage an agent.*
@@ -27,6 +29,18 @@ In borromeanRings the delegation boundary is **declared, not improvised**:
 
 The one thing a human must **not** delegate is the definition of "passing." If the spine is
 wrong, everything that passes it is worthless.
+
+### Charter — the delegation, written down
+A project that opts in (`[charter].enabled`) commits a `CHARTER.toml` naming the goal, the
+stakes tier (`low` or `high` — a binary, never a severity dial), what "done" means
+(`done_when`, real predicates — a hedge like "it works" is rejected), when the agent must stop
+(`stop_when`), what it may never do (`may_not`), and who owns the delegation. Check
+`22_charter` validates it fail-closed on every gate run, and the prompt hook reminds the
+session when the file is missing. This is Delegation made reviewable: the terms live in a
+diff, not in a conversation. See `docs/specs/SPEC-charter.md` and ADR-0063.
+The evidence that these terms need a mechanism rather than good intentions — two real tasks walked
+against the bilateral contract, every AI-side obligation failing silently in the first —
+is re-authored in `docs/4D-DRY-RUNS.md`, with each finding mapped to its mechanism here.
 
 ## Description — communicating intent well enough to act on
 *Telling the agent what you want, how to approach it, and how to behave.*
@@ -67,22 +81,36 @@ not mean it is correct or the right thing to build.
 - The receipt system is **Transparency Diligence**: every gate run is documented and
   auditable — consistent with the project's thesis that its own claims must be evidence-backed.
 
-## Stewardship — governing the run while it happens
-*The competency that applies while an autonomous agent is in motion: continue, interrupt, or
-stop?*
+## Cadence — Stewardship, or when the four are re-run
+*Not a fifth competency: the schedule on which the four apply while an agent is in motion.*
 
-Delegation, Description, Discernment, and Diligence are mostly setup-and-review. Stewardship
-is **real-time**. borromeanRings has the seed of it already — the Stop gate's bounded retry
-(it will not loop forever) is a tripwire — and the `ai-fluency-stewardship` skill describes the
-rest: watch for an agent retrying the same failure, taking many steps without a reviewable
-artifact, attempting to edit gate logic, or leaving an orphaned process behind. Turning those
-tripwires into gated checks/hooks is active follow-up work, not yet shipped.
+The four competencies read as before-and-after disciplines. A long autonomous run inserts a
+*during*, and every question asked there is one of the four at a different moment: "still in
+scope?" is Delegation re-checked against `CHARTER.toml`; "trajectory coherent?" is process
+Discernment before the task ends; "continue, interrupt, or stop?" is Diligence for what
+happens next. The `ai-fluency-stewardship` skill is that schedule:
+
+- **Two speeds.** *Fast*, every turn: intent read as intended, an assumption stated, nothing
+  in `may_not` touched. *Full*, per task: re-read the charter, read the receipts, test each
+  `done_when` predicate, audit the trajectory.
+- **Checkpoints, each with a detector.** The Stop verdict flips (`stop_gate.sh`; verdicts
+  persist under `.meta-harness/`); the gate fails three Stops running (bounded retry escalates
+  to the human); a `stop_when` line holds (`22_charter` validates and prints the charter every
+  run); context is compacted or resumed (PreCompact snapshot, SessionStart brief); stakes or
+  scope change (the committed `CHARTER.toml` diff, re-validated by `22_charter`); the rewrite
+  contract is missed (the Stop-time record, ADR-0059, once merged).
+- **Back-edges.** A product failure at a checkpoint sends the work back to Description; a
+  process failure sends it back to Delegation.
+
+Mechanizing the remaining tripwires (retry loops, orphaned processes) is follow-up work, not
+yet shipped.
 
 ## The mapping at a glance
 
 | AI Fluency concept | borromeanRings mechanism |
 |---|---|
 | Delegation boundary | `borromeanrings.toml` + explicit `merge.sh` invocation |
+| Delegation terms | `CHARTER.toml`, gated by `22_charter` |
 | Description (process/behavior) | `borromeanrings.toml`, `AGENTS.md` |
 | Description (in-the-moment) | `prompt_rewrite.sh` `UserPromptSubmit` hook |
 | Automated Process Discernment | `verify.sh` (the 8 required checks) |
@@ -90,7 +118,7 @@ tripwires into gated checks/hooks is active follow-up work, not yet shipped.
 | Human Discernment | PR review, ADR reasoning, semantic correctness |
 | Deployment Diligence | explicit `merge.sh`; declared standards in the spine |
 | Transparency Diligence | `.meta-harness/receipts/`, PR descriptions |
-| Stewardship | bounded Stop-gate retry (shipped); tripwire monitoring (planned) |
+| Cadence (Stewardship) | Stop-gate verdict + bounded retry, `22_charter`, PreCompact/SessionStart brief (shipped); retry-loop and orphan tripwires (planned) |
 
 ## SWE state — discernment from the record, not from memory
 
@@ -106,8 +134,9 @@ the green is real, this says what the green does not cover. Contract:
 [`docs/specs/SPEC-swe-state.md`](specs/SPEC-swe-state.md) (ADR-0067).
 
 ## Skills
-Five skills make these disciplines actionable in a session. They install user-level via
-`install-global.sh`, so they are available in any workspace borromeanRings governs:
+Five skills — four competencies and the cadence — make these disciplines actionable in a
+session. They install user-level via `install-global.sh`, so they are available in any
+workspace borromeanRings governs:
 
 | Skill | Use it to |
 |---|---|
@@ -116,3 +145,6 @@ Five skills make these disciplines actionable in a session. They install user-le
 | `ai-fluency-discernment` | Review an output / audit an agentic trajectory before building on it |
 | `ai-fluency-diligence` | Check disclosure and responsibility before sharing AI-assisted work |
 | `ai-fluency-stewardship` | Govern a long autonomous run — when to continue, interrupt, or stop |
+
+Each of the four 4D skills also states the *agent's* obligation for its competency, and the Stop hook records whether a reply ended with the structural `VERIFICATION STATUS` block (`docs/specs/SPEC-self-report.md`, ADR-0066).
+| `ai-fluency-stewardship` | Run the cadence over a long autonomous run — two speeds, checkpoints, back-edges |

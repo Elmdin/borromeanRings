@@ -39,7 +39,16 @@ Building the fix exposed two more ways the check could pass without looking:
    The PR's security review found two more routes, both closed before merge: a tracked
    file that exists but cannot be read was skipped silently (it now fails closed, named),
    and inherited `GIT_DIR` / `GIT_WORK_TREE` overrode `git -C` so the scan read a decoy
-   repository (`verify.sh` now unsets them for every check).
+   repository (`verify.sh` now unsets them, and the `GIT_CONFIG*` injection variables,
+   for every check). A second pass found a third: a `.git` *file* pointing at another
+   repository listed paths none of which exist here, so nothing was read. When every
+   tracked file is absent from the working tree, the index does not describe this
+   directory, and the check now fails closed.
+
+   **The boundary, stated:** a decoy crafted to share this project's filenames is
+   intent-level forgery by something that controls the project directory. The README's
+   trust boundary excludes exactly that (the gate resists accident and naive forgery, not
+   a hostile agent; #144, #145), so it is out of scope here rather than unconsidered.
 
 ## Alternatives considered
 

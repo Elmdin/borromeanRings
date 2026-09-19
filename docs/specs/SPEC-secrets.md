@@ -55,11 +55,15 @@ assurance, over a credential it had never been taught to see.
   nothing. A tracked file that exists and cannot be read (a permission): `fail`, named.
   Tracked paths absent from the working tree, binary files and submodule directories
   cannot hold a text secret there; they are listed in the log, and if nothing at all
-  was readable the result is `noop`. Otherwise: a real scan of every tracked text file.
+  was readable the result is `noop`. If *every* tracked file is absent, the index does
+  not describe this directory (a broken checkout, or a `.git` pointing elsewhere):
+  `fail`. Otherwise: a real scan of every tracked text file.
 - **The project, not the environment, decides what is read.** `verify.sh` unsets
   `GIT_DIR`, `GIT_WORK_TREE` and the other repository-redirecting variables before any
-  check runs: they override `git -C`, and a pair pointing at a clean decoy made the scan
-  read the decoy (found in review of #250).
+  check runs, and the `GIT_CONFIG*` injection variables: they override `git -C`, and a
+  pair pointing at a clean decoy made the scan read the decoy (found in review of
+  #250). A decoy *crafted* to share the project's filenames is intent-level forgery,
+  outside the trust boundary (ADR-0084).
 - **Escape hatch:** a line carrying `borromeanrings: allow-secret` is skipped
   (documented examples/fixtures). The marker is **line-scoped**, and `ruff format`
   can wrap a long statement and carry the comment off the literal's line, silently

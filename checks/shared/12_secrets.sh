@@ -57,6 +57,13 @@ if report.unreadable:
     for path in report.unreadable:
         print(f"  - {path}")
     sys.exit(1)
+if names and len(report.absent) == len(names):
+    # Some tracked files missing is a deletion in progress. ALL of them missing means git's
+    # index does not describe this directory: a broken checkout, or a .git pointing at
+    # another repository. Neither can be declared clean (second review of #250).
+    print(f"none of the {len(names)} tracked file(s) exist in {root}: git's index does not")
+    print("describe this directory (a broken checkout, or a .git that points elsewhere).")
+    sys.exit(1)
 if report.findings:
     print(f"SECRETS DETECTED — {len(report.findings)} high-confidence match(es):")
     for f in report.findings:

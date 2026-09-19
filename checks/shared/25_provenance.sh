@@ -45,7 +45,7 @@ else
   fi
 fi
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+borromeanrings_py - \
   "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" "$merge_base" "$git_prefix" \
   "$git_error" "$changed" "${BORROMEANRINGS_PROVENANCE_SOURCES:-}" >"$log" 2>&1 <<'PY'
 import os

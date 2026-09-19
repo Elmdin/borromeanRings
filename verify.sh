@@ -78,27 +78,31 @@ fi
 language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
 
-# An UNKNOWN ARCHETYPE is the exception, and refuses before any check runs (#79). The
-# distinction is deliberate: a malformed config is a fact each check can report on, but
-# `archetypes = ["firmware"]` is a claim about what this project IS, and every
-# archetype-derived requirement below it would be silently vacuous. Narrow on purpose —
-# it refuses only for that error, so the fail-closed-per-check behaviour above is intact.
+# An UNKNOWN ARCHETYPE or LANGUAGE is the exception, and refuses before any check runs
+# (#79, ADR-0068). The distinction is deliberate: a malformed config is a fact each check
+# can report on, but `archetypes = ["firmware"]` or `language = "rust"` is a claim about
+# what this project IS. Everything derived from it would be wrong: vacuous archetype
+# requirements, or — for a language — the Python lane run against a project that is not
+# Python. Narrow on purpose: it refuses only for those two errors, so the
+# fail-closed-per-check behaviour above is intact.
 archetype_error="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" 2>&1 <<'PY' || true
 import sys
 
-from meta_harness.spine import load_config
+from meta_harness.spine import ProjectClaimError, load_config
 
 try:
     load_config(sys.argv[1])
-except ValueError as exc:
-    if "archetype" in str(exc):
-        print(str(exc))
+except ProjectClaimError as exc:
+    print(f"{exc.kind}\t{exc}")  # matched by TYPE, never by the message's wording
 except Exception:
     pass  # any other config problem is the individual checks' to report
 PY
 )"
 if [ -n "$archetype_error" ]; then
-  echo "borromeanRings: refusing to run — $archetype_error" >&2
+  case "$archetype_error" in
+    language$'\t'*) echo "borromeanRings: cannot load $CONFIG — ${archetype_error#*$'\t'}" >&2 ;;
+    *) echo "borromeanRings: refusing to run — ${archetype_error#*$'\t'}" >&2 ;;
+  esac
   exit 1
 fi
 case "$language" in

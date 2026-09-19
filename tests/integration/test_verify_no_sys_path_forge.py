@@ -170,22 +170,28 @@ _PROJECT_CODE_RUNS = (
 )
 
 
-# Indirect interpreter starts the literal ``python3`` match cannot see. A static scan
-# can ban the forms it knows; it cannot prove none exists. The behavioural test in
-# test_checks_trusted_python_cwd.py is what proves the shared and Python lanes route.
+# Indirect interpreter starts the literal ``python3`` match cannot see. Threat model: an
+# ACCIDENTAL regression by a harness author, the way ten checks drifted off the helper
+# after #222. A deliberately obfuscated check is a code-review problem, and no text scan
+# can rule it out; for the shared and Python lanes, test_checks_trusted_python_cwd.py
+# observes every trusted program by hash and catches any indirection. This is the
+# heavy (CI) lane's only coverage.
 _INDIRECT = (
     (
         re.compile(r"\$\(\s*(command\s+-v|which|type\s+-[pP])\s+python"),
         "interpreter path captured into a variable",
     ),
     (
-        re.compile(r"(^|[;&|(]|\$\()\s*(exec\s+|!\s+)?\"?\$\{?[A-Za-z_]\w*\}?\"?\s+-c?(\s|$)"),
+        re.compile(
+            r"(^|[;&|(]|\$\()\s*(exec\s+|!\s+)?\"?\$\{?[A-Za-z_]\w*\}?[\w.]*\"?\s+-c?(\s|$)"
+        ),
         "a variable run as a command with a program argument (- or -c)",
     ),
     (
         re.compile(r"(^|[\s;&|(!/])python(?!3\s)(\d(\.\d+)?)?\s+-[cm]?(\s|$)"),
         "an interpreter spelled other than python3",
     ),
+    (re.compile(r"(^|[\s;&|(])eval(\s|$)"), "eval — no check needs it, and it hides a start"),
 )
 
 

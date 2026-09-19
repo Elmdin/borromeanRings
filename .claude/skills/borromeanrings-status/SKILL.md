@@ -17,8 +17,7 @@ other projects — scope is opt-in, and a fleet-wide scan is not what was asked.
 
 ## 1. Locate the harness, then run the report
 
-borromeanRings governs *by reference*: its code lives elsewhere and this project
-points at it. Find it in this order, and stop at the first that works:
+The harness lives outside this project. Find it, stopping at the first that works:
 
 1. `$BORROMEANRINGS_HOME`, if set.
 2. The hook command paths in this project's `.claude/settings.json` — they
@@ -34,6 +33,8 @@ Then run, from the project root:
 That prints the whole report. It is **read-only** — it reports the last known
 state and changes nothing. Asked what the project practises, lacks, or should
 adopt next, run `status.sh --swe` and answer from its sections, not from memory.
+Starting a task, run `status.sh --advise` and ask the human its *Questions* before
+generating; its *Approaches* fit this change (advisory, never a gate).
 
 ## 2. Read the report honestly
 
@@ -48,10 +49,9 @@ Do not stop at PASS/FAIL. Three lines matter more:
 A verdict of PASS with a hollow count is **not** a clean bill of health. Say so
 plainly rather than reporting "all green".
 
-`Rewrite: contract honoured N of M` records whether replies opened with the
-`Reading this as:` line the directive asks for (ADR-0059). `no record` = nothing
-judged here yet; a low share means the directive is being rationalised away — say
-so, and honour it yourself.
+`Rewrite: contract honoured N of M`: how often replies opened with `Reading this
+as:` (ADR-0059); `no record` = nothing judged yet. A low share means the directive
+is being rationalised away — say so, and honour it yourself.
 
 ## 3. If checks are hollow, find out why
 
@@ -81,6 +81,5 @@ The report shows the *last recorded* run. To get a current answer, re-gate:
 "$BORROMEANRINGS_HOME/verify.sh"
 ```
 
-This runs the real checks and writes fresh evidence. It can take a while and may
-fail — that is the point. Never present a stale verdict as the current state; if
-the run is old, say so or re-gate.
+It writes fresh evidence, may be slow, and may fail — that is the point. Never
+present a stale verdict as current; if the run is old, say so or re-gate.

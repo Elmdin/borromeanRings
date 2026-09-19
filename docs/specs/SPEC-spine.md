@@ -26,7 +26,7 @@ has an executed-and-passed receipt").
 required = ["00_build", "10_format", "20_lint", "30_typecheck", "40_test", "50_security"]
 
 [context]                 # declared once; surfaced to the agent (e.g. for prompt rewriting)
-account = "3MagicLabs/borromeanrings"
+account = "Elmdin/borromeanrings"
 value_priorities = ["correctness", "security", "maintainability", "performance"]
 ```
 

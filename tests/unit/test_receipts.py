@@ -9,6 +9,7 @@ meta_harness/receipts.py and ADR-0026.
 """
 
 import json
+import shutil
 from pathlib import Path
 
 from meta_harness.receipts import (
@@ -16,6 +17,8 @@ from meta_harness.receipts import (
     IntegrityReport,
     compute_content_hash,
     finalize_receipt,
+    read_log_text,
+    resolve_log_path,
     run_digest,
     verify_dir,
     verify_receipt,
@@ -123,3 +126,83 @@ def test_verify_dir_flags_unhashed_receipt(tmp_path: Path) -> None:
     report = verify_dir(tmp_path)
     assert "20_lint" in report.unhashed
     assert not report.ok
+
+
+# --------------------------------------------------------------------------
+# Reader-side log resolution (transported bundles — SPEC-executor §2.3, ADR-0076)
+# --------------------------------------------------------------------------
+
+
+def test_resolve_log_path_prefers_the_recorded_path(tmp_path: Path) -> None:
+    recorded = tmp_path / "20_lint.log"
+    recorded.write_text("clean\n")
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    (other / "20_lint.log").write_text("different\n")
+    assert resolve_log_path(str(recorded), other) == recorded
+
+
+def test_resolve_log_path_falls_back_to_the_basename_in_the_receipt_dir(tmp_path: Path) -> None:
+    # The worktree/sandbox case: the recorded path is where the log WAS.
+    landed = tmp_path / "20_lint.log"
+    landed.write_text("clean\n")
+    assert resolve_log_path("/gone/run-42/20_lint.log", tmp_path) == landed
+
+
+def test_resolve_log_path_is_none_when_neither_exists(tmp_path: Path) -> None:
+    assert resolve_log_path("/gone/run-42/20_lint.log", tmp_path) is None
+
+
+def test_resolve_log_path_is_none_for_an_empty_recorded_path(tmp_path: Path) -> None:
+    assert resolve_log_path("", tmp_path) is None
+
+
+def test_read_log_text_reads_the_resolved_log(tmp_path: Path) -> None:
+    (tmp_path / "20_lint.log").write_text("clean\n")
+    assert read_log_text({"log": "/gone/20_lint.log"}, tmp_path) == "clean\n"
+
+
+def test_read_log_text_is_empty_when_unresolvable(tmp_path: Path) -> None:
+    assert read_log_text({"log": "/gone/20_lint.log"}, tmp_path) == ""
+
+
+def test_read_log_text_is_empty_when_the_receipt_has_no_log_field(tmp_path: Path) -> None:
+    assert read_log_text({}, tmp_path) == ""
+
+
+def test_read_log_text_is_empty_when_the_log_is_unreadable(tmp_path: Path) -> None:
+    # A directory where the log should be: unreadable, so the hash check sees ""
+    # and the receipt fails closed rather than raising.
+    (tmp_path / "20_lint.log").mkdir()
+    assert read_log_text({"log": "/gone/20_lint.log"}, tmp_path) == ""
+
+
+def test_a_transported_bundle_still_verifies(tmp_path: Path) -> None:
+    # Emit in one directory, move the whole bundle to another (what the worktree
+    # executor's copy-back does), and verify: the recorded path is gone, the log
+    # sits beside its receipt, integrity holds.
+    origin = tmp_path / "worktree-run"
+    origin.mkdir()
+    _emit(origin, "20_lint", _RECEIPT, "clean\n")
+    landed = tmp_path / "primary-run"
+    shutil.move(str(origin), str(landed))
+    receipt = json.loads((landed / "20_lint.json").read_text())
+    assert not Path(str(receipt["log"])).exists()
+    assert verify_receipt(receipt, read_log_text(receipt, landed))
+    assert verify_dir(landed).ok
+
+
+def test_a_transported_bundle_with_an_edited_log_still_fails(tmp_path: Path) -> None:
+    # The fallback resolves WHERE the log is, never WHAT it says: tamper evidence
+    # is unweakened by transport.
+    origin = tmp_path / "worktree-run"
+    origin.mkdir()
+    _emit(origin, "20_lint", _RECEIPT, "clean\n")
+    landed = tmp_path / "primary-run"
+    shutil.move(str(origin), str(landed))
+    (landed / "20_lint.log").write_text("all clean, honest\n")
+    receipt = json.loads((landed / "20_lint.json").read_text())
+    assert not verify_receipt(receipt, read_log_text(receipt, landed))
+    report = verify_dir(landed)
+    assert not report.ok
+    assert report.tampered == ("20_lint",)

@@ -1,0 +1,24 @@
+# Rule pack: Python asyncio usage rules. Every rule cites its source; a pack rule
+# without provenance is refused by the loader (ADR-0054). Data, not code: add a rule
+# with its documentation section, or do not add it.
+#
+# Symbols match the call as WRITTEN (dotted name); globs cover the common spellings.
+
+[[rules]]
+kind = "must_check"
+symbol = "*create_task"
+message = "keep a reference to the task: the event loop only holds weak references, so a fire-and-forget task can be garbage-collected mid-execution"
+source = "https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task"
+
+[[rules]]
+kind = "banned"
+symbol = "asyncio.get_event_loop"
+message = "banned outright by this pack: the call is deprecated when no loop is running (the common case in new code) and the two safe spellings cover every need — asyncio.run() at the top level, asyncio.get_running_loop() inside coroutines"
+source = "https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.get_event_loop"
+
+[[rules]]
+kind = "forbidden_in"
+symbol = "time.sleep"
+within = "<async>"
+message = "time.sleep blocks the whole event loop; use await asyncio.sleep() in coroutines"
+source = "https://docs.python.org/3/library/asyncio-dev.html#running-blocking-code"

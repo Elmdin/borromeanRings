@@ -54,6 +54,8 @@ put only **stable** assumptions in interfaces.
 |---|---|---|---|
 | **Which tool implements a check** (ruff/mypy/bandit; later semgrep, DD-2) | the individual `checks/NN_*.sh` | "run → exit non-zero on failure → emit a receipt" | Strategy / Single Choice |
 | **Which harness/substrate drives the loop** (Claude Code today; OpenCode/Hermes later) | `.claude/hooks/*` | `verify.sh`'s exit-code contract | **Adapter** |
+| **Where the checks run** (`local` today; `worktree`, `sandbox` specified — `SPEC-executor.md`, ADR-0071) | the executor (today: `verify.sh`'s inline check loop) | "fill `$RECEIPT_DIR` with one verifiable receipt per check for this snapshot, within the bound, or an `error` receipt saying why" | **Strategy** |
+| **Who produces the next change** (the Stop-hooked agent today; `headless` specified — `SPEC-generator.md`, ADR-0071) | the generator adapter (today: `stop_gate.sh`) | "deliver verdict + failing ids; get back 'change written' or 'cannot'; the gate owns CAP, counter and done" | **Adapter** |
 | **Receipt format & storage layout** | the receipt emitter (`checks/_lib.sh`) | "a receipt exists per check with status" | — |
 | **The exhaustive list of expected checks** | `borromeanrings.toml` (one place only) | "every expected check emitted a pass receipt" | **Single Choice Principle** |
 

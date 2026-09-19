@@ -13,7 +13,7 @@
 (mutation testing deferred)?
 **Default if unresolved:** ratchet only (matches QAS-7 and prior Maintainer feedback that an
 absolute % is a Goodhart trap).
-**What's needed to resolve:** Maintainer confirmation. Becomes ADR-0006 once confirmed.
+**What's needed to resolve:** Maintainer confirmation. Becomes ADR 0006 once confirmed (no record exists yet).
 **Design hedge:** the test check records coverage in its receipt regardless; switching to/from a
 floor changes one check file, not the gate.
 

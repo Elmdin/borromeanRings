@@ -15,6 +15,7 @@
 #   ./status.sh PATH ...            # roster over the named roots
 #   ./status.sh --run [PATH ...]    # re-gate first (authoritative, slower)
 #   ./status.sh --list [PATH ...]   # just print discovered project paths
+#   ./status.sh --swe               # + the SWE-state report (practises / lacks / adopt next)
 #
 # Advisory, not a gate: the read-only report always exits 0. Under --run, the exit code
 # is non-zero if any re-gated project fails (so it is CI-usable). See SPEC-status.md,
@@ -37,10 +38,12 @@ PY() {
 }
 
 RUN=0
+SWE=0
 args=()
 for a in "$@"; do
   case "$a" in
     --run) RUN=1 ;;
+    --swe) SWE=1 ;;
     *) args+=("$a") ;;
   esac
 done
@@ -61,4 +64,8 @@ if [ "$RUN" = "1" ]; then
 fi
 
 PY "${args[@]}"
+# What the project practises, lacks and should adopt next — the sibling view the
+# self-status block does not answer (SPEC-swe-state.md, ADR-0067). Advisory: never
+# changes the exit code.
+[ "$SWE" = "1" ] && bash "$BORROMEANRINGS_HOME/swe-state.sh"
 exit "$rc"

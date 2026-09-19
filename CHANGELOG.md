@@ -24,6 +24,16 @@ queue is merged.
   (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
 
 ### Added
+- SWE-state report (ADR-0067, #139): `swe-state.sh` (and `status.sh --swe`) says what ONE
+  governed project **practises** (required checks that last passed, archetype features
+  present, matrix rows therefore enforced), **lacks** (checks that last reported `noop`/fail,
+  RECOMMENDED not adopted, ratchets without a baseline, features absent, matrix rows at a
+  gap or unmet here) and what to **adopt next** — one fixed order (gate gaps, baselines,
+  recommended, features), never a score or a percentage. Every line cites its source;
+  never gated ⇒ `unknown`, malformed input ⇒ `unreadable`, absent matrices ⇒ said so.
+  Pure core `meta_harness.swe_state` (fan-out at the coupling baseline); `--json` for
+  machines; advisory, always exits 0. Spec: `docs/specs/SPEC-swe-state.md`.
+
 - Self-report receipt (ADR-0066, #176): the four `ai-fluency-*` skills now state the *agent's* obligation for each competency — renegotiate a delegation it cannot honour, surface ambiguity before generating, make its work auditable, never overstate completion — and `ai-fluency-diligence` asks every substantive reply to end with a structural `VERIFICATION STATUS` block (`Verified` / `Unverified` / `Weakest claim` / `Assumed`; the `Confidence: High/Medium/Low` line is gone from the trajectory audit — a grade is not a checkable fact). `meta_harness.self_report` verifies the block from the transcript's final reply in the same bounded Stop-hook step as the rewrite contract (reusing its reader by import), records `present` / `absent` / `malformed` / `graded` (any ordinal or numeric confidence) / `exempt` / `unknown` to `.meta-harness/self_report.jsonl`, never blocks, and `status.sh` shows `Self-report: present N of M`. On when `[self_report].enabled` is, which defaults to `[prompt_rewriting].enabled`. Skill bytes paid for with same-file trims. Unit + stdin-protocol integration tested.
 - Rewrite contract (ADR-0059, #81): the prompt-rewrite directive is now *verified*, not just injected. `meta_harness.rewrite_contract` reads the tail of the session transcript the Stop hook receives (`transcript_path`), finds the reply to the last human prompt and decides deterministically — no model call — whether it opened with `Reading this as:` (trivial yes/no/continue prompts exempt). `stop_gate.sh` appends the verdict with its evidence to `.meta-harness/rewrite_contract.jsonl` (append-only; `unknown` when the transcript is missing/malformed; never blocks), and `status.sh` shows the tally (`Rewrite: contract honoured N of M in this project`). Record, don't nag: a ratchet check is the documented next step. Unit + stdin-protocol integration tested.
 - PreCompact snapshot + SessionStart(compact|resume) re-injection of the governance brief (last verdict, open obligations, enforcement, identity policy) so gate state survives context compaction; hook-event inventory in `docs/HOOK-EVENTS.md` (ADR-0053, #137).
@@ -320,6 +330,27 @@ queue is merged.
   (`tests/integration/test_a11y_gate.py`) driving `verify.sh` on every fixture.
 
 ### Added
+- Application archetypes (ADR-0062, #79 phase 1): a project declares what KIND of app it
+  is — `[project].archetypes = ["cli", "library"]` (vocabulary: `library`, `cli`,
+  `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`; unknown ⇒ fail closed at config
+  time) — and `21_archetype` gates the **required features of that kind**: a health route
+  declared, structured logging configured, an input-validation layer, an auth mechanism,
+  a rate limiter, config from the environment (web-api); an i18n catalog, a viewport meta,
+  a bundle budget, an error page (web-app); a model card, datasheet, schema, fixed seeds,
+  lockfile, evaluation script, baseline, NaN guard, rollback command (ml); watchdog,
+  static analysis, HAL, linker script, host tests, pinned toolchain (embedded); and so on.
+  Every feature is a binary file-presence or content-regex fact with an evidence path in
+  the log (as `[<file>:<line>]`) — no model, no network, no build; what cannot be decided
+  that way lives in the archetype's advisory **playbook** instead. The catalog is versioned
+  immutable data (`meta_harness.archetypes.CATALOG`). Second half: an archetype can require
+  a check to be **non-`noop`** — the verdict now turns the run FAIL when e.g. a declared
+  `web-app`'s `15_a11y` inspected no HTML (*"required to inspect something by archetype
+  web-app"*), the #130 vacuity case; `15_a11y` accordingly reports `noop` (not `pass`) on
+  no tracked HTML. `verify.sh` refuses a config the spine rejects instead of falling back to
+  `python`. This repo declares `cli` + `library` (six features, all evidenced, nothing
+  faked). Unit (catalog integrity, evaluate on fixtures, exact render) + integration (off /
+  pass / fail / unknown / hollow-green-turned-red / negative control). Adopt-recommended.
+  Closes matrix rows O5+, O6, O7, O11, M1, M5, M6, M9, M11, M12, M16, U10s, U12d, U14s, U17.
 - Context-budget ratchet (ADR-0055, issue #135): `19_context_budget` +
   `meta_harness.context_budget` measure what borromeanRings **itself** puts into the
   agent's context — the prompt-rewrite directive, `CLAUDE.md`/`AGENTS.md`, every installed

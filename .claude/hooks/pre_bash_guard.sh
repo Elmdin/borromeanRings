@@ -95,12 +95,21 @@ if [ -z "$git_action" ]; then
   esac
 fi
 
-# Protected-branch guard (Tier A collaboration): block 'git commit'/'git push'
-# while ON a declared [collaboration].protected_branches branch — work belongs on
-# feature branches (Gitflow-lite, ADR-0021). Local aid; the platform branch
-# protection is the backstop. Fail-open on any error.
-case "$git_action" in
-  commit | push)
+# Protected-branch guard (trunk-based policy, ADR-0058, issue #75): deny any
+# command that would land work directly on a declared
+# [collaboration].protected_branches branch — commit/merge/rebase/cherry-pick/
+# reset while ON one, a push to one in ANY spelling (origin main, HEAD:main,
+# +main, refs/heads/main, --delete, --all), or deleting/force-moving one locally.
+# The decision is meta_harness.trunk_policy (pure, unit-tested per matrix row);
+# HEAD is read with a fixed argv. Fail-open on any error; server-side protection
+# (#60) is the backstop. See docs/specs/SPEC-branch-policy.md.
+#
+# Its own pre-filter, deliberately broader than the identity guard's `$git_action`:
+# a repo alias (`git p origin main`) names neither `commit` nor `push`, so only the
+# alias-resolving parser below can see what it does. Keying this guard on
+# `$git_action` made every alias invisible to it.
+case "$cmd" in
+  *git*)
     branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
     reason="$(BORROMEANRINGS_GUARD_CMD="$cmd" \
       PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - \

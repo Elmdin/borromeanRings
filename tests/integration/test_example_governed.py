@@ -9,6 +9,12 @@ import os
 import subprocess
 from pathlib import Path
 
+#: Both this file and its sibling run the real gate against the SAME in-repo project,
+#: examples/textkit, and then read the newest run directory out of it. Run side by side
+#: they read each other's runs, so they share a scheduling group (#253, ADR-0086).
+XDIST_GROUP = "examples-textkit"
+
+
 REPO = Path(__file__).resolve().parents[2]
 VERIFY = REPO / "verify.sh"
 EXAMPLE = REPO / "examples" / "textkit"

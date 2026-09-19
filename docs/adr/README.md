@@ -80,9 +80,11 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0069](0069-multi-harness-substrate.md) | Multi-harness substrates: one gate, one hook set, per-substrate wiring adapters | Accepted |
 | [0070](0070-provenance-gate.md) | Provenance gate: binary shingle overlap against a declared source, classified by a human allowlist | Accepted |
 | [0071](0071-executor-and-generator-interfaces.md) | Executor and generator interfaces: one gate, pluggable where-it-runs and who-generates | Accepted |
+| [0072](0072-approach-advisor.md) | Approach advisor: rules as data, questions before approaches, never a gate | Accepted |
 | [0073](0073-citation-resolution-gate.md) | Citations must resolve on the branch that carries them | Accepted |
 | [0074](0074-verification-ladder-property-tier-first.md) | The verification ladder, property tier first | Accepted |
 | [0075](0075-static-a11y-labels-links-headings.md) | Static a11y rules for labels, link text and heading structure (U4–U6) | Accepted |
+| [0076](0076-worktree-executor.md) | The `worktree` executor: a separate entry point, proven by conformance | Accepted |
 | [0077](0077-pin-the-check-toolchain.md) | Pin the check toolchain exactly (amends 0008) | Accepted |
 | [0078](0078-headless-generator-and-loop-conformance.md) | The headless generator: one decision, two thin drivers, and provenance in the verdict | Accepted |
 | [0079](0079-retry-count-outside-the-tree.md) | Keep the Stop hook's retry count outside the governed tree | Accepted |

@@ -60,10 +60,15 @@ def claim(
             age = now - marker.stat().st_mtime
         except OSError:
             return True  # marker vanished mid-race → proceed (fail-open)
-        if age < window_seconds:
-            return False  # fresh claim by the other registration → yield
-        os.utime(marker, (now, now))  # stale → reclaim and refresh the window
-        return True
+        # A marker dated in the FUTURE is never a legitimate claim: no claimant can
+        # have started after now. Left as-is, `age` goes negative, every comparison
+        # against the window succeeds, and one `touch -d tomorrow` makes the Stop
+        # hook yield on every Stop, forever — the gate silently stops running
+        # (#222, route 2). Treat it as no claim at all and reclaim it.
+        if age < 0 or age >= window_seconds:
+            os.utime(marker, (now, now))  # stale or forged → reclaim, refresh window
+            return True
+        return False  # fresh claim by the other registration → yield
     except OSError:
         return True  # marker not creatable → proceed (fail-open)
 

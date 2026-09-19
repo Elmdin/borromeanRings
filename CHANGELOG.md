@@ -558,6 +558,15 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- A new project did not gate secrets at all (#236): `12_secrets` fails closed outside a
+  git repository, so it was left out of `init.sh`'s defaults to keep a fresh project
+  green. `init.sh` now runs `git init` in a target that is not yet a repository (and
+  says so), and `12_secrets` is a default (ADR-0084). The check also lost its last two
+  ways to pass without looking: a failed `git ls-files` (a corrupt index) scanned an
+  empty list and reported `pass`, and now fails closed; a repository that tracks
+  nothing yet is `noop`, not `pass`. The demo, its transcript and the README's quoted
+  blocks are regenerated from a real run, and the README's secret-scanning paragraph no
+  longer says the AWS secret access key is missed (#230 closed that).
 - The test suite wrote the developer's real out-of-tree state: every test that ran the gate
   or the Stop hook left a last-green record or retry count under `~/.local/state/borromeanrings`
   (ADR-0079/0082), mixed in with the records of projects actually governed. Hundreds had

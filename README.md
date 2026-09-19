@@ -11,9 +11,6 @@
 >   `init.sh`, because it fails closed outside a git repository while `init.sh` must
 >   produce a project that gates green. So a freshly initialised project does not gate
 >   secrets at all until it is configured to.
-> - **#229** — a check that is registered but not required still runs and still writes
->   a `fail` receipt that the verdict never mentions, so the run directory and the
->   verdict disagree about what happened.
 > - **#144 / #145** — the gate runs the project's code as your user, so it cannot bound
 >   an agent that is actively trying to defeat it. See the trust boundary below.
 > - The PR queue is still draining, so `dev` is moving daily.

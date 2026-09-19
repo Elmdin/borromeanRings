@@ -511,3 +511,13 @@ def test_advisory_failures_skips_anything_that_is_not_a_receipt(tmp_path: Path) 
 def test_advisory_failures_of_an_empty_or_absent_run_dir_is_empty(tmp_path: Path) -> None:
     assert advisory_failures(tmp_path, ()) == ()
     assert advisory_failures(tmp_path / "missing", ()) == ()
+
+
+def test_advisory_failures_survives_hostile_filesystem_shapes(tmp_path: Path) -> None:
+    """Review of #249: a directory named like a receipt, a symlink loop, non-UTF-8 bytes
+    and JSON null are all data the scan must step over, never raise on."""
+    (tmp_path / "zz_dir.json").mkdir()
+    (tmp_path / "zz_loop.json").symlink_to(tmp_path / "zz_loop.json")
+    (tmp_path / "zz_bytes.json").write_bytes(b'{"check": "zz_bytes", "status": "\xff\xfe"}')
+    (tmp_path / "zz_null.json").write_text("null", encoding="utf-8")
+    assert advisory_failures(tmp_path, ()) == ()

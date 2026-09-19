@@ -152,6 +152,10 @@ def test_gather_facts_classifies_failing_noop_ratchets_recommended_and_diff() ->
             "32_complexity",
             "45_docstrings",
             "01_source_coherence",
+            "19_context_budget",
+            "18_api_contracts",
+            "17_prior_art",
+            "04_self_description",
         ),
         features_absent=(HEALTH,),
         required=("00_build", "14_container", "21_archetype", "33_coupling", "70_pip_audit"),
@@ -197,6 +201,10 @@ def test_gather_facts_never_gated_is_unknown_not_lacking() -> None:
         "45_docstrings",
         "01_source_coherence",
         "21_archetype",
+        "19_context_budget",
+        "18_api_contracts",
+        "17_prior_art",
+        "04_self_description",
     )
     assert facts.branch == "" and facts.enforcement == "" and facts.unreadable == ()
 

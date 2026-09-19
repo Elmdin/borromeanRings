@@ -68,7 +68,7 @@ git -C "$PROJECT_ROOT" ls-files --others --exclude-standard >>"$changed_file" 2>
 lockfile_exists=0
 [ -f "$PROJECT_ROOT/$lockfile" ] && lockfile_exists=1
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$changed_file" "$lockfile_exists" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$changed_file" "$lockfile_exists" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 

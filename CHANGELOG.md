@@ -13,6 +13,15 @@ queue is merged.
 ## [Unreleased]
 
 ### Fixed
+- Checks written after #222 reopened the working-directory import shadow (#240): 25
+  trusted steps in 19 check scripts started a bare `python3 -` from the governed
+  project, so a planted `meta_harness/` or `json.py` replaced their analysis (a
+  `json.py` could forge `40_test`'s `coverage_percent`). All now run through
+  `borromeanrings_py`. The guard that missed them was a hand-kept list of the 18 checks
+  #222 routed. It now covers every `checks/**/*.sh` by default, and only steps that run
+  the project's own code by design (pytest, pip-audit, `import <package>`) are exempt,
+  each with its reason. A behavioural test plants a decoy `meta_harness/` and asserts no
+  check imports it.
 - `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
   the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus

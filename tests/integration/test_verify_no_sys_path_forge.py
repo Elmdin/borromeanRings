@@ -137,6 +137,65 @@ def test_planted_json_cannot_forge_the_verdict(tmp_path: Path) -> None:
     )
 
 
+# A decoy ``meta_harness`` package: every check's trusted step imports meta_harness,
+# so this is the plant that reaches ALL of them, not just the verdict step. It records
+# each import to a marker OUTSIDE the project (so the tree the gate inspects is not
+# changed by the act of importing) and then fails the import.
+_DECOY_META_HARNESS = """\
+import os
+import sys
+
+with open(os.environ["BORROMEANRINGS_DECOY_MARKER"], "a", encoding="utf-8") as fh:
+    fh.write(" ".join(sys.argv) + "\\n")
+raise ImportError("decoy meta_harness imported from the governed project")
+"""
+
+
+def test_a_planted_meta_harness_is_never_imported_by_any_check(tmp_path: Path) -> None:
+    """#222 closed the verdict step; the checks written after it reopened the class.
+
+    Ten check scripts ran their trusted, meta_harness-importing step as a bare
+    ``python3 -`` from the project directory, so a planted ``meta_harness/`` replaced
+    the analysis behind 16_shellcheck, 19_context_budget and the rest. Every check
+    that runs on this fixture must import the REAL package.
+    """
+    project = _write(tmp_path / "proj", _FAILING_PROJECT)
+    decoy = project / "meta_harness"
+    decoy.mkdir()
+    (decoy / "__init__.py").write_text(_DECOY_META_HARNESS)
+    marker = tmp_path / "decoy-imported"
+
+    probe = subprocess.run(
+        [sys.executable, "-c", "import meta_harness"],
+        cwd=project,
+        env={**os.environ, "BORROMEANRINGS_DECOY_MARKER": str(marker)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert probe.returncode != 0 and marker.exists(), (
+        "the decoy did not win the import race from the project root — the test "
+        f"would prove nothing. stderr={probe.stderr!r}"
+    )
+    marker.unlink()
+
+    env = dict(os.environ)
+    env["BORROMEANRINGS_PROJECT"] = str(project)
+    env["BORROMEANRINGS_DECOY_MARKER"] = str(marker)
+    proc = subprocess.run(
+        ["bash", str(VERIFY)],
+        env=env,
+        cwd=str(project),
+        capture_output=True,
+        text=True,
+        timeout=GATE_TIMEOUT_S,
+    )
+    assert not marker.exists(), (
+        "a check imported meta_harness from the governed project:\n"
+        f"{marker.read_text()}\n--- gate output ---\n{proc.stdout}{proc.stderr}"
+    )
+
+
 # The gate's own trusted machinery: verify.sh (verdict, language detect) and
 # checks/_lib.sh (emit_receipt, config read). Every interpreter start here must go
 # through borromeanrings_py, defined only in checks/_py.sh.
@@ -148,29 +207,23 @@ _PYTHON = re.compile(r"\bpython3\b")
 # ``-PI`` / ``-sP`` (which evade a plain ``-[IP]\b``, #224 review S4).
 _BANNED_FLAGS = re.compile(r"python3\s+-[A-Za-z]*[IP]")
 
-# The 18 analysis heredocs whose stdout/exit code becomes a required check's status.
-# #222 routed every one through borromeanrings_py; if any reverts to a bare ``python3
-# -``/``-c`` the shadow reopens for that check, so guard the property directly (the
-# behavioral test above uses language="none" and exercises none of them).
-_ROUTED_HEREDOC_CHECKS = (
-    "checks/shared/05_hygiene.sh",
-    "checks/shared/06_git_identity.sh",
-    "checks/shared/07_layout.sh",
-    "checks/shared/08_branch.sh",
-    "checks/shared/09_commits.sh",
-    "checks/shared/11_changelog.sh",
-    "checks/shared/12_secrets.sh",
-    "checks/shared/13_adr.sh",
-    "checks/shared/14_container.sh",
-    "checks/shared/15_a11y.sh",
-    "checks/python/32_complexity.sh",
-    "checks/python/33_coupling.sh",
-    "checks/python/34_api_diff.sh",
-    "checks/python/35_architecture.sh",
-    "checks/python/45_docstrings.sh",
-    "checks/python/55_doc_drift.sh",
-    "checks/python/56_critics.sh",
-    "checks/ci/74_secret_history.sh",
+# Every check script is covered BY DEFAULT. This used to be a hand-kept list of the 18
+# checks #222 routed; each check written after it was never added, and ten of them
+# shipped a bare ``python3 -`` that a planted ``meta_harness/`` could replace. A list
+# of what to guard falls behind; a list of what to EXEMPT has to be argued for.
+#
+# The only exemptions are steps that run the PROJECT's own code or environment by
+# design — already untrusted (a conftest.py can forge them regardless of cwd; #218,
+# M7), so routing them through a neutral cwd would protect nothing and break them.
+_PROJECT_CODE_RUNS = (
+    (re.compile(r"python3 -m (pytest|pip_audit)\b"), "runs the project's tool, by design"),
+    (re.compile(r"command -v python3\b"), "a presence probe; starts no interpreter"),
+    (re.compile(r"required tool 'python3'"), "message text"),
+    (re.compile(r'python3 -c \\"import \$package\\"'), "00_build imports the package"),
+    (
+        re.compile(r'^\s*cd "\$PROJECT_ROOT" && python3 - <<'),
+        "27_properties asks whether the PROJECT's env has the runner it is about to use",
+    ),
 )
 
 
@@ -204,20 +257,21 @@ def test_gate_trusted_python_runs_through_the_neutral_cwd_helper() -> None:
     assert not offenders, "\n".join(offenders)
 
 
-def test_routed_analysis_heredocs_stay_routed() -> None:
-    """#224 review S3: the 18 verdict-deciding heredocs must keep routing through
-    borromeanrings_py. Each must invoke it and must NOT name a bare ``python3``
-    interpreter start (these files run no tool, so every ``python3`` here would be a
-    trusted call that regressed off the helper)."""
+def test_every_check_routes_its_trusted_python() -> None:
+    """#224 review S3, generalised: no check script may start a trusted interpreter
+    outside ``borromeanrings_py``. Covers every ``checks/**/*.sh`` — including checks
+    that do not exist yet — so a new check cannot reopen the shadow by omission."""
     offenders: list[str] = []
-    for rel in _ROUTED_HEREDOC_CHECKS:
-        text = (BORROMEANRINGS_HOME / rel).read_text()
-        if "borromeanrings_py" not in text:
-            offenders.append(f"{rel}: no longer invokes borromeanrings_py")
+    scripts = sorted((BORROMEANRINGS_HOME / "checks").rglob("*.sh"))
+    assert len(scripts) > 20, "the check corpus was not found — this guard would be vacuous"
+    for script in scripts:
+        rel = script.relative_to(BORROMEANRINGS_HOME).as_posix()
+        if rel == "checks/_py.sh":
+            continue  # defines the helper; guarded by the test above
         for number, line, code in _code_lines(rel):
             if _BANNED_FLAGS.search(code):
                 offenders.append(f"{rel}:{number}: banned flag: {line.strip()}")
-            elif _PYTHON.search(code):
+            elif _PYTHON.search(code) and not any(rx.search(code) for rx, _ in _PROJECT_CODE_RUNS):
                 offenders.append(
                     f"{rel}:{number}: bare python3 (must be borromeanrings_py): {line.strip()}"
                 )

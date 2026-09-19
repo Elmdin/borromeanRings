@@ -15,7 +15,7 @@ id="18_api_contracts"
 log="$RECEIPT_DIR/$id.log"
 cmd="API-usage contracts (declared [api_contracts] rules over every call site)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+borromeanrings_py - \
   "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path

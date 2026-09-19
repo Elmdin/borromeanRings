@@ -28,6 +28,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+from shell_text import code_part
+
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 
@@ -199,7 +202,7 @@ def _code_lines(rel: str):
     for number, line in enumerate((BORROMEANRINGS_HOME / rel).read_text().splitlines(), 1):
         if line.lstrip().startswith("#"):
             continue
-        yield number, line, line.split("#", 1)[0]
+        yield number, line, code_part(line)
 
 
 def test_gate_trusted_python_runs_through_the_neutral_cwd_helper() -> None:
@@ -387,3 +390,21 @@ def test_planted_compileall_cannot_forge_the_build_check(tmp_path: Path) -> None
     status = json.loads((receipt_dir / "00_build.json").read_text()).get("status")
     assert proc.returncode != 0, f"00_build passed a syntax-error tree; rc={proc.returncode}"
     assert status == "fail", f"00_build receipt should be fail, got {status!r}"
+
+
+@pytest.mark.parametrize(
+    ("line", "code"),
+    [
+        ("echo hi  # a comment", "echo hi  "),
+        ("# whole-line comment", ""),
+        (': "#hide" ; python3 - "$x" <<\'PY\'', ': "#hide" ; python3 - "$x" <<\'PY\''),
+        (": '#hide' ; python3 -", ": '#hide' ; python3 -"),
+        ("echo a\\#b python3 -", "echo a\\#b python3 -"),
+        ('url="http://x/#frag"; python3 -', 'url="http://x/#frag"; python3 -'),
+        ("echo ${#arr[@]} # count", "echo ${#arr[@]} "),
+    ],
+)
+def test_comment_stripping_respects_quotes(line: str, code: str) -> None:
+    """Third review of #241: a `#` inside quotes is not a comment, and splitting on it
+    hid a following `python3 -` from both routing tests."""
+    assert code_part(line) == code

@@ -32,6 +32,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from shell_text import code_part
+
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 LANES = ("shared", "python")
@@ -61,25 +63,31 @@ fi
 exec "$REAL_PYTHON3" "$@"
 """
 
-_HEREDOC = re.compile(r"<<-?\s*'(\w+)'")
+_HEREDOC = re.compile(r"<<(-?)\s*'(\w+)'")
 
 
-def _trusted_programs() -> dict[str, str]:
-    """``{sha256: "<script>:<line>"}`` for every heredoc program importing meta_harness."""
-    found: dict[str, str] = {}
+def _trusted_programs() -> dict[str, list[str]]:
+    """``{sha256: ["<script>:<line>", …]}`` for every heredoc program importing
+    meta_harness. A list, so two byte-identical programs are both expected."""
+    found: dict[str, list[str]] = {}
     for lane in LANES:
         for script in sorted((BORROMEANRINGS_HOME / "checks" / lane).glob("[0-9]*.sh")):
             lines = script.read_text(encoding="utf-8").splitlines()
             rel = script.relative_to(BORROMEANRINGS_HOME).as_posix()
             for i, line in enumerate(lines):
-                m = _HEREDOC.search(line.split("#", 1)[0])
+                m = _HEREDOC.search(code_part(line))
                 if not m:
                     continue
-                end = next((k for k in range(i + 1, len(lines)) if lines[k] == m.group(1)), None)
-                assert end is not None, f"{rel}:{i + 1}: unterminated heredoc {m.group(1)}"
-                body = "\n".join(lines[i + 1 : end]).rstrip("\n")
+                dash, tag = m.groups()
+                # `<<-` strips leading tabs from the body AND the terminator, as bash does,
+                # so the hash matches what the shim is actually handed.
+                body_lines = [ln.lstrip("\t") if dash else ln for ln in lines[i + 1 :]]
+                end = next((k for k, ln in enumerate(body_lines) if ln == tag), None)
+                assert end is not None, f"{rel}:{i + 1}: unterminated heredoc {tag}"
+                body = "\n".join(body_lines[:end]).rstrip("\n")
                 if re.search(r"^(from|import) meta_harness", body, re.M):
-                    found[hashlib.sha256(body.encode()).hexdigest()] = f"{rel}:{i + 1}"
+                    digest = hashlib.sha256(body.encode()).hexdigest()
+                    found.setdefault(digest, []).append(f"{rel}:{i + 1}")
     return found
 
 
@@ -167,17 +175,18 @@ def test_every_trusted_check_program_runs_from_root(tmp_path: Path) -> None:
         runs.setdefault(digest, set()).add(cwd)
 
     programs = _trusted_programs()
-    assert len(programs) > 25, f"found only {sorted(programs.values())} — derivation broken"
+    locations = {where for wheres in programs.values() for where in wheres}
+    assert len(locations) > 25, f"found only {sorted(locations)} — derivation broken"
 
-    ran = {where for digest, where in programs.items() if digest in runs}
-    not_run = sorted(set(programs.values()) - ran - set(UNREACHABLE_HERE))
+    ran = {where for digest, wheres in programs.items() if digest in runs for where in wheres}
+    not_run = sorted(locations - ran - set(UNREACHABLE_HERE))
     assert not not_run, f"these trusted programs never ran here: {not_run}\n{output}"
     stale = sorted(set(UNREACHABLE_HERE) & ran)
     assert not stale, f"listed as unreachable but ran — remove the excuse: {stale}"
 
     outside = sorted(
-        f"{programs[d]} from {sorted(runs[d] - {'/'})}"
-        for d in programs
+        f"{', '.join(wheres)} from {sorted(runs[d] - {'/'})}"
+        for d, wheres in programs.items()
         if runs.get(d, {"/"}) != {"/"}
     )
     assert not outside, f"trusted programs started outside /: {outside}"

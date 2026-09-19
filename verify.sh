@@ -21,7 +21,8 @@ PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 # and friends override `git -C`, so an inherited pair pointing at a clean decoy made every
 # git-reading check (12_secrets first among them) inspect the decoy instead (#250 review).
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
-  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE \
+  GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS # config injected by environment, too
 export BORROMEANRINGS_HOME PROJECT_ROOT
 
 # borromeanrings_py: the gate's trusted Python must run from a neutral directory,

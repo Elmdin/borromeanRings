@@ -140,3 +140,28 @@ def test_git_environment_redirection_cannot_point_the_scan_elsewhere(tmp_path: P
     )
     assert proc.returncode != 0, proc.stdout
     assert "12_secrets" in proc.stdout and "FAIL" in proc.stdout, proc.stdout
+
+
+def test_a_git_pointer_to_an_unrelated_repository_fails_closed(tmp_path: Path) -> None:
+    """Second review of #250: a `.git` FILE (gitdir pointer) aimed at a decoy repository
+    made ls-files list the decoy's paths, none of which exist here; every path was
+    'absent', nothing was read, and the result was a hollow PASS over a real secret.
+    An index none of whose files exist in the working tree does not describe this
+    directory, so it is a failure, not a noop. (A decoy crafted to share this project's
+    filenames is intent-level forgery, outside the stated trust boundary; ADR-0084.)"""
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "borromeanrings.toml").write_text(CONFIG, encoding="utf-8")
+    (project / "creds.py").write_text(f'aws_secret_access_key = "{_AWS_SECRET}"\n', "utf-8")
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=decoy, check=True)
+    (decoy / "unrelated.txt").write_text("nothing here\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=decoy, check=True)
+    (project / ".git").write_text(f"gitdir: {decoy / '.git'}\n", encoding="utf-8")
+
+    status, log, code = _status(project)
+
+    assert status == "fail", log
+    assert code != 0
+    assert "none of the" in log and "exist" in log

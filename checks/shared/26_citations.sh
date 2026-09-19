@@ -77,7 +77,7 @@ if ! tracked="$(git -C "$PROJECT_ROOT" ls-files 2>>"$log")"; then
   fail_closed "git ls-files failed inside a repository — failing closed"
 fi
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+borromeanrings_py - \
   "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" "$changed" "$tracked" >>"$log" 2>&1 <<'PY'
 import re
 import sys

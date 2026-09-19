@@ -116,3 +116,32 @@ def test_init_installs_the_skills(tmp_path: Path) -> None:
         assert placeholder not in doc.read_text(encoding="utf-8"), (
             f"{doc.name} still carries the unsubstituted home placeholder"
         )
+
+
+def test_init_makes_a_bare_directory_a_git_repository_and_says_so(tmp_path: Path) -> None:
+    """ADR-0084 (#236): nearly every check assumes version control, and `12_secrets`
+    fails closed without it. A new project gets a repository rather than a gate that
+    starts red, and init.sh says it made one."""
+    project = tmp_path / "bare"
+    project.mkdir()
+    result = subprocess.run(
+        ["bash", str(INIT), str(project)], capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0, result.stderr
+    assert (project / ".git").is_dir()
+    assert "initialised a git repository" in result.stdout
+
+
+def test_init_leaves_an_existing_repository_alone(tmp_path: Path) -> None:
+    project = tmp_path / "repo"
+    project.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "trunk"], cwd=project, check=True)
+    result = subprocess.run(
+        ["bash", str(INIT), str(project)], capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0, result.stderr
+    assert "initialised a git repository" not in result.stdout
+    head = subprocess.run(
+        ["git", "symbolic-ref", "--short", "HEAD"], cwd=project, capture_output=True, text=True
+    )
+    assert head.stdout.strip() == "trunk", "an existing repository is not re-initialised"

@@ -53,7 +53,7 @@ Logic lives in `meta_harness.collaboration` (pure functions: `branch_violation()
    uses to bypass the discipline ("the gate is slow", "this change is trivial"), (b) red
    flags that it is drifting, (c) how to verify compliance. Pure docs; template defined
    once and reused.
-2. **`11_skill_anatomy` gate check** (increment 3): deterministic validator for every
+2. **`skill_anatomy` gate check** (increment 3): deterministic validator for every
    `skills/*/SKILL.md` — YAML frontmatter present with `name` + non-empty `description`;
    `name` matches its directory; required sections present; length bounds; **exemptions
    owned by the validator config, not by the skill being validated** (a skill cannot
@@ -71,8 +71,8 @@ Logic lives in `meta_harness.collaboration` (pure functions: `branch_violation()
 |---|---|---|
 | 0 | Gitflow infra (**live**) | `dev` exists, protected like `main`, default branch; CI push-trigger includes `dev` |
 | 1 | Tier A checks + guard + `[collaboration]` | Checks in required set; borromeanRings's own branches/commits pass; unit tests at baseline; gate green |
-| 2 | Anti-rationalization sections | `AGENTS.md` + all skills carry the template; `11_skill_anatomy` (when it lands) asserts presence |
-| 3 | `11_skill_anatomy` | In required set; all existing skills pass; ADR recorded |
+| 2 | Anti-rationalization sections | `AGENTS.md` + all skills carry the template; `skill_anatomy` (when it lands) asserts presence |
+| 3 | `skill_anatomy` | In required set; all existing skills pass; ADR recorded |
 | 4 | Distribution packaging | Plugin installable from a clean machine; getting-started verified |
 | 5 | Second adapter + adapter contract | Same gate verdict produced under the second substrate on a sample project; ADR recorded |
 | — | Tier B reconciler, Tier C stewardship monitors | Specced separately when reached (Lean: not before) |

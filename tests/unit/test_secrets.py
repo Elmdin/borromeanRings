@@ -1,9 +1,10 @@
 """Native secret scanning. Example secrets are built at runtime so this file's
 source contains no literal token (nothing for the scanner to self-flag). ADR-0032."""
 
+import os
 from pathlib import Path
 
-from meta_harness.secrets import scan_files, scan_text
+from meta_harness.secrets import scan_files, scan_paths, scan_text
 
 # Constructed at runtime — no literal secret appears in this source file.
 _AWS = "AKIA" + "1234567890ABCDEF"
@@ -162,3 +163,34 @@ def test_the_allow_marker_is_line_scoped_and_a_formatter_can_break_it() -> None:
     assert not scan_text(f"{literal}  # borromeanrings: allow-secret")  # on the line
     assert scan_text(f"# borromeanrings: allow-secret\n{literal}")  # a line above: NOT honoured
     assert scan_text(f"{literal}\n# borromeanrings: allow-secret")  # a line below: NOT honoured
+
+
+def test_scan_paths_accounts_for_every_path(tmp_path: Path) -> None:
+    """Every tracked path is scanned, unreadable, absent, or skipped, and the report
+    says which. Nothing is dropped without a trace (review of #250)."""
+    good = tmp_path / "good.py"
+    good.write_text("x = 1\n", encoding="utf-8")
+    binary = tmp_path / "blob.bin"
+    binary.write_bytes(b"\xff\xfe\x00\x81")
+    submodule = tmp_path / "vendor"
+    submodule.mkdir()
+    locked = tmp_path / "locked.txt"
+    locked.write_text("y = 2\n", encoding="utf-8")
+    locked.chmod(0)
+    try:
+        report = scan_paths([good, binary, submodule, locked, tmp_path / "gone.py"])
+    finally:
+        locked.chmod(0o644)
+    assert report.scanned == 1 and report.findings == ()
+    assert report.absent == (str(tmp_path / "gone.py"),)
+    assert set(report.skipped) == {str(binary), str(submodule)}
+    if os.geteuid() != 0:  # root reads a mode-000 file anyway
+        assert report.unreadable == (str(locked),)
+
+
+def test_scan_paths_reports_findings_from_scanned_files(tmp_path: Path) -> None:
+    creds = tmp_path / "creds.py"
+    creds.write_text('KEY = "AKIA' + '1234567890ABCDEF"\n', encoding="utf-8")
+    report = scan_paths([creds])
+    assert report.scanned == 1
+    assert [f.kind for f in report.findings] == ["aws-access-key-id"]

@@ -20,8 +20,12 @@ queue is merged.
   `borromeanrings_py`. The guard that missed them was a hand-kept list of the 18 checks
   #222 routed. It now covers every `checks/**/*.sh` by default, and only steps that run
   the project's own code by design (pytest, pip-audit, `import <package>`) are exempt,
-  each with its reason. A behavioural test plants a decoy `meta_harness/` and asserts no
-  check imports it.
+  each with its reason. It also flags the known indirect starts (an interpreter path
+  captured into a variable, a variable run with `-`/`-c`, other spellings), which no
+  text scan can rule out entirely. The proof is behavioural: a `python3` shim records
+  where every trusted program starts, on a fixture requiring every shared and Python
+  check, and each one must have run, from `/`, without importing a planted decoy. The
+  heavy (CI) lane is covered by the static guard only.
 - `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
   the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus

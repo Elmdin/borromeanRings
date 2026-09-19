@@ -18,7 +18,7 @@ cmd="context budget (ratchet vs baseline)"
 # The python step prints the report, then the total on the LAST line. Exit 3 ⇒ nothing
 # measurable (BORROMEANRINGS_NOOP_EXIT); the directive is built from the project's
 # [context] only when [prompt_rewriting].enabled, exactly as the hook would inject it.
-report="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$BORROMEANRINGS_NOOP_EXIT" <<'PY'
+report="$(borromeanrings_py - "$PROJECT_ROOT" "$BORROMEANRINGS_NOOP_EXIT" <<'PY'
 import sys
 from pathlib import Path
 
@@ -72,6 +72,6 @@ else
   fi
 fi
 
-extra="$(python3 -c "import json,sys; print(json.dumps({'context_bytes': int(sys.argv[1]), 'context_baseline': (int(sys.argv[2]) if sys.argv[2].isdigit() else None)}))" "$current" "${baseline:-}" 2>/dev/null || echo '')"
+extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'context_bytes': int(sys.argv[1]), 'context_baseline': (int(sys.argv[2]) if sys.argv[2].isdigit() else None)}))" "$current" "${baseline:-}" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

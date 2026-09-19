@@ -24,7 +24,7 @@ if [ ! -f "$manifest" ]; then
   exit 0
 fi
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$manifest" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$manifest" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 

@@ -48,7 +48,7 @@ if ! src_dir="$(borromeanrings_project_cfg src_dir 2>>"$log")" || [ -z "$src_dir
   exit 1
 fi
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
+borromeanrings_py - \
   "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" "$branch" "$merge_base" "$git_prefix" "$src_dir" "$changed" >"$log" 2>&1 <<'PY'
 import subprocess  # nosec B404 — fixed argv, no shell; only reads git objects
 import sys

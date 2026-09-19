@@ -13,14 +13,22 @@ import os
 import shutil
 import tempfile
 
-_STATE_HOME = tempfile.mkdtemp(prefix="borromeanrings-test-state-")
+_ORIGINAL = os.environ.get("XDG_STATE_HOME")
 
 
 def pytest_configure(config: object) -> None:
-    """Point every gate run in this session at a private state root."""
-    os.environ["XDG_STATE_HOME"] = _STATE_HOME
+    """Point every gate run in this session at a private state root.
+
+    Created here, not at import, so merely importing this module (a collection-only
+    run, a tool that loads conftest) leaves nothing behind.
+    """
+    os.environ["XDG_STATE_HOME"] = tempfile.mkdtemp(prefix="borromeanrings-test-state-")
 
 
 def pytest_unconfigure(config: object) -> None:
-    """Remove the session's state root; it holds nothing a later run needs."""
-    shutil.rmtree(_STATE_HOME, ignore_errors=True)
+    """Remove the session's state root and restore what the environment had."""
+    shutil.rmtree(os.environ["XDG_STATE_HOME"], ignore_errors=True)
+    if _ORIGINAL is None:
+        os.environ.pop("XDG_STATE_HOME", None)
+    else:
+        os.environ["XDG_STATE_HOME"] = _ORIGINAL

@@ -161,6 +161,35 @@ class Verdict:
         }
 
 
+def advisory_failures(receipt_dir: Path | str, expected: Iterable[str]) -> tuple[str, ...]:
+    """``"<check> (<status>)"`` for each failing receipt OUTSIDE the expected set.
+
+    Every check in a lane runs; only the expected set decides the verdict. A check
+    outside it that fails still writes its ``fail`` receipt, and a failure the run dir
+    records but the verdict never mentions is the hollow shape in the reporting layer
+    (#229). The gate prints these as advisory; they never change ``ok``.
+
+    The run dir's JSON is untrusted: anything that is not an object naming its own file
+    as its ``check`` (a list, a string, a scratch file, an unreadable one) is skipped,
+    never raised on.
+    """
+    wanted = set(expected)
+    found: list[str] = []
+    for path in sorted(Path(receipt_dir).glob("*.json")):
+        if path.stem in wanted:
+            continue
+        try:
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(receipt, dict) or receipt.get("check") != path.stem:
+            continue
+        status = receipt.get("status")
+        if isinstance(status, str) and is_failing(status):
+            found.append(f"{path.stem} ({status})")
+    return tuple(found)
+
+
 def _parse(data: object) -> Verdict | None:
     """Validate a decoded JSON value into a :class:`Verdict`, or ``None`` if malformed."""
     if not isinstance(data, dict):

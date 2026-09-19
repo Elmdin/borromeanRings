@@ -95,27 +95,47 @@ if [ -z "$git_action" ]; then
   esac
 fi
 
-# Protected-branch guard (Tier A collaboration): block 'git commit'/'git push'
-# while ON a declared [collaboration].protected_branches branch — work belongs on
-# feature branches (Gitflow-lite, ADR-0021). Local aid; the platform branch
-# protection is the backstop. Fail-open on any error.
-case "$git_action" in
-  commit | push)
+# Protected-branch guard (trunk-based policy, ADR-0058, issue #75): deny any
+# command that would land work directly on a declared
+# [collaboration].protected_branches branch — commit/merge/rebase/cherry-pick/
+# reset while ON one, a push to one in ANY spelling (origin main, HEAD:main,
+# +main, refs/heads/main, --delete, --all), or deleting/force-moving one locally.
+# The decision is meta_harness.trunk_policy (pure, unit-tested per matrix row);
+# HEAD is read with a fixed argv. Fail-open on any error; server-side protection
+# (#60) is the backstop. See docs/specs/SPEC-branch-policy.md.
+#
+# Its own pre-filter, deliberately broader than the identity guard's `$git_action`:
+# a repo alias (`git p origin main`) names neither `commit` nor `push`, so only the
+# alias-resolving parser below can see what it does. Keying this guard on
+# `$git_action` made every alias invisible to it.
+case "$cmd" in
+  *git*)
     branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
-    reason="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - \
+    reason="$(BORROMEANRINGS_GUARD_CMD="$cmd" \
+      PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - \
       "$PROJECT_DIR/borromeanrings.toml" "$branch" 2>/dev/null <<'PY'
+import os
 import sys
 
 try:
     from meta_harness.spine import load_config
+    from meta_harness.trunk_policy import branch_policy_violation
+    from meta_harness.trunk_policy_git import facts_resolver, repo_aliases
 
     cfg = load_config(sys.argv[1])
-    branch = sys.argv[2]
-    if branch in cfg.collaboration_protected_branches:
-        print(
-            f"'{branch}' is a protected branch (Gitflow-lite, ADR-0021): commit on a "
-            f"work branch instead (e.g. feat/<name>, fix/<name>) and merge via PR."
-        )
+    protected = cfg.collaboration_protected_branches
+    project = os.path.dirname(os.path.abspath(sys.argv[1]))
+    # Aliases are resolved (git p == git push) and each invocation is judged in its
+    # own effective directory (cd …, -C, --git-dir); see PR #169 review.
+    reason = branch_policy_violation(
+        os.environ.get("BORROMEANRINGS_GUARD_CMD", ""),
+        sys.argv[2],
+        protected,
+        aliases=repo_aliases(project),
+        facts_at=facts_resolver(project, protected),
+    )
+    if reason:
+        print(reason)
 except Exception:
     pass  # fail open — the platform protection is the backstop
 PY

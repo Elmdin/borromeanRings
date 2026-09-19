@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from meta_harness.evidence import Evidence, Intent
@@ -17,6 +18,7 @@ from meta_harness.verdict import (
     RewriteTally,
     SelfReportTally,
     Verdict,
+    advisory_failures,
     append_history,
     append_rewrite_record,
     append_self_report_record,
@@ -474,3 +476,48 @@ def test_status_label_keeps_the_row_to_one_bounded_line() -> None:
     long = "x" * 200
     label = status_label("pass", long)
     assert label.startswith("PASS (") and label.endswith("...)") and len(label) <= 100
+
+
+# --- advisory_failures: failing checks outside the expected set (#229) --------------
+
+
+def _receipt(run_dir: Path, name: str, body: object) -> None:
+    (run_dir / f"{name}.json").write_text(json.dumps(body), encoding="utf-8")
+
+
+def test_advisory_failures_names_failing_checks_outside_the_expected_set(tmp_path: Path) -> None:
+    _receipt(tmp_path, "05_hygiene", {"check": "05_hygiene", "status": "fail"})  # expected
+    _receipt(tmp_path, "06_git_identity", {"check": "06_git_identity", "status": "fail"})
+    _receipt(tmp_path, "14_container", {"check": "14_container", "status": "error"})
+    _receipt(tmp_path, "15_a11y", {"check": "15_a11y", "status": "noop"})
+    _receipt(tmp_path, "16_shellcheck", {"check": "16_shellcheck", "status": "pass"})
+    assert advisory_failures(tmp_path, ("05_hygiene",)) == (
+        "06_git_identity (fail)",
+        "14_container (error)",
+    )
+
+
+def test_advisory_failures_skips_anything_that_is_not_a_receipt(tmp_path: Path) -> None:
+    """The run dir's JSON is untrusted: none of these may raise or be reported."""
+    (tmp_path / "zz_list.json").write_text("[1, 2]", encoding="utf-8")
+    (tmp_path / "zz_str.json").write_text('"text"', encoding="utf-8")
+    (tmp_path / "zz_broken.json").write_text("{not json", encoding="utf-8")
+    _receipt(tmp_path, "zz_nocheck", {"status": "fail"})
+    _receipt(tmp_path, "zz_other", {"check": "someone_else", "status": "fail"})
+    _receipt(tmp_path, "zz_badstatus", {"check": "zz_badstatus", "status": 17})
+    assert advisory_failures(tmp_path, ()) == ()
+
+
+def test_advisory_failures_of_an_empty_or_absent_run_dir_is_empty(tmp_path: Path) -> None:
+    assert advisory_failures(tmp_path, ()) == ()
+    assert advisory_failures(tmp_path / "missing", ()) == ()
+
+
+def test_advisory_failures_survives_hostile_filesystem_shapes(tmp_path: Path) -> None:
+    """Review of #249: a directory named like a receipt, a symlink loop, non-UTF-8 bytes
+    and JSON null are all data the scan must step over, never raise on."""
+    (tmp_path / "zz_dir.json").mkdir()
+    (tmp_path / "zz_loop.json").symlink_to(tmp_path / "zz_loop.json")
+    (tmp_path / "zz_bytes.json").write_bytes(b'{"check": "zz_bytes", "status": "\xff\xfe"}')
+    (tmp_path / "zz_null.json").write_text("null", encoding="utf-8")
+    assert advisory_failures(tmp_path, ()) == ()

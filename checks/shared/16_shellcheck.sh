@@ -34,7 +34,7 @@ fi
 # The file list comes from git when the project is a repo (tracked shell only, so a
 # scratch script never fails someone's gate) and from a bounded filesystem walk when it
 # is not — the same tracked-vs-walk split 01_source_coherence uses, reusing its helper.
-files="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" <<'PY'
+files="$(borromeanrings_py - "$PROJECT_ROOT" <<'PY'
 import subprocess  # nosec B404 — fixed argv, no shell; only queries git
 import sys
 from pathlib import Path
@@ -95,7 +95,7 @@ fi
 # declared policy rather than hardcoded here. Python emits one value per line, so nothing
 # has to parse a tuple repr out of a string.
 cfg_lines() {
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$1" <<'CFG'
+  borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$1" <<'CFG'
 import sys
 
 from meta_harness.spine import load_config

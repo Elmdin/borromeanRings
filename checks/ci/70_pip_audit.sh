@@ -24,7 +24,7 @@ raw="$RECEIPT_DIR/$id.report.json"
 borromeanrings_run_bounded "$RECEIPT_DIR/$id.tool.log" \
   "python3 -m pip_audit --format json --progress-spinner off > '$raw'" || true
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$raw" "$PROJECT_ROOT/pyproject.toml" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$raw" "$PROJECT_ROOT/pyproject.toml" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 

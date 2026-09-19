@@ -15,7 +15,7 @@ cmd="quote fidelity (marked quotations verbatim vs saved sources)"
 
 # Exit 3 ⇒ nothing to inspect (BORROMEANRINGS_NOOP_EXIT); 0 ⇒ all verbatim; 1 ⇒ a
 # non-verbatim quotation, or a file that exists but cannot be read (fail closed).
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$BORROMEANRINGS_NOOP_EXIT" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT" "$BORROMEANRINGS_NOOP_EXIT" >"$log" 2>&1 <<'PY'
 import os
 import sys
 from pathlib import Path

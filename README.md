@@ -7,10 +7,6 @@
 >
 > The specific gaps holding this notice in place, so you can judge for yourself:
 >
-> - **#236** — `12_secrets` is not in the required set a new project gets from
->   `init.sh`, because it fails closed outside a git repository while `init.sh` must
->   produce a project that gates green. So a freshly initialised project does not gate
->   secrets at all until it is configured to.
 > - **#144 / #145** — the gate runs the project's code as your user, so it cannot bound
 >   an agent that is actively trying to defeat it. See the trust boundary below.
 > - The PR queue is still draining, so `dev` is moving daily.
@@ -21,7 +17,9 @@
 > audited whatever was installed on the machine rather than the project's own
 > dependencies), **#219** (adoption never gave a project the ignore entry the harness
 > assumes, which made the secret gate fail on the harness's own logs and stay failing
-> after the secret was deleted).
+> after the secret was deleted), **#229** (a check outside the required set could fail
+> and the verdict never mention it), **#236** (a freshly initialised project did not gate
+> secrets at all).
 >
 > This notice goes when the rest close — not when the feature list is finished.
 
@@ -66,21 +64,22 @@ them.
 **A green** — every required check inspected something and found nothing wrong:
 
 ```text
-$ BORROMEANRINGS_PROJECT=/tmp/borromeanrings-demo.lvUAFn ~/borromeanRings/verify.sh
+$ BORROMEANRINGS_PROJECT=/tmp/borromeanrings-demo.70WilY ~/borromeanRings/verify.sh
 
-  borromeanRings gate  (project: /tmp/borromeanrings-demo.lvUAFn)
-  harness-version: 8daa73e
+  borromeanRings gate  (project: /tmp/borromeanrings-demo.70WilY)
+  harness-version: 51ff4cf
   --------------------------
   00_build       PASS
   05_hygiene     PASS
   10_format      PASS
+  12_secrets     PASS
   20_lint        PASS
   30_typecheck   PASS
   40_test        PASS
   50_security    PASS
   --------------------------
   RESULT: PASS
-  run-digest: efb83519cf286327865b64ab2cea0c2a53dc3bb21f13d2b49b592c49fb818587
+  run-digest: d1e5115579e93994316dcae96bd5db34c5ec90451bf2604905c4cb5d049fdca6
 ```
 
 **A hollow green** — the same starter gate on an *empty* project. It still passes (a
@@ -91,13 +90,15 @@ nothing, because a green resting on those proves less than it looks like:
   00_build       NOOP
   05_hygiene     PASS
   10_format      PASS
+  12_secrets     NOOP
   20_lint        PASS
   30_typecheck   NOOP
   40_test        NOOP
   50_security    NOOP
   --------------------------
   RESULT: PASS
-  inspected NOTHING: 4 of 7 — 00_build, 30_typecheck, 40_test, 50_security
+  inspected NOTHING: 5 of 8 — 00_build, 12_secrets, 30_typecheck, 40_test, 50_security
+  run-digest: 8adf46ece5ca948e2c01af55cdaedc663702f484e1b2b1c6e48e59f43fe2eda8
 ```
 
 **A red** — `add()` was changed to `return "oops"`. The gate exits 1; the per-check logs
@@ -107,13 +108,15 @@ under `.meta-harness/receipts/<run-id>/` carry the mypy and pytest output:
   00_build       PASS
   05_hygiene     PASS
   10_format      PASS
+  12_secrets     PASS
   20_lint        PASS
   30_typecheck   FAIL
   40_test        FAIL
   50_security    PASS
   --------------------------
   RESULT: FAIL
-  run-digest: b82f6c4a7189ccc4cbfebd29d84979cf3c244ce13eac2da16ac1fd3c5fa1f384
+  run-digest: 3adc43f00b3a233536bc9f18540b968e2a748f9e10a2baef2a6f75a8bb2b8321
+  risk-band: RED · evidence: 8 receipt(s)
   One or more checks failed or produced no receipt; see logs in the run dir.
 ```
 
@@ -121,22 +124,28 @@ And `status.sh`, run from inside the governed project after `adopt.sh`, answers 
 question the raw verdict hides — was that green hollow, and is enforcement actually on?
 
 ```text
-$ cd /tmp/borromeanrings-demo.lvUAFn && ~/borromeanRings/status.sh
+$ cd /tmp/borromeanrings-demo.70WilY && ~/borromeanRings/status.sh
 
-  borromeanRings status — borromeanrings-demo.lvUAFn   (this project only)
+  borromeanRings status — borromeanrings-demo.70WilY   (this project only)
   ------------------------------------------------------------
-  Governed:     yes · 14 required check(s)
-  Last verdict: PASS · run 20260908T153759Z-780660 · by borromeanRings 8daa73e
-  ⚠ Hollow:     1 of 14 checks inspected NOTHING —
-                04_self_description
+  Governed:     yes · 18 required check(s)
+  Last verdict: PASS · run 20260919T122126Z-2835979 · by borromeanRings 51ff4cf
+  ⚠ Hollow:     3 of 18 checks inspected NOTHING —
+                21_archetype, 17_prior_art, 04_self_description
                 a green resting on these proves less than it looks like.
-  Enforcement: AUTO — 4/4 hooks wired to this borromeanRings
-  Installed:    borromeanRings 8daa73e at ~/borromeanRings
+  Risk band:    HOLLOW · evidence: 18 receipt(s) recorded
+  Intent:       master @ fd0d8eb883a9
+  Enforcement: AUTO — 6/6 hooks wired to this borromeanRings
+  Rewrite:      contract no record
+  Self-report:  no record
+  Installed:    borromeanRings 51ff4cf at ~/borromeanRings
   Re-gate:      ~/borromeanRings/verify.sh
 ```
 
-(`04_self_description` is `noop` there because the demo project's README states no
-check count — an honest nothing-to-verify, not a pass.)
+(Three checks are `noop` there, each for a stated reason: no `[project].archetypes` is
+declared, the demo repository has no `dev` or `main` branch to diff a new surface
+against, and its README states no check count. Each is an honest nothing-to-verify,
+not a pass.)
 
 ## Demo: watch the gate go red and back
 
@@ -236,8 +245,10 @@ Secret scanning is the one required check whose coverage is **partial**, and it 
 worth being specific rather than reassuring: `12_secrets` catches well-formed provider
 tokens and private-key blocks — an AWS access key *ID*, a GitHub PAT, a Slack token, a
 `BEGIN PRIVATE KEY` block — and by design does not guess at high-entropy strings. It
-does not yet catch the AWS secret access key, and `init.sh` does not put the check in a
-new project's default required set at all. Both are #230, and both are open.
+catches the AWS secret access key by name plus shape (an `aws…secret` / `aws…private`
+identifier assigned a 40-character key, in code, `.env` or `~/.aws/credentials` style),
+never by entropy alone (#230). It is in a new project's default required set, and
+`init.sh` makes sure the project is a git repository so it can run (ADR-0084).
 
 **It does not resist an agent that deliberately forges its verdict.** The gate runs
 the governed project's own test code, as your user, on your machine. That code can do

@@ -16,6 +16,7 @@
 #   ./status.sh --run [PATH ...]    # re-gate first (authoritative, slower)
 #   ./status.sh --list [PATH ...]   # just print discovered project paths
 #   ./status.sh --swe               # + the SWE-state report (practises / lacks / adopt next)
+#   ./status.sh --advise            # + the approach advice (questions to ask, approaches that fit)
 #
 # Advisory, not a gate: the read-only report always exits 0. Under --run, the exit code
 # is non-zero if any re-gated project fails (so it is CI-usable). See SPEC-status.md,
@@ -39,11 +40,13 @@ PY() {
 
 RUN=0
 SWE=0
+ADVISE=0
 args=()
 for a in "$@"; do
   case "$a" in
     --run) RUN=1 ;;
     --swe) SWE=1 ;;
+    --advise) ADVISE=1 ;;
     *) args+=("$a") ;;
   esac
 done
@@ -68,4 +71,7 @@ PY "${args[@]}"
 # self-status block does not answer (SPEC-swe-state.md, ADR-0067). Advisory: never
 # changes the exit code.
 [ "$SWE" = "1" ] && bash "$BORROMEANRINGS_HOME/swe-state.sh"
+# The right questions and approaches before building — advisory, never a gate
+# (SPEC-approach-advisor.md, ADR-0072). Never changes the exit code.
+[ "$ADVISE" = "1" ] && bash "$BORROMEANRINGS_HOME/advise.sh"
 exit "$rc"

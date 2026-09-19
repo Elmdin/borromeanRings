@@ -322,7 +322,24 @@ MALFORMED_CHARTERS = {
 
 def test_a_malformed_charter_degrades_to_a_question_instead_of_crashing(tmp_path: Path) -> None:
     """PR #207 blocker: `charter.get(...)` on a non-table raised AttributeError — a traceback
-    on stderr, EMPTY stdout and exit 0, with `--json` emitting nothing parseable."""
+    on stderr, EMPTY stdout and exit 0, with `--json` emitting nothing parseable.
+
+    A scalar `charter = "high"` is a config the spine now refuses outright (#244), so the
+    whole config is unreadable, and saying so is the honest advice. A table with a
+    mistyped field is a config the spine accepts, so only the charter is unreadable."""
+    expected = {
+        "scalar": (
+            "  1. config, charter could not be read — fix the record (borromeanrings.toml,"
+            " borromeanrings.toml [charter]) before building on it?  [SPEC-swe-state.md]\n",
+            ["config", "charter"],
+        ),
+        "listy": (
+            "  2. charter could not be read — fix the record (borromeanrings.toml [charter])"
+            " before building on it?  [SPEC-swe-state.md]\n",
+            ["charter"],
+        ),
+    }
+    assert set(expected) == set(MALFORMED_CHARTERS)
     for name, config in MALFORMED_CHARTERS.items():
         project = tmp_path / name
         project.mkdir()
@@ -330,15 +347,13 @@ def test_a_malformed_charter_degrades_to_a_question_instead_of_crashing(tmp_path
         proc = _run("advise.sh", project)
         assert proc.returncode == 0, proc.stderr
         assert "Traceback" not in proc.stderr, proc.stderr
-        assert (
-            "  2. charter could not be read — fix the record (borromeanrings.toml [charter])"
-            " before building on it?  [SPEC-swe-state.md]\n"
-        ) in proc.stdout, name
+        question, unreadable = expected[name]
+        assert question in proc.stdout, name
         # stakes are unknown, so nothing is said about reviewers or the heavy lane
         assert "stakes are" not in proc.stdout, name
         assert "· stakes: (no charter)\n" in proc.stdout, name
         as_json = json.loads(_run("advise.sh", project, "--json").stdout)  # parses ⇒ not empty
-        assert as_json["facts"]["unreadable"] == ["charter"]
+        assert as_json["facts"]["unreadable"] == unreadable, name
         assert as_json["facts"]["stakes"] == ""
 
 

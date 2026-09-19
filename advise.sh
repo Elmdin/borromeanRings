@@ -114,8 +114,9 @@ try:
 except (OSError, ValueError):
     unreadable.append("config")
 
-# [charter] is read raw because the spine does not model it on this base ("when present").
-# Every shape that is not "absent, or a table of strings" degrades to unknown-and-said-so:
+# [charter] is read raw, not through load_config, so a malformed charter is named as the
+# charter rather than only as an unreadable config (the spine refuses a scalar section
+# outright, and would then report the whole config). Every shape that is not "absent, or a table of strings" degrades to unknown-and-said-so:
 # a scalar `charter = "high"` (a plausible typo for `[charter]`) or a non-string field must
 # never crash a component contracted to always exit 0 with usable output.
 def read_charter(project):

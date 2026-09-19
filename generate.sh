@@ -134,7 +134,8 @@ LANE="fast"
 # that wraps a script in an interpreter ("bash x.sh") therefore records the interpreter —
 # point [generator].command at the script itself to be named by it. Self-declared and
 # never consulted by the gate, exactly like a git author line (ADR-0071 §4).
-export BORROMEANRINGS_GENERATOR="headless:$(basename "${GEN_COMMAND%% *}")"
+BORROMEANRINGS_GENERATOR="headless:$(basename "${GEN_COMMAND%% *}")"
+export BORROMEANRINGS_GENERATOR
 export BORROMEANRINGS_CAP="$CAP"
 
 # Wall-clock bound. Duplicated from checks/_lib.sh and .claude/hooks/_lib.sh rather than
@@ -302,6 +303,14 @@ abort() {
   finish 1 "escalated (the driver could not continue)"
 }
 
+# The receipt bundles on disk, one name per line, sorted: a glob, not parsed `ls` output.
+receipt_bundles() {
+  local dir
+  for dir in "$EVIDENCE/receipts"/*/; do
+    [ -d "$dir" ] && basename "$dir"
+  done | sort
+}
+
 finish() {
   local code="$1" action="$2"
   retry_state clear "$PROJECT_ROOT" "$STATE_KEY" >/dev/null
@@ -400,12 +409,12 @@ while :; do
 
   gate_ok=0
   if [ "$gen_code" -eq 0 ] && [ "$tree_changed" -eq 1 ]; then
-    bundles_before="$(ls -1 "$EVIDENCE/receipts" 2>/dev/null | sort)"
-    BORROMEANRINGS_PROJECT="$PROJECT_ROOT" bounded "${BORROMEANRINGS_GATE_TIMEOUT:-540}" \
-      bash "$BORROMEANRINGS_HOME/verify.sh"
-    [ $? -eq 0 ] && gate_ok=1
-    run_id="$(comm -13 <(printf '%s\n' "$bundles_before" | grep -v '^$') \
-      <(ls -1 "$EVIDENCE/receipts" 2>/dev/null | sort))"
+    bundles_before="$(receipt_bundles)"
+    if BORROMEANRINGS_PROJECT="$PROJECT_ROOT" bounded "${BORROMEANRINGS_GATE_TIMEOUT:-540}" \
+      bash "$BORROMEANRINGS_HOME/verify.sh"; then
+      gate_ok=1
+    fi
+    run_id="$(comm -13 <(printf '%s\n' "$bundles_before" | grep -v '^$') <(receipt_bundles))"
     case "$run_id" in
       '' | *"
 "*) abort "the gate produced $(printf '%s' "$run_id" | grep -c .) new receipt bundles; expected exactly one" ;;

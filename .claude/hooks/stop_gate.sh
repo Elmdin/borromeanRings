@@ -108,7 +108,7 @@ CAP="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   'from meta_harness.generator import CAP; print(CAP)' 2>/dev/null || true)"
 case "$CAP" in
   '' | *[!0-9]* | 0)
-    echo "borromeanRings: could not read the retry cap (got '$CAP') — failing closed to a single attempt." >&2
+    echo "borromeanRings: retry cap unreadable ('$CAP') — using 1 attempt." >&2
     CAP=1
     ;;
 esac
@@ -181,7 +181,7 @@ case "$verdict" in
     # Fail closed: without a durable count every Stop would read as attempt 1,
     # which is the unbounded loop this bound exists to stop. Escalate now.
     {
-      echo "ESCALATION: retry count unrecordable (${detail:-no answer from retry_state}) — the bound cannot hold, so over to the human, not an unbounded retry."
+      echo "ESCALATION: retry count unrecordable (${detail:-no answer}) — over to the human."
       echo "$summary"
     } >&2
     exit 0

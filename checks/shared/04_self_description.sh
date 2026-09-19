@@ -13,7 +13,7 @@ id="04_self_description"
 log="$RECEIPT_DIR/$id.log"
 cmd="self-description (README counts equal the check registry)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$BORROMEANRINGS_HOME" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT" "$BORROMEANRINGS_HOME" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 

@@ -37,7 +37,7 @@ known_checks="$(
   done
 )"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$known_checks" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT" "$known_checks" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 

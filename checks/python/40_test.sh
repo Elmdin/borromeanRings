@@ -111,11 +111,11 @@ if [ "$code" -eq 5 ]; then
 fi
 
 baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
-current="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['totals']['percent_covered'])" "$covjson" 2>/dev/null || echo 0)"
+current="$(borromeanrings_py -c "import json,sys; print(json.load(open(sys.argv[1]))['totals']['percent_covered'])" "$covjson" 2>/dev/null || echo 0)"
 
 status="fail"
 if [ "$code" -eq 0 ]; then
-  drop="$(python3 -c "import sys; print(1 if float(sys.argv[1]) + 1e-9 < float(sys.argv[2]) else 0)" "$current" "$baseline")"
+  drop="$(borromeanrings_py -c "import sys; print(1 if float(sys.argv[1]) + 1e-9 < float(sys.argv[2]) else 0)" "$current" "$baseline")"
   if [ "$drop" = "1" ]; then
     printf "\nCOVERAGE REGRESSION: %.2f%% is below baseline %.2f%%\n" "$current" "$baseline" >>"$log"
     code=1
@@ -124,6 +124,6 @@ if [ "$code" -eq 0 ]; then
   fi
 fi
 
-extra="$(python3 -c "import json,sys; print(json.dumps({'coverage_percent': round(float(sys.argv[1]),2), 'coverage_baseline': float(sys.argv[2])}))" "$current" "$baseline" 2>/dev/null || echo '')"
+extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'coverage_percent': round(float(sys.argv[1]),2), 'coverage_baseline': float(sys.argv[2])}))" "$current" "$baseline" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

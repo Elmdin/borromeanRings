@@ -96,13 +96,50 @@ def scan_text(text: str, path: str = "") -> list[SecretFinding]:
     return findings
 
 
-def scan_files(paths: list[Path]) -> list[SecretFinding]:
-    """Scan each readable text file in ``paths``; unreadable/binary files are skipped."""
+@dataclass(frozen=True)
+class ScanReport:
+    """What a scan did with every path it was given; nothing is dropped untraced.
+
+    ``unreadable`` (it exists and could not be read: a permission, an I/O error) is the
+    one a gate must fail on: the scan cannot say the file is clean. ``absent`` (tracked
+    but not in the working tree: deleted, sparse) and ``skipped`` (binary content, a
+    directory such as a submodule) cannot hold a text secret here, and are reported.
+    """
+
+    findings: tuple[SecretFinding, ...]
+    scanned: int
+    unreadable: tuple[str, ...]
+    absent: tuple[str, ...]
+    skipped: tuple[str, ...]
+
+
+def scan_paths(paths: list[Path]) -> ScanReport:
+    """Scan every path, and account for each one that was not scanned (#250 review)."""
     findings: list[SecretFinding] = []
+    scanned = 0
+    unreadable: list[str] = []
+    absent: list[str] = []
+    skipped: list[str] = []
     for path in paths:
+        if path.is_dir():
+            skipped.append(str(path))  # a submodule's gitlink, not a file
+            continue
         try:
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue  # binary or unreadable — not a text secret
+        except FileNotFoundError:
+            absent.append(str(path))
+            continue
+        except UnicodeDecodeError:
+            skipped.append(str(path))  # binary: not a text secret
+            continue
+        except OSError:
+            unreadable.append(str(path))
+            continue
+        scanned += 1
         findings.extend(scan_text(text, str(path)))
-    return findings
+    return ScanReport(tuple(findings), scanned, tuple(unreadable), tuple(absent), tuple(skipped))
+
+
+def scan_files(paths: list[Path]) -> list[SecretFinding]:
+    """Findings only; see :func:`scan_paths` for the accounting a gate needs."""
+    return list(scan_paths(paths).findings)

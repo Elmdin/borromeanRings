@@ -36,6 +36,10 @@ Building the fix exposed two more ways the check could pass without looking:
    git's error in the log, and an empty tracked set is `noop` ("no tracked files: nothing
    to scan yet"). A fresh project therefore gates green *honestly*, with `12_secrets`
    counted among the checks that inspected nothing until something is committed.
+   The PR's security review found two more routes, both closed before merge: a tracked
+   file that exists but cannot be read was skipped silently (it now fails closed, named),
+   and inherited `GIT_DIR` / `GIT_WORK_TREE` overrode `git -C` so the scan read a decoy
+   repository (`verify.sh` now unsets them for every check).
 
 ## Alternatives considered
 
@@ -56,8 +60,10 @@ Building the fix exposed two more ways the check could pass without looking:
 ## Consequences
 
 - (+) Every new project gates secrets from its first run.
-- (+) `12_secrets` has no remaining path to a vacuous `pass`: can't enumerate ⇒ `fail`,
-  nothing to enumerate ⇒ `noop`, otherwise ⇒ a real scan.
+- (+) Every route to a vacuous `pass` that the build and its review found is closed:
+  can't enumerate ⇒ `fail`; can't read a tracked file ⇒ `fail`; nothing to read ⇒ `noop`;
+  the environment cannot redirect which repository is read. "No route we know of" is the
+  claim; the review is why the list is longer than the first draft's.
 - (−) `init.sh` now writes a `.git` directory into a bare target. It is announced, and
   it is what a new project needs anyway, but it is a new side effect.
 - (−) Until the first commit, a fresh project's `12_secrets` is `noop`, and the hollow

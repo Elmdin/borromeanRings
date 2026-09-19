@@ -14,6 +14,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[2]
 VERIFY = REPO / "verify.sh"
 
@@ -78,3 +80,63 @@ def test_tracked_files_are_still_scanned_and_pass_when_clean(tmp_path: Path) -> 
 
     assert status == "pass", log
     assert code == 0
+
+
+_AWS_SECRET = "wJalrXUtnFEMI/" + "K7MDENG/bPxRfiCYEXAMPLEKEY"  # built at runtime
+
+
+def _commit_secret(project: Path) -> Path:
+    creds = project / "creds.py"
+    creds.write_text(f'aws_secret_access_key = "{_AWS_SECRET}"\n', encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=project, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "c"],
+        cwd=project,
+        check=True,
+    )
+    return creds
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-000 file anyway")
+def test_an_unreadable_tracked_file_fails_closed_rather_than_passing(tmp_path: Path) -> None:
+    """Review of #250: a tracked file the scan cannot open was skipped silently, so a
+    real secret in it gated PASS having scanned nothing."""
+    project = _repo(tmp_path)
+    creds = _commit_secret(project)
+    creds.chmod(0)
+    try:
+        status, log, code = _status(project)
+    finally:
+        creds.chmod(0o644)
+    assert status == "fail", log
+    assert code != 0
+    assert "could not read" in log and "creds.py" in log
+
+
+def test_git_environment_redirection_cannot_point_the_scan_elsewhere(tmp_path: Path) -> None:
+    """Review of #250: GIT_DIR / GIT_WORK_TREE override `git -C`, so an inherited pair
+    pointing at a clean decoy made the gate scan the decoy and pass a project with a
+    committed secret. The gate reads the project at PROJECT_ROOT, and only that."""
+    project = _repo(tmp_path)
+    _commit_secret(project)
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=decoy, check=True)
+    (decoy / "clean.txt").write_text("nothing here\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=decoy, check=True)
+
+    proc = subprocess.run(
+        ["bash", str(VERIFY)],
+        cwd=project,
+        env={
+            **os.environ,
+            "BORROMEANRINGS_PROJECT": str(project),
+            "GIT_DIR": str(decoy / ".git"),
+            "GIT_WORK_TREE": str(decoy),
+        },
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert proc.returncode != 0, proc.stdout
+    assert "12_secrets" in proc.stdout and "FAIL" in proc.stdout, proc.stdout

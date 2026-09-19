@@ -7,10 +7,6 @@
 >
 > The specific gaps holding this notice in place, so you can judge for yourself:
 >
-> - **#236** — `12_secrets` is not in the required set a new project gets from
->   `init.sh`, because it fails closed outside a git repository while `init.sh` must
->   produce a project that gates green. So a freshly initialised project does not gate
->   secrets at all until it is configured to.
 > - **#144 / #145** — the gate runs the project's code as your user, so it cannot bound
 >   an agent that is actively trying to defeat it. See the trust boundary below.
 > - The PR queue is still draining, so `dev` is moving daily.
@@ -21,7 +17,9 @@
 > audited whatever was installed on the machine rather than the project's own
 > dependencies), **#219** (adoption never gave a project the ignore entry the harness
 > assumes, which made the secret gate fail on the harness's own logs and stay failing
-> after the secret was deleted).
+> after the secret was deleted), **#229** (a check outside the required set could fail
+> and the verdict never mention it), **#236** (a freshly initialised project did not gate
+> secrets at all).
 >
 > This notice goes when the rest close — not when the feature list is finished.
 

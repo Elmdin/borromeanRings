@@ -24,7 +24,7 @@ src_dir="$(borromeanrings_project_cfg src_dir)"
 package="$(borromeanrings_project_cfg package)"
 tests_dir="$(borromeanrings_project_cfg tests_dir)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$src_dir" "$package" "$tests_dir" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT" "$src_dir" "$package" "$tests_dir" >"$log" 2>&1 <<'PY'
 import subprocess  # nosec B404 — fixed argv, no shell; only queries git
 import sys
 from pathlib import Path

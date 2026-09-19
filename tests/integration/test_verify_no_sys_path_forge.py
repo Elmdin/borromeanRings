@@ -28,6 +28,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+from shell_text import code_part
+
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 
@@ -148,29 +151,50 @@ _PYTHON = re.compile(r"\bpython3\b")
 # ``-PI`` / ``-sP`` (which evade a plain ``-[IP]\b``, #224 review S4).
 _BANNED_FLAGS = re.compile(r"python3\s+-[A-Za-z]*[IP]")
 
-# The 18 analysis heredocs whose stdout/exit code becomes a required check's status.
-# #222 routed every one through borromeanrings_py; if any reverts to a bare ``python3
-# -``/``-c`` the shadow reopens for that check, so guard the property directly (the
-# behavioral test above uses language="none" and exercises none of them).
-_ROUTED_HEREDOC_CHECKS = (
-    "checks/shared/05_hygiene.sh",
-    "checks/shared/06_git_identity.sh",
-    "checks/shared/07_layout.sh",
-    "checks/shared/08_branch.sh",
-    "checks/shared/09_commits.sh",
-    "checks/shared/11_changelog.sh",
-    "checks/shared/12_secrets.sh",
-    "checks/shared/13_adr.sh",
-    "checks/shared/14_container.sh",
-    "checks/shared/15_a11y.sh",
-    "checks/python/32_complexity.sh",
-    "checks/python/33_coupling.sh",
-    "checks/python/34_api_diff.sh",
-    "checks/python/35_architecture.sh",
-    "checks/python/45_docstrings.sh",
-    "checks/python/55_doc_drift.sh",
-    "checks/python/56_critics.sh",
-    "checks/ci/74_secret_history.sh",
+# Every check script is covered BY DEFAULT. This used to be a hand-kept list of the 18
+# checks #222 routed; each check written after it was never added, and ten of them
+# shipped a bare ``python3 -`` that a planted ``meta_harness/`` could replace. A list
+# of what to guard falls behind; a list of what to EXEMPT has to be argued for.
+#
+# The only exemptions are steps that run the PROJECT's own code or environment by
+# design — already untrusted (a conftest.py can forge them regardless of cwd; #218,
+# M7), so routing them through a neutral cwd would protect nothing and break them.
+_PROJECT_CODE_RUNS = (
+    (re.compile(r"python3 -m (pytest|pip_audit)\b"), "runs the project's tool, by design"),
+    # Anchored to the discard-output form: `X="$(command -v python3)"` is NOT a probe,
+    # it is the first half of an indirect start (review of #241).
+    (re.compile(r"command -v python3\s*>\s*/dev/null"), "a presence probe; starts no interpreter"),
+    (re.compile(r"required tool 'python3'"), "message text"),
+    (re.compile(r'python3 -c \\"import \$package\\"'), "00_build imports the package"),
+    (
+        re.compile(r'^\s*cd "\$PROJECT_ROOT" && python3 - <<'),
+        "27_properties asks whether the PROJECT's env has the runner it is about to use",
+    ),
+)
+
+
+# Indirect interpreter starts the literal ``python3`` match cannot see. Threat model: an
+# ACCIDENTAL regression by a harness author, the way ten checks drifted off the helper
+# after #222. A deliberately obfuscated check is a code-review problem, and no text scan
+# can rule it out; for the shared and Python lanes, test_checks_trusted_python_cwd.py
+# observes every trusted program by hash and catches any indirection. This is the
+# heavy (CI) lane's only coverage.
+_INDIRECT = (
+    (
+        re.compile(r"\$\(\s*(command\s+-v|which|type\s+-[pP])\s+python"),
+        "interpreter path captured into a variable",
+    ),
+    (
+        re.compile(
+            r"(^|[;&|(]|\$\()\s*(exec\s+|!\s+)?\"?\$\{?[A-Za-z_]\w*\}?[\w.]*\"?\s+-c?(\s|$)"
+        ),
+        "a variable run as a command with a program argument (- or -c)",
+    ),
+    (
+        re.compile(r"(^|[\s;&|(!/])python(?!3\s)(\d(\.\d+)?)?\s+-[cm]?(\s|$)"),
+        "an interpreter spelled other than python3",
+    ),
+    (re.compile(r"(^|[\s;&|(])eval(\s|$)"), "eval — no check needs it, and it hides a start"),
 )
 
 
@@ -178,7 +202,7 @@ def _code_lines(rel: str):
     for number, line in enumerate((BORROMEANRINGS_HOME / rel).read_text().splitlines(), 1):
         if line.lstrip().startswith("#"):
             continue
-        yield number, line, line.split("#", 1)[0]
+        yield number, line, code_part(line)
 
 
 def test_gate_trusted_python_runs_through_the_neutral_cwd_helper() -> None:
@@ -204,20 +228,25 @@ def test_gate_trusted_python_runs_through_the_neutral_cwd_helper() -> None:
     assert not offenders, "\n".join(offenders)
 
 
-def test_routed_analysis_heredocs_stay_routed() -> None:
-    """#224 review S3: the 18 verdict-deciding heredocs must keep routing through
-    borromeanrings_py. Each must invoke it and must NOT name a bare ``python3``
-    interpreter start (these files run no tool, so every ``python3`` here would be a
-    trusted call that regressed off the helper)."""
+def test_every_check_routes_its_trusted_python() -> None:
+    """#224 review S3, generalised: no check script may start a trusted interpreter
+    outside ``borromeanrings_py``. Covers every ``checks/**/*.sh``, including checks that
+    do not exist yet, and the known indirect forms (``_INDIRECT``). Text cannot rule out
+    every indirection; see test_checks_trusted_python_cwd.py for the observed proof."""
     offenders: list[str] = []
-    for rel in _ROUTED_HEREDOC_CHECKS:
-        text = (BORROMEANRINGS_HOME / rel).read_text()
-        if "borromeanrings_py" not in text:
-            offenders.append(f"{rel}: no longer invokes borromeanrings_py")
+    scripts = sorted((BORROMEANRINGS_HOME / "checks").rglob("*.sh"))
+    assert len(scripts) > 20, "the check corpus was not found — this guard would be vacuous"
+    for script in scripts:
+        rel = script.relative_to(BORROMEANRINGS_HOME).as_posix()
+        if rel == "checks/_py.sh":
+            continue  # defines the helper; guarded by the test above
         for number, line, code in _code_lines(rel):
-            if _BANNED_FLAGS.search(code):
+            indirect = [why for rx, why in _INDIRECT if rx.search(code)]
+            if indirect:
+                offenders.append(f"{rel}:{number}: {indirect[0]}: {line.strip()}")
+            elif _BANNED_FLAGS.search(code):
                 offenders.append(f"{rel}:{number}: banned flag: {line.strip()}")
-            elif _PYTHON.search(code):
+            elif _PYTHON.search(code) and not any(rx.search(code) for rx, _ in _PROJECT_CODE_RUNS):
                 offenders.append(
                     f"{rel}:{number}: bare python3 (must be borromeanrings_py): {line.strip()}"
                 )
@@ -361,3 +390,21 @@ def test_planted_compileall_cannot_forge_the_build_check(tmp_path: Path) -> None
     status = json.loads((receipt_dir / "00_build.json").read_text()).get("status")
     assert proc.returncode != 0, f"00_build passed a syntax-error tree; rc={proc.returncode}"
     assert status == "fail", f"00_build receipt should be fail, got {status!r}"
+
+
+@pytest.mark.parametrize(
+    ("line", "code"),
+    [
+        ("echo hi  # a comment", "echo hi  "),
+        ("# whole-line comment", ""),
+        (': "#hide" ; python3 - "$x" <<\'PY\'', ': "#hide" ; python3 - "$x" <<\'PY\''),
+        (": '#hide' ; python3 -", ": '#hide' ; python3 -"),
+        ("echo a\\#b python3 -", "echo a\\#b python3 -"),
+        ('url="http://x/#frag"; python3 -', 'url="http://x/#frag"; python3 -'),
+        ("echo ${#arr[@]} # count", "echo ${#arr[@]} "),
+    ],
+)
+def test_comment_stripping_respects_quotes(line: str, code: str) -> None:
+    """Third review of #241: a `#` inside quotes is not a comment, and splitting on it
+    hid a following `python3 -` from both routing tests."""
+    assert code_part(line) == code

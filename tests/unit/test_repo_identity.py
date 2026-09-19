@@ -100,3 +100,34 @@ def test_a_submodule_belongs_to_its_directory(tmp_path: Path) -> None:
     sub = main / "vendor" / "up"
     assert (sub / ".git").is_file()
     assert foreign_repository(sub) == ""
+
+
+def test_an_undecodable_dotgit_file_is_refused_not_guessed(tmp_path: Path) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / ".git").write_bytes(b"gitdir: \xff\xfe\n")
+    assert "cannot read" in foreign_repository(proj)
+
+
+def test_an_undecodable_worktree_backlink_is_refused_not_guessed(tmp_path: Path) -> None:
+    main = _repo(tmp_path / "main")
+    _git(main, "worktree", "add", "-q", str(tmp_path / "wt"))
+    gitdir = Path((tmp_path / "wt" / ".git").read_text().split(":", 1)[1].strip())
+    (gitdir / "gitdir").write_bytes(b"\xff\xfe\n")
+    assert "cannot read" in foreign_repository(tmp_path / "wt")
+
+
+def test_a_dangling_pointer_is_left_to_git_which_refuses_it(tmp_path: Path) -> None:
+    """A pointer to nothing names no other project's files, so identity has nothing to
+    object to; git itself then reports "not a git repository" and 12_secrets fails closed
+    on that (its own guard, before identity is consulted)."""
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / ".git").write_text(f"gitdir: {tmp_path / 'gone.git'}\n", encoding="utf-8")
+    assert foreign_repository(proj) == ""
+    inside = subprocess.run(
+        ["git", "-C", str(proj), "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        check=False,
+    )
+    assert inside.returncode != 0

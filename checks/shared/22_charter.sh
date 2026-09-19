@@ -15,7 +15,7 @@ id="22_charter"
 log="$RECEIPT_DIR/$id.log"
 cmd="session charter (goal, stakes tier, done_when/stop_when/may_not, owner; fail-closed)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 

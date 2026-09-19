@@ -15,7 +15,7 @@ id="21_archetype"
 log="$RECEIPT_DIR/$id.log"
 cmd="archetype required features (per [project].archetypes; catalog in meta_harness.archetypes)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$PROJECT_ROOT" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$PROJECT_ROOT" >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.archetypes import evaluate, render_report

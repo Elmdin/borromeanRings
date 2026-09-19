@@ -106,21 +106,21 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 
 | Check | Enforces | Config / notes | ADR |
 |-------|----------|----------------|-----|
-| `00_build` | Source compiles under the project's `tsconfig.json`; source with no `tsconfig.json` ⇒ fail | `tsc -p tsconfig.json --noEmit` | 0068 |
+| `00_build` | Source compiles and the declared package imports cleanly | `[project].package`, `src_dir` | — |
 | `01_source_coherence` | **Fails** when the declared source path resolves to no files *while tracked source exists elsewhere* — the misconfiguration that makes every source-reading check pass vacuously. Genuine greenfield ⇒ `noop` | `[project].src_dir`, `package` | 0049 |
-| `10_format` | `gofmt -l` lists nothing (verdict on the list, not gofmt's exit code) | `gofmt -l <src_dir>` | 0068 |
-| `20_lint` | No lint violations (ESLint 9 with no config errors ⇒ fail) | `eslint .` | 0068 |
+| `10_format` | No unformatted files (black) | toolchain | — |
+| `20_lint` | No lint violations (ruff) | toolchain | — |
 | `17_prior_art` | Feature branch adding **public surface** must add/modify a survey record — the reuse question asked on the record. Ecosystem lookup deliberately advisory. No new surface ⇒ `noop` | `[prior_art].dir`, `require_prefixes` | 0051 |
 | `27_properties` | **Tier 1 of the verification ladder**: runs the declared property suite (pytest + Hypothesis). Binary and count-free — nothing declared ⇒ `noop` (rule off); **declared but empty ⇒ `fail`** (a verification claim with no evidence); runner not importable ⇒ `noop` naming it; a falsified property ⇒ `fail` | `[verification].properties` (no default — writing it is a claim; an unknown key there fails config loading closed) | 0074 |
-| `30_typecheck` | Type-aware static analysis beyond the compiler | `staticcheck ./...` (`noop` when absent) | 0068 |
+| `30_typecheck` | No type errors (mypy); greenfield with no source ⇒ `noop` | toolchain | — |
 | `32_complexity` | **Ratchet**: worst-case cyclomatic complexity doesn't regress (no absolute ceiling) | baseline file, seeded by `adopt.sh` | 0031 |
 | `33_coupling` | **Ratchet**: worst efferent coupling (fan-out) doesn't regress | baseline file | 0038 |
 | `34_api_diff` | Public-API breaking change (removed/renamed symbol, new required param) fails unless allowed | `[api].allow_breaking` | 0040 |
 | `18_api_contracts` | The project's own API-usage rules hold at every call site; `noop` when none matched | `[api_contracts].rules`, `packs` | 0054 |
 | `35_architecture` | Import-direction fitness: leaves import no domain module, private modules stay unimported, no cycles | `[architecture].leaves`, `private`, `forbidden`, `forbid_cycles` | 0027 |
-| `40_test` | Tests pass, at least one package has tests, statement coverage doesn't regress (**ratchet**) | `go test -coverprofile ./...` + `go tool cover -func`; `.borromeanrings-coverage-baseline` | 0068 |
+| `40_test` | Tests pass **and** coverage doesn't regress (**ratchet**, not an absolute %) | `[project].tests_dir`; coverage baseline | — |
 | `45_docstrings` | **Ratchet**: public-API docstring coverage doesn't regress | baseline file | 0029 |
-| `50_security` | No high-confidence dangerous sink (`eval`, `new Function`, `document.write`) | `ast-grep scan --json` with `checks/typescript/rules/security.yml` | 0068 |
+| `50_security` | No bandit findings at/above the configured severity in source | bandit severity | — |
 | `55_doc_drift` | *(Advisory)* an external model judge checks docstrings against code | `[critic].judge_command` (dormant if empty) | 0030 |
 | `56_critics` | *(Advisory)* model judge applies Wave-2 rubrics (error-handling, naming, security, boundary-value, test-smell) | `[critic].rubrics`, `judge_command` | 0036 |
 
@@ -133,11 +133,23 @@ on this lane touches the network (`npm audit` is excluded; #193 tracks it for th
 
 | Check | Enforces | Tool / notes | ADR |
 |-------|----------|--------------|-----|
+| `00_build` | Source compiles under the project's `tsconfig.json`; source with no `tsconfig.json` ⇒ fail | `tsc -p tsconfig.json --noEmit` | 0068 |
+| `10_format` | No unformatted files | `prettier --check .` | 0068 |
+| `20_lint` | No lint violations (ESLint 9 with no config errors ⇒ fail) | `eslint .` | 0068 |
+| `30_typecheck` | Source holds under `--strict` | `tsc -p tsconfig.json --noEmit --strict` | 0068 |
+| `40_test` | Tests pass **and** line coverage doesn't regress (**ratchet**) | `vitest run --coverage` (json-summary) or `jest --coverage`; `.borromeanrings-coverage-baseline` | 0068 |
+| `50_security` | No high-confidence dangerous sink (`eval`, `new Function`, `document.write`) | `ast-grep scan --json` with `checks/typescript/rules/security.yml` | 0068 |
 
 ## Fast lane — Go checks (`[project].language = "go"`)
 
 | Check | Enforces | Tool / notes | ADR |
 |-------|----------|--------------|-----|
+| `00_build` | Every package compiles | `go build ./...` | 0068 |
+| `10_format` | `gofmt -l` lists nothing (verdict on the list, not gofmt's exit code) | `gofmt -l <src_dir>` | 0068 |
+| `20_lint` | `go vet` reports nothing | `go vet ./...` | 0068 |
+| `30_typecheck` | Type-aware static analysis beyond the compiler | `staticcheck ./...` (`noop` when absent) | 0068 |
+| `40_test` | Tests pass, at least one package has tests, statement coverage doesn't regress (**ratchet**) | `go test -coverprofile ./...` + `go tool cover -func`; `.borromeanrings-coverage-baseline` | 0068 |
+| `50_security` | `gosec` reports nothing (`govulncheck` is network — excluded, #193) | `gosec ./...` | 0068 |
 
 ## Heavy (CI-tier) lane — run under `./verify.sh --heavy` or CI only
 
@@ -154,9 +166,8 @@ on this lane touches the network (`npm audit` is excluded; #193 tracks it for th
 
 - **Ratchets are threshold-free.** `32/33/40/45/60` enforce *non-regression* against a seeded
   baseline (`40_test`'s `.borromeanrings-coverage-baseline` is one file for every language lane;
-  `adopt.sh` seeds it from the latest measured run), never an arbitrary target number — you can only improve or hold, never silently
-  baseline, never an arbitrary target number — you can only improve or hold, never silently
-  slip. Move a baseline deliberately (a reviewed commit), never as a side effect.
+  `adopt.sh` seeds it from the latest measured run), never an arbitrary target number — you can
+  only improve or hold, never silently slip. Move a baseline deliberately (a reviewed commit), never as a side effect.
 - **Advisory checks** (`55_doc_drift`, `56_critics`) require a wired model judge
   (`[critic].judge_command`, e.g. the local `claude` CLI — no API keys). Empty ⇒ dormant; they
   never block until you opt in.

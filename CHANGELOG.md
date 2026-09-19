@@ -21,11 +21,14 @@ queue is merged.
   #222 routed. It now covers every `checks/**/*.sh` by default, and only steps that run
   the project's own code by design (pytest, pip-audit, `import <package>`) are exempt,
   each with its reason. It also flags the known indirect starts (an interpreter path
-  captured into a variable, a variable run with `-`/`-c`, other spellings), which no
-  text scan can rule out entirely. The proof is behavioural: a `python3` shim records
-  where every trusted program starts, on a fixture requiring every shared and Python
-  check, and each one must have run, from `/`, without importing a planted decoy. The
-  heavy (CI) lane is covered by the static guard only.
+  captured into a variable, a variable run with `-`/`-c`, other spellings, `eval`); no
+  text scan can rule out every indirection. The proof is behavioural: a `python3` shim
+  records the working directory and SHA-256 of every program it runs, on a fixture that
+  gives every shared and Python-lane program a reason to run. Each program importing
+  `meta_harness` is matched by hash, so the receipt writer every check ends with cannot
+  stand in for it; each must run, from `/`, without importing a planted decoy. An
+  indirection through the shim is seen starting elsewhere, and one around it is seen
+  never running. The heavy (CI) lane is covered by the static guard only.
 - `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
   the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus

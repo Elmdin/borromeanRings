@@ -7,21 +7,26 @@ guard in ``test_verify_no_sys_path_forge.py`` reads the scripts' text; this test
 them run.
 
 A decoy that is never imported proves nothing if the step that would have imported it
-never ran — a check that exits early because it is not required, or because its tool is
-absent, is silently vacuous. So this test has a POSITIVE control. A ``python3`` shim on
-``PATH`` records, for every ``python3 -`` start, the working directory, the check script
-that started it, and the ``meta_harness`` modules its stdin program imports. The test
-then requires, for every check whose source contains such a program:
+never ran — a check that exits early because it is not required, or because a
+precondition is unmet, is silently vacuous. So this test has a POSITIVE control, and it
+is attributed to the exact program: a ``python3`` shim on ``PATH`` records the working
+directory and the SHA-256 of every ``python3 -`` program it is handed. The expected set
+is every heredoc program in the check scripts whose body imports ``meta_harness`` —
+derived from the text however the program is INVOKED, so a check reverted to a bare
+``python3`` stays expected and is then seen starting from the project. For each one:
 
-* it RAN in this fixture (or is named below as unreachable here, with the reason),
+* it RAN in this fixture — matched by hash, so the ``emit_receipt`` program every check
+  ends with cannot stand in for it (named below if unreachable here, with the reason),
 * every run started from ``/``, and
 * the decoy ``meta_harness/`` at the project root was never imported.
 
-The set of checks is derived from the scripts' text, so a check added later is covered
-without editing this file. The fixture is a Python project that requires every shared
-and Python-lane check, so both lanes run in full.
+The fixture is a Python project on a ``feat/`` branch off ``main`` that adds public
+surface, requires every shared and Python-lane check, and enables the opt-in rules, so
+every program has a reason to run. The heavy (CI) lane is not run here; the static guard
+in ``test_verify_no_sys_path_forge.py`` is its only coverage.
 """
 
+import hashlib
 import os
 import re
 import subprocess
@@ -31,8 +36,8 @@ BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 LANES = ("shared", "python")
 
-# Checks whose trusted program does not run on this fixture, and why. Every entry must
-# stay true: the test fails if a listed check DOES run its program here (a stale excuse).
+# Programs that do not run on this fixture, keyed "<script>:<heredoc line>", and why.
+# Every entry must stay true: the test fails if a listed program DOES run (a stale excuse).
 UNREACHABLE_HERE: dict[str, str] = {}
 
 _DECOY = """\
@@ -44,46 +49,37 @@ with open(os.environ["BORROMEANRINGS_DECOY_MARKER"], "a", encoding="utf-8") as f
 raise ImportError("decoy meta_harness imported from the governed project")
 """
 
-# Logs "<cwd>\t<check script>\t<modules>" for each `python3 -`, then runs the real one.
+# Logs "<cwd>\t<sha256 of the program>" for each `python3 -`, then runs the real one.
 _SHIM = """\
 #!/usr/bin/env bash
 if [ "${1:-}" = "-" ]; then
   body="$(cat)"
-  parent="$(tr '\\0' ' ' < /proc/$PPID/cmdline |
-    grep -o 'checks/[a-z]*/[0-9][0-9A-Za-z_]*\\.sh' | head -1)"
-  mods="$(printf '%s\\n' "$body" | grep -oE '^(from|import) meta_harness[.a-z_]*' |
-    sort -u | tr '\\n' ' ')"
-  printf '%s\\t%s\\t%s\\n' "$PWD" "${parent:--}" "$mods" >> "$SHIM_LOG"
+  sum="$(printf '%s' "$body" | sha256sum | cut -c1-64)"
+  printf '%s\\t%s\\n' "$PWD" "$sum" >> "$SHIM_LOG"
   exec "$REAL_PYTHON3" "$@" <<<"$body"
 fi
 exec "$REAL_PYTHON3" "$@"
 """
 
-_PROGRAM = re.compile(r"borromeanrings_py -[^c].*<<\s*'?(\w+)'?")
+_HEREDOC = re.compile(r"<<-?\s*'(\w+)'")
 
 
-def _checks_with_a_trusted_program() -> set[str]:
-    """Check scripts (repo-relative) that start a heredoc program importing meta_harness."""
-    found: set[str] = set()
+def _trusted_programs() -> dict[str, str]:
+    """``{sha256: "<script>:<line>"}`` for every heredoc program importing meta_harness."""
+    found: dict[str, str] = {}
     for lane in LANES:
         for script in sorted((BORROMEANRINGS_HOME / "checks" / lane).glob("[0-9]*.sh")):
-            text = script.read_text(encoding="utf-8")
-            lines = text.splitlines()
+            lines = script.read_text(encoding="utf-8").splitlines()
+            rel = script.relative_to(BORROMEANRINGS_HOME).as_posix()
             for i, line in enumerate(lines):
-                joined = line
-                j = i
-                while joined.rstrip().endswith("\\") and j + 1 < len(lines):
-                    j += 1
-                    joined = joined.rstrip()[:-1] + lines[j]
-                m = _PROGRAM.search(joined) if "borromeanrings_py -" in line else None
+                m = _HEREDOC.search(line.split("#", 1)[0])
                 if not m:
                     continue
-                end = next(
-                    (k for k in range(j + 1, len(lines)) if lines[k].strip() == m.group(1)), None
-                )
-                body = "\n".join(lines[j + 1 : end])
+                end = next((k for k in range(i + 1, len(lines)) if lines[k] == m.group(1)), None)
+                assert end is not None, f"{rel}:{i + 1}: unterminated heredoc {m.group(1)}"
+                body = "\n".join(lines[i + 1 : end]).rstrip("\n")
                 if re.search(r"^(from|import) meta_harness", body, re.M):
-                    found.add(script.relative_to(BORROMEANRINGS_HOME).as_posix())
+                    found[hashlib.sha256(body.encode()).hexdigest()] = f"{rel}:{i + 1}"
     return found
 
 
@@ -96,23 +92,36 @@ def _fixture(root: Path) -> Path:
     )
     (project / "borromeanrings.toml").write_text(
         '[project]\nlanguage = "python"\npackage = "pkg"\nsrc_dir = "src"\n'
-        'tests_dir = "tests"\n\n[checks]\nrequired = ['
+        'tests_dir = "tests"\n\n[predicates]\nenabled = true\n\n'
+        "[citations]\nenabled = true\n\n"
+        # `true` stands in for the judge: a local command, no model, no network. It only
+        # has to exist for 55_doc_drift and 56_critics to reach their programs.
+        '[critic]\njudge_command = "true"\nrubrics = ["naming"]\n\n'
+        '[test]\nfast_paths = ["tests"]\n\n[checks]\nrequired = ['
         + ", ".join(f'"{c}"' for c in required)
         + "]\n",
         encoding="utf-8",
     )
+    (project / "src" / "pkg" / "__init__.py").write_text('"""pkg."""\n')
+    (project / "README.md").write_text("# proj\n")
+    (project / "Dockerfile").write_text("FROM scratch\n")  # 14_container has a file to read
+    (project / "hello.sh").write_text('#!/usr/bin/env bash\necho "hello"\n')  # 16_shellcheck
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    for argv in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "add", "-A"],
+        [*git, "commit", "-qm", "chore: base"],
+        ["git", "checkout", "-q", "-b", "feat/fixture"],
+    ):
+        subprocess.run(argv, cwd=project, capture_output=True, check=True)
+    # The feature branch adds public surface, so the diff-reading checks have work to do.
     (project / "src" / "pkg" / "__init__.py").write_text(
         '"""pkg."""\n\n\ndef double(x: int) -> int:\n    """Double x."""\n    return 2 * x\n'
     )
     (project / "tests" / "test_pkg.py").write_text(
         "from pkg import double\n\n\ndef test_double() -> None:\n    assert double(2) == 4\n"
     )
-    (project / "README.md").write_text("# proj\n")
-    for argv in (
-        ["git", "init", "-q", "-b", "feat/fixture"],
-        ["git", "add", "-A"],
-        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "feat: init"],
-    ):
+    for argv in (["git", "add", "-A"], [*git, "commit", "-qm", "feat: double"]):
         subprocess.run(argv, cwd=project, capture_output=True, check=True)
     decoy = project / "meta_harness"
     decoy.mkdir()
@@ -139,25 +148,37 @@ def test_every_trusted_check_program_runs_from_root(tmp_path: Path) -> None:
         BORROMEANRINGS_HEAVY="0",
         BORROMEANRINGS_CHECK_TIMEOUT="300",
     )
-    proc = subprocess.run(
-        ["bash", str(VERIFY)], cwd=project, env=env, capture_output=True, text=True, timeout=900
-    )
-    output = f"{proc.stdout}{proc.stderr}"
+    # Both lanes: 40_test's fast-path program runs only under --fast with fast_paths set.
+    output = ""
+    for lane_args in ([], ["--fast"]):
+        proc = subprocess.run(
+            ["bash", str(VERIFY), *lane_args],
+            cwd=project,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        output += f"{proc.stdout}{proc.stderr}"
 
     runs: dict[str, set[str]] = {}
     for line in log.read_text(encoding="utf-8").splitlines() if log.exists() else []:
-        cwd, script, mods = line.split("\t")
-        if script != "-" and "meta_harness" in mods:
-            runs.setdefault(script, set()).add(cwd)
+        cwd, digest = line.split("\t")
+        runs.setdefault(digest, set()).add(cwd)
 
-    expected = _checks_with_a_trusted_program()
-    assert len(expected) > 20, f"found only {sorted(expected)} — the derivation is broken"
+    programs = _trusted_programs()
+    assert len(programs) > 25, f"found only {sorted(programs.values())} — derivation broken"
 
-    not_run = sorted(expected - set(runs) - set(UNREACHABLE_HERE))
-    assert not not_run, f"these checks never ran their trusted program here: {not_run}\n{output}"
-    stale = sorted(set(UNREACHABLE_HERE) & set(runs))
+    ran = {where for digest, where in programs.items() if digest in runs}
+    not_run = sorted(set(programs.values()) - ran - set(UNREACHABLE_HERE))
+    assert not not_run, f"these trusted programs never ran here: {not_run}\n{output}"
+    stale = sorted(set(UNREACHABLE_HERE) & ran)
     assert not stale, f"listed as unreachable but ran — remove the excuse: {stale}"
 
-    from_project = sorted(s for s, cwds in runs.items() if cwds != {"/"})
-    assert not from_project, f"trusted programs started outside /: {from_project}"
+    outside = sorted(
+        f"{programs[d]} from {sorted(runs[d] - {'/'})}"
+        for d in programs
+        if runs.get(d, {"/"}) != {"/"}
+    )
+    assert not outside, f"trusted programs started outside /: {outside}"
     assert not marker.exists(), f"the decoy was imported:\n{marker.read_text()}\n{output}"

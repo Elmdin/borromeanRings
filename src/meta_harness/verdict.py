@@ -126,6 +126,10 @@ class Verdict:
     gated, and each check's :class:`~meta_harness.evidence.Evidence`. Records written
     before this carry none of it and read back as ``""`` / empty — a missing band is
     reported as *not recorded*, never re-derived into a claim the record did not make.
+    ``intent.generator`` records *who* produced the change the run judged — the
+    self-declared ``<kind>:<id>`` label the adapter running the gate exported
+    (ADR-0078). Provenance, never evidence: the gate makes no decision on it, absent
+    reads ``""``, and nothing here can loosen ``ok`` (ADR-0071 §4, ADR-0049).
     """
 
     ok: bool

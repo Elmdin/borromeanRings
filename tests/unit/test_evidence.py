@@ -122,8 +122,13 @@ def test_parse_evidence_bool_numerics_are_not_ints() -> None:
 
 
 def test_intent_to_dict_and_parse_round_trip() -> None:
-    intent = Intent(branch="feat/x", head_sha="abc123", input_digest="d")
-    assert intent.to_dict() == {"branch": "feat/x", "head_sha": "abc123", "input_digest": "d"}
+    intent = Intent(branch="feat/x", head_sha="abc123", input_digest="d", generator="headless:x")
+    assert intent.to_dict() == {
+        "branch": "feat/x",
+        "head_sha": "abc123",
+        "input_digest": "d",
+        "generator": "headless:x",
+    }
     assert parse_intent(intent.to_dict()) == intent
 
 
@@ -131,8 +136,10 @@ def test_parse_intent_partial_and_malformed_defaults_empty() -> None:
     assert parse_intent({"branch": "b"}) == Intent(branch="b")
     assert parse_intent(None) == Intent()
     assert parse_intent([1, 2]) == Intent()
-    # non-string fields are coerced to str, never raise.
+    # non-string fields are coerced to str, never raise — except generator, which is
+    # provenance: anything but a string reads as "no generator recorded" (ADR-0078).
     assert parse_intent({"head_sha": 42}) == Intent(head_sha="42")
+    assert parse_intent({"generator": 17}) == Intent()
 
 
 def _git(repo: Path, *args: str) -> str:

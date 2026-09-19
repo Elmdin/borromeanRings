@@ -15,6 +15,11 @@ from typing import Any
 
 import tomllib
 
+#: Languages with a shipped `checks/<language>/` lane (ADR-0015, ADR-0068), plus ``none``
+#: for a project governed by the shared (language-agnostic) checks only. Closed vocabulary:
+#: an unknown value fails closed in :func:`load_config` rather than falling through to
+#: Python's checks or to an empty set that would pass vacuously.
+SUPPORTED_LANGUAGES: tuple[str, ...] = ("python", "typescript", "go", "none")
 #: The closed vocabulary of application archetypes a project may declare in
 #: ``[project].archetypes``. Lives here (not in meta_harness.archetypes) because the spine
 #: is an architecture leaf and must import no domain module; the catalog is keyed by
@@ -180,12 +185,36 @@ class Config:
     shell_exclude: tuple[str, ...] = ()
 
 
+class ProjectClaimError(ValueError):
+    """A config that is invalid because of what it claims the project IS.
+
+    Every other config error is a fact each check reports on in its own receipt; these
+    two refuse the gate before any check runs, because everything derived from the claim
+    would be wrong (verify.sh, ADR-0068). Subclasses of ValueError, so every caller that
+    treats a ValueError as "invalid config" is unchanged.
+    """
+
+    kind = "claim"
+
+
+class UnknownArchetype(ProjectClaimError):
+    """``[project].archetypes`` names an archetype that does not exist (#79)."""
+
+    kind = "archetype"
+
+
+class UnknownLanguage(ProjectClaimError):
+    """``[project].language`` names a language with no check lane (ADR-0068)."""
+
+    kind = "language"
+
+
 def _archetypes(project: Mapping[str, Any]) -> tuple[str, ...]:
     """``[project].archetypes`` validated against :data:`ARCHETYPES`; unknown ⇒ raise."""
     declared = tuple(str(name) for name in project.get("archetypes", []))
     unknown = [name for name in declared if name not in ARCHETYPES]
     if unknown:
-        raise ValueError(
+        raise UnknownArchetype(
             f"borromeanrings.toml [project].archetypes has unknown archetype(s) "
             f"{', '.join(unknown)} — known: {', '.join(ARCHETYPES)} (fail-closed)."
         )
@@ -224,6 +253,21 @@ def resolve_config_path(path: str | Path) -> Path:
         stacklevel=2,
     )
     return legacy
+
+
+def _validated_language(project: Mapping[str, Any]) -> str:
+    """``[project].language``, which must name a shipped check lane (fail-closed).
+
+    A typo ("pyhton") or a language with no ``checks/<lang>/`` must not fall through to
+    another lane's checks or to an empty set that passes vacuously (ADR-0068).
+    """
+    language = str(project.get("language", "python"))
+    if language not in SUPPORTED_LANGUAGES:
+        raise UnknownLanguage(
+            f"borromeanrings.toml [project].language = '{language}' has no check lane; "
+            f"supported: {', '.join(SUPPORTED_LANGUAGES)} (fail-closed)."
+        )
+    return language
 
 
 def _validated_required(raw: Mapping[str, Any]) -> list[str]:
@@ -285,6 +329,8 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         The validated :class:`Config`.
 
     Raises:
+        ValueError: if no required checks are declared, or ``[project].language`` is
+            not one of :data:`SUPPORTED_LANGUAGES`.
         ValueError: if no required checks are declared, or an archetype is unknown.
         ValueError: if no required checks are declared, or if ``[verification]``
             carries a key borromeanRings does not understand.
@@ -300,6 +346,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     self_report_enabled = bool(_table(raw, "self_report").get("enabled", prompt_rewriting_enabled))
     hygiene_requires = tuple(_table(raw, "hygiene").get("requires", []))
     project = _table(raw, "project")
+    language = _validated_language(project)
     git = _table(raw, "git")
     layout = _table(raw, "layout")
     collaboration = _table(raw, "collaboration")
@@ -324,8 +371,8 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         package=str(project.get("package", "")),
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
+        language=language,
         test_fast_paths=tuple(str(p) for p in test.get("fast_paths", [])),
-        language=str(project.get("language", "python")),
         archetypes=_archetypes(project),
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),

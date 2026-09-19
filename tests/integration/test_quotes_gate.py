@@ -18,7 +18,7 @@ VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 GATE_TIMEOUT_S = 120
 
 CONFIG = (
-    '[project]\nlanguage = "markdown"\nsrc_dir = "src"\n\n'
+    '[project]\nlanguage = "none"\nsrc_dir = "src"\n\n'
     '[checks]\nrequired = ["24_quotes"]\n\n[hygiene]\nrequires = []\n\n'
     "[quotes]\nenabled = {enabled}\n"
 )

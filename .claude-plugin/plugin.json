@@ -6,7 +6,7 @@
   "author": {
     "name": "3MagicLabs"
   },
-  "repository": "https://github.com/3MagicLabs/borromeanRings",
+  "repository": "https://github.com/Elmdin/borromeanRings",
   "license": "Apache-2.0",
   "keywords": ["governance", "quality-gate", "hooks", "fail-closed", "meta-harness"]
 }

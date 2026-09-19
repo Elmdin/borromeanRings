@@ -14,10 +14,11 @@
 # Python: it changes to `/` first (root-owned, so nothing can be planted there)
 # and leaves PYTHONPATH alone, which is how the hooks find meta_harness.
 #
-# Do NOT "simplify" this with the interpreter's -P or -I flag instead. -P exists
-# only from Python 3.11, and requires-python is 3.10, where it is an unknown
-# option; CI runs 3.12 only, so the break would be invisible. -I also discards
-# PYTHONPATH. tests/integration/test_retry_bound_reset.py bans both flags, and
+# Do NOT "simplify" this with the interpreter's -P or -I flag instead. -P keeps the
+# cwd off sys.path but still runs a user-site startup hook (usercustomize), and when
+# this was written it was also an unknown option on the declared floor (3.10; now
+# 3.11, #223). -I discards PYTHONPATH. One mechanism, a neutral cwd, works on every
+# supported Python. tests/integration/test_retry_bound_reset.py bans both flags, and
 # bans any hook naming the interpreter outside this function.
 borromeanrings_py() {
   (cd / && python3 "$@")

@@ -14,7 +14,7 @@
 # Keep the LABELS array below and the tables in docs/LABELS.md in step — same PR.
 set -euo pipefail
 
-REPO="${REPO:-3MagicLabs/borromeanRings}"
+REPO="${REPO:-Elmdin/borromeanRings}"
 DRY_RUN=0
 for arg in "$@"; do
   case "$arg" in

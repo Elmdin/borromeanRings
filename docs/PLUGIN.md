@@ -15,7 +15,7 @@ claude plugin marketplace add /path/to/borromeanrings && claude plugin install b
 From GitHub (no checkout needed):
 
 ```bash
-claude plugin marketplace add 3MagicLabs/borromeanRings && claude plugin install borromeanrings@borromeanrings
+claude plugin marketplace add Elmdin/borromeanRings && claude plugin install borromeanrings@borromeanrings
 ```
 
 Inside a session the same two steps are `/plugin marketplace add …` and

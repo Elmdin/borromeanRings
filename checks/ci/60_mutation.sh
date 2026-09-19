@@ -55,7 +55,7 @@ baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 # which the gate prints on this check's verdict row (issue #187); `read` gives the
 # LAST variable the rest of the line, so its spaces are safe.
 read -r score regressed evaluated summary <<EOF
-$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$log" "$baseline" <<'PY'
+$(borromeanrings_py - "$log" "$baseline" <<'PY'
 import sys
 
 from meta_harness.mutation import mutation_score, parse_mutmut_summary, summary_line, total_evaluated
@@ -87,6 +87,6 @@ fi
 # `summary` rides in the receipt (hash-covered like every field) so the gate row reads
 # "PASS (evaluated N, score S)" / "FAIL (evaluated 0)" — the count is what makes the
 # score readable (a vacuous run scores 1.0). Empty if the parse step itself died.
-extra="$(python3 -c "import json,sys; print(json.dumps({'mutation_score': float(sys.argv[1]), 'mutation_baseline': float(sys.argv[2]), 'summary': sys.argv[3]}))" "${score:-0}" "$baseline" "${summary:-}" 2>/dev/null || echo '')"
+extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'mutation_score': float(sys.argv[1]), 'mutation_baseline': float(sys.argv[2]), 'summary': sys.argv[3]}))" "${score:-0}" "$baseline" "${summary:-}" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

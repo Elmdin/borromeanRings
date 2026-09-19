@@ -13,6 +13,36 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- **The `worktree` executor** (`./run-in-worktree.sh`, ADR-0076) — the gate, run against a
+  *snapshot* of your project in a throwaway repository, with the receipts brought back.
+  Materialises HEAD + the dirty tree (tracked edits **and** untracked-not-ignored files;
+  ignored paths stay out) + the ref state, keeps the primary's branch identity
+  (`git rev-parse HEAD` and `--abbrev-ref HEAD` both equal the primary's — asserted at
+  runtime, fail-closed) and **pins it so it cannot move while the primary commits**, gives
+  the run its own working tree, index, ref namespace, `.meta-harness/`, `mutants/` and
+  caches while borrowing only the object store, never commits, never writes a ref or
+  reflog in the primary, and cleans up on every exit path (success, failure, interrupt)
+  with the removal bounded to the temp dir it created. A separate entry point on purpose:
+  it *calls* `verify.sh`, so the default path cannot regress. This is the isolation
+  primitive #144 needs.
+- **Executor conformance test** (`tests/integration/test_executor_conformance.py`) — the
+  deliverable that makes "one contract, two executors" more than a claim: the whole fast
+  lane, run over one fixture project under `local` and under `worktree`, compared receipt
+  by receipt (every field, extras included, modulo `log` and `content_sha256`) and log by
+  log after canonicalisation. The fixture is built to *discriminate*: a `feat/` branch
+  touching `src/` (so `08_branch` and `13_adr` would both move on a detached checkout), a
+  dirty tracked edit and an untracked file (each with its own lint error, and the
+  untracked one moves `coverage_percent`), and an ignored forged receipt that must not be
+  materialised.
+- `meta_harness.executor` — the equivalence relation as code, not prose:
+  `receipt_differences` (field-by-field, volatile fields excluded), `canonicalise_log`
+  (run paths and durations masked, longest needle first, integer-second timeout bounds
+  preserved) and `import_shadow_violation` (the editable-install tripwire).
+- **Reader-side log resolution** (`receipts.resolve_log_path` / `read_log_text`) — a
+  receipt whose bundle was produced elsewhere and copied here now verifies: when the
+  recorded absolute `log` path is gone, the log is read beside its receipt. Tamper
+  evidence is unweakened — the hash still covers the log's content and the recorded path
+  string, so an edited log still fails `!TAMPERED`. Used by the verdict and `verify_dir`.
 - Approach advisor (ADR-0072, #32): `advise.sh` (and `status.sh --advise`) turns the facts
   already on disk — declared archetypes, the last verdict's failing and hollow checks, the
   SWE-state lacks (ratchets without a baseline, RECOMMENDED not adopted, archetype features
@@ -576,6 +606,36 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- **The worktree executor imported its own Python from the caller's directory** (found in
+  review of PR #212). The config read and the import-shadow check ran as `python3 -`
+  from wherever the executor was invoked, so a `meta_harness/` there was imported instead
+  of the harness. A failed import emptied `PACKAGE`, which skipped the shadow check
+  entirely: fail-open. Both now run from `/`, and the executor dies if either cannot run.
+  So does the probe that asks where the project's package imports from: an import that
+  raises no longer reads as "nothing to shadow".
+  `tests/integration/test_executor_cwd_isolation.py` plants the decoy.
+- **The worktree executor's branch identity could follow the primary** (found in review of
+  PR #212). A `git worktree` shares the repository's ref namespace, so pointing its HEAD at
+  `refs/heads/<branch>` to satisfy G8 pointed it at the primary's **live** ref: correct at
+  the instant it was asserted, and then silently following the branch forward on the
+  primary's next commit while the materialised tree stayed pinned — so `09_commits`,
+  `13_adr`, `11_changelog` and `34_api_diff` would judge a commit range that did not match
+  the tree they were reading. Unfixable within one repository (HEAD must point at the
+  shared ref for `--abbrev-ref` to print the branch name), so the executor now builds a
+  **snapshot repository**: `git init` + `objects/info/alternates` (no object copied) + the
+  primary's refs copied in verbatim + the branch pinned at the captured commit. HEAD cannot
+  move, the primary's refs and reflogs are never written, two concurrent runs on one branch
+  no longer share anything, and `git worktree prune` is not merely avoided but unneeded.
+  Three new tests cover it: HEAD immovability while the primary commits, an in-flight
+  commit during a run, and two concurrent runs on one branch.
+- Three corrections to `SPEC-executor.md` found by building against it (ADR-0076): its
+  materialisation (`read-tree --reset -u` alone) leaves every untracked file *tracked* in
+  the worktree, which makes `12_secrets` and `01_source_coherence` see a different project
+  than `local` does — the executor restores the primary's index; and its D2 fixture
+  expects `12_secrets` to flag an untracked credential, which it cannot, because it scans
+  tracked files only; and its §3.2 materialisation (`git worktree add`, either variant)
+  cannot hold G8 for the duration of a run at all — the guarantee needs "and neither can
+  change while the run lasts" in its wording.
 - The test suite wrote the developer's real out-of-tree state: every test that ran the gate
   or the Stop hook left a last-green record or retry count under `~/.local/state/borromeanrings`
   (ADR-0079/0082), mixed in with the records of projects actually governed. Hundreds had

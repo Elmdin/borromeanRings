@@ -24,7 +24,15 @@ from pathlib import Path
 from typing import Any
 
 from meta_harness.adopt import plan_adoption
-from meta_harness.verdict import Verdict, is_failing, read_last_verdict
+from meta_harness.verdict import (
+    RewriteTally,
+    SelfReportTally,
+    Verdict,
+    is_failing,
+    read_last_verdict,
+    read_rewrite_tally,
+    read_self_report_tally,
+)
 
 __all__ = [
     "HOOK_EVENTS",
@@ -32,12 +40,21 @@ __all__ = [
     "NOOP",
     "Enforcement",
     "ProjectStatus",
+    "RewriteTally",
+    "SelfReportTally",
     "Verdict",
     "build_status",
     "classify_enforcement",
     "hollow_checks",
     "obligations",
     "read_project_verdict",
+    "read_rewrite_tally",
+    "read_self_report_tally",
+    "render",
+    "render_rewrite_line",
+    "render_self_report_line",
+    "render",
+    "render_rewrite_line",
     "render",
     "render_self_status",
     "summarize",
@@ -251,6 +268,72 @@ def hollow_checks(verdict: Verdict | None) -> tuple[str, ...]:
     return tuple(cid for cid, status in verdict.checks if status == NOOP)
 
 
+def _intent_label(branch: str, head_sha: str) -> str:
+    """``branch @ sha12``, or whichever half was recorded; ``""`` when neither was."""
+    short = head_sha[:12]
+    if branch and short:
+        return f"{branch} @ {short}"
+    return branch or short
+
+
+def evidence_lines(verdict: Verdict) -> list[str]:
+    """The risk-band / evidence / intent lines for one recorded verdict (ADR-0056).
+
+    A record written before evidence capture made no risk claim, so it is reported as
+    *not recorded* — never re-derived into a band the record itself did not carry.
+    """
+    if not verdict.risk:
+        return ["  Risk band:    not recorded (verdict predates evidence capture)"]
+    heavy = sum(1 for item in verdict.evidence if item.is_heavy)
+    line = (
+        f"  Risk band:    {verdict.risk.upper()} · evidence:"
+        f" {len(verdict.evidence)} receipt(s) recorded"
+    )
+    lines = [f"{line} ({heavy} heavy-lane)" if heavy else line]
+    where = _intent_label(verdict.intent.branch, verdict.intent.head_sha)
+    if where:
+        lines.append(f"  Intent:       {where}")
+    return lines
+
+
+def render_rewrite_line(tally: RewriteTally | None) -> str:
+    """The rewrite-contract line of the self-status report (ADR-0059).
+
+    How often replies opened with the reading the UserPromptSubmit directive asks for.
+    A statement about the RECORD: exempt and unknown verdicts are shown as such, never
+    folded into either side of the tally.
+    """
+    if tally is None or tally.total == 0:
+        return "no record"
+    line = f"honoured {tally.honoured} of {tally.judged} in this project"
+    aside = [f"{tally.exempt} exempt"] if tally.exempt else []
+    if tally.unknown:
+        aside.append(f"{tally.unknown} unknown")
+    return f"{line} ({', '.join(aside)})" if aside else line
+
+
+def render_self_report_line(tally: SelfReportTally | None) -> str:
+    """The self-report line of the self-status report (ADR-0066).
+
+    How often replies ended with the structural VERIFICATION STATUS block. A statement
+    about the RECORD: malformed, graded, exempt and unknown verdicts are shown as such.
+    """
+    if tally is None or tally.total == 0:
+        return "no record"
+    line = f"present {tally.present} of {tally.judged}"
+    aside = [
+        f"{count} {name}"
+        for name, count in (
+            ("malformed", tally.malformed),
+            ("graded", tally.graded),
+            ("exempt", tally.exempt),
+            ("unknown", tally.unknown),
+        )
+        if count
+    ]
+    return f"{line} ({', '.join(aside)})" if aside else line
+
+
 def render_self_status(
     *,
     project: str,
@@ -260,6 +343,8 @@ def render_self_status(
     enforcement: Enforcement,
     harness_home: str,
     installed_version: str = "",
+    rewrite_tally: RewriteTally | None = None,
+    self_report_tally: SelfReportTally | None = None,
 ) -> str:
     """Render the one-project report (pure; safe on missing/partial facts)."""
     name = project.rstrip("/").rsplit("/", maxsplit=1)[-1] or project
@@ -305,9 +390,12 @@ def render_self_status(
                 f"  Reality:      0 of {len(last_verdict.checks)} checks recorded as"
                 " inspecting nothing"
             )
+        lines += evidence_lines(last_verdict)
 
     marker = {"auto": "", "partial": "⚠ ", "manual": "⚠ "}[enforcement.mode]
     lines.append(f"  {marker}Enforcement: {enforcement.mode.upper()} — {enforcement.detail}")
+    lines.append(f"  Rewrite:      contract {render_rewrite_line(rewrite_tally)}")
+    lines.append(f"  Self-report:  {render_self_report_line(self_report_tally)}")
     if installed_version:
         lines.append(f"  Installed:    borromeanRings {installed_version} at {harness_home}")
     lines += [f"  Re-gate:      {harness_home}/verify.sh", ""]

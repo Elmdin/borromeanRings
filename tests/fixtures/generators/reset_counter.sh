@@ -10,10 +10,9 @@ set -uo pipefail
 project="${1:-$PWD}"
 printf 'a change, so "nothing happened" cannot explain the outcome\n' >"$project/touched.txt"
 
-for counter in "$project/.meta-harness/stop_attempts"/*; do
-  [ -f "$counter" ] || continue
-  echo "read $counter = $(cat "$counter")"
-  printf '0' >"$counter" # grant myself a fresh set of attempts
-  echo "reset $counter"
-done
+# The count now lives outside the tree (ADR-0079), out of this fixture's reach. It writes
+# where the count USED to live: a naive reset, which the evidence guard must still catch.
+mkdir -p "$project/.meta-harness/stop_attempts"
+printf '0' >"$project/.meta-harness/stop_attempts/headless" # grant myself a fresh set
+echo "reset $project/.meta-harness/stop_attempts/headless"
 exit 0

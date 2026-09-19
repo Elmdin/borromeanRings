@@ -13,28 +13,25 @@ description: >
 # Delegation — scoping authority before the work starts
 
 Delegation is deciding *whether, when, and how* to engage an agent — and making that decision
-**explicit before** the agent acts, not correcting it after something unexpected. It has three
-parts.
+**explicit before** the agent acts, not correcting it after something unexpected.
 
 ## The three components
-1. **Problem awareness** — What is the actual goal (not just the immediate ticket)? What
-   subtasks does it require? What are the stakes and how reversible is each decision?
-2. **Platform awareness** — What does this agent do well here? Where is human judgment
-   irreplaceable? What are the relevant limits (hallucination, scope drift, context length)?
-3. **Task division** — Which subtasks run autonomously, which are collaborative, which the
-   agent governs over many future interactions — and where are the human checkpoints?
+1. **Problem awareness** — the actual goal (not just the ticket), its subtasks, the stakes,
+   and how reversible each decision is.
+2. **Platform awareness** — what this agent does well here, where human judgment is
+   irreplaceable, the relevant limits.
+3. **Task division** — which subtasks run autonomously, which are collaborative, which the
+   agent governs over many future interactions — and where the human checkpoints are.
 
 Drive autonomy by **stakes × reversibility**: low-stakes and reversible → more autonomy;
 high-stakes or irreversible → more checkpoints.
 
 ## The three modes
-- **Automation** — the agent executes a well-defined task; the human checks the output
-  (format code, write a test, add a check under contract).
-- **Augmentation** — human and agent work back and forth (design decisions, tradeoffs,
-  architecture). Judgment stays with the human; breadth comes from the agent.
+- **Automation** — the agent executes a well-defined task; the human checks the output.
+- **Augmentation** — human and agent work back and forth (design, tradeoffs, architecture);
+  judgment stays with the human.
 - **Agency** — the agent governs future interactions on the human's behalf (recurring
-  workflows, long-running runs). Needs the most upfront Description and the most ongoing
-  Discernment.
+  workflows, long runs); needs the most Description and Discernment.
 
 ## Authority-scope declaration (use before any multi-step agentic task)
 ```
@@ -44,20 +41,24 @@ For this task:
 - You MUST NOT:       [hard constraints — never cross these]
 - Checkpoint:         after [milestone], pause and show me before continuing.
 ```
-The highest-leverage line is **MUST NOT**. Positive permissions are easy; the negative
-constraints are what prevent costly surprises.
+The highest-leverage line is **MUST NOT**: negative constraints prevent costly surprises.
 
-## 4D kickoff (use at project/feature start — five minutes that saves rework)
-Align on all four before any work begins:
-- **Delegation** — what runs autonomously vs. what needs review?
-- **Description** — what must the human specify upfront so the agent doesn't guess?
-- **Discernment** — what will the human check when it's done?
-- **Diligence** — anything needing disclosure or extra care?
+## The agent's side: renegotiate what it cannot honour
+A delegation is a two-party agreement. Handed work it cannot do well — it needs a person, a
+different tool, or authority the scope withholds; the task was cut at the wrong grain; the
+goal conflicts with a MUST NOT — the agent says so *before* doing a poor job and proposes
+the split that would work. Pushing back on a bad hand-off honours the delegation; silently
+doing something else is the breach.
+
+## 4D kickoff (at kickoff)
+Align on all four first: **Delegation** — what runs autonomously vs. needs review?
+**Description** — what must the human specify so the agent doesn't guess? **Discernment** —
+what will the human check when it's done? **Diligence** — anything needing disclosure or
+extra care?
 
 ## Under borromeanRings
-The harness makes Delegation deterministic. `borromeanrings.toml` declares the authority scope
-(what the agent is held to); `verify.sh` enforces it; `merge.sh` requires explicit human
-invocation, so the agent can suggest but never merges on its own. Treat any change to the
-spine, the gate logic, or the check contract as **MUST NOT without explicit approval** — that
-is the boundary the human keeps. For governing a run already in motion, hand off to
-`ai-fluency-stewardship`.
+The harness makes Delegation deterministic: `borromeanrings.toml` declares the authority
+scope, `verify.sh` enforces it, and `merge.sh` requires explicit human invocation, so the
+agent can suggest but never merges on its own. Treat any change to the spine, the gate
+logic, or the check contract as **MUST NOT without explicit approval**. For a run already
+in motion, hand off to `ai-fluency-stewardship`.

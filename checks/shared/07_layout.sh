@@ -19,7 +19,7 @@ root_md="$(cd "$PROJECT_ROOT" && find . -maxdepth 1 -type f -name '*.md' -print 
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" \
   BORROMEANRINGS_SPECS="$specs" BORROMEANRINGS_ROOT_MD="$root_md" \
-  python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import os
 import sys
 from pathlib import Path

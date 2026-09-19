@@ -14,7 +14,7 @@ cmd="branch naming (declared [collaboration].branch_patterns)"
 branch="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" \
-  python3 - "$PROJECT_ROOT/borromeanrings.toml" "$branch" >"$log" 2>&1 <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$branch" >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.collaboration import branch_violation

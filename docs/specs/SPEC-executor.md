@@ -284,7 +284,8 @@ bundles carry `harness_version.txt` with equal content; B carries `executor.txt`
 
 For each receipt id: `verify_receipt` is true for A and for B against their own logs;
 every field is equal **except** `log` (a path), `content_sha256` (covers the path and the
-log) and any `executor`-namespaced extra; check-specific extras (`score`, `regressed`,
+log), `duration_ms` (how long *this machine* took — two honest runs of one snapshot never
+share it; #253) and any `executor`-namespaced extra; check-specific extras (`score`, `regressed`,
 `evaluated`, …) are compared exactly. Logs are compared after canonicalisation: the
 primary's and the candidate's `PROJECT_ROOT` ⇒ `<ROOT>`, `RECEIPT_DIR` ⇒ `<RUN>`, durations
 matching `\b\d+\.\d+s\b` ⇒ `<T>`. A log diff that survives canonicalisation is a

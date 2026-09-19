@@ -13,6 +13,12 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- Every check records its own wall time in its receipt (`duration_ms`), inside the
+  content hash that already covers the rest of it, and the gate prints the slowest few
+  (#253, ADR-0085). `dev` went red on a 900s check bound and the bound was raised to
+  1800s with nothing in the run to say which check had spent it; the only way to find
+  out was a local re-run on another machine. It is a report, never a rule: no budget, no
+  threshold, no effect on the verdict, and absent means *not measured*, never zero.
 - **The `worktree` executor** (`./run-in-worktree.sh`, ADR-0076) — the gate, run against a
   *snapshot* of your project in a throwaway repository, with the receipts brought back.
   Materialises HEAD + the dirty tree (tracked edits **and** untracked-not-ignored files;

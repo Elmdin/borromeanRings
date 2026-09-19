@@ -28,18 +28,41 @@ print(getattr(load_config(sys.argv[1]), sys.argv[2]))
 PY
 }
 
+# borromeanrings_now_ms — the wall clock in milliseconds, without spawning anything on
+# the common path. `EPOCHREALTIME` is bash 5+ and formats its fraction in the current
+# locale (a comma in many of them), so the separator is normalised before arithmetic.
+# Older bash (macOS ships 3.2) falls back to `date`, i.e. whole seconds — a coarser
+# measurement, still an honest one.
+borromeanrings_now_ms() {
+  local now="${EPOCHREALTIME:-}"
+  if [ -n "$now" ]; then
+    now="${now//,/.}"
+    printf '%s' "$(( ${now%%.*} * 1000 + 10#${now##*.} / 1000 ))"
+    return 0
+  fi
+  printf '%s' "$(( $(date +%s) * 1000 ))"
+}
+
+# When this check started: every check sources this library as its first act, so the
+# receipt's duration is the check's own work — its tools, not the gate's bookkeeping.
+BORROMEANRINGS_CHECK_STARTED_MS="$(borromeanrings_now_ms)"
+
 # emit_receipt <id> <command> <exit_code> <log> <status> [extra_json]
 # Writes the receipt with a tamper-evident content hash (see meta_harness.receipts):
 # the digest covers every field + the log content, so a later status/log edit no
 # longer matches. The verdict step re-verifies it. Evidence, not proof (ADR-0026).
+# `duration_ms` (#253) is recorded here and is inside that digest: a measurement that
+# could be rewritten afterwards is not one anybody could rely on.
 emit_receipt() {
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$1" "$2" "$3" "$4" "$5" "$RECEIPT_DIR/$1.json" "${6:-}" <<'PY'
+  local elapsed_ms=$(( $(borromeanrings_now_ms) - BORROMEANRINGS_CHECK_STARTED_MS ))
+  [ "$elapsed_ms" -ge 0 ] || elapsed_ms=0  # a clock that stepped back is not a negative check
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$1" "$2" "$3" "$4" "$5" "$RECEIPT_DIR/$1.json" "${6:-}" "$elapsed_ms" <<'PY'
 import json
 import sys
 
 from meta_harness.receipts import finalize_receipt
 
-cid, command, exit_code, log, status, out, extra = sys.argv[1:8]
+cid, command, exit_code, log, status, out, extra, duration_ms = sys.argv[1:9]
 receipt = {
     "check": cid,
     "command": command,
@@ -49,6 +72,9 @@ receipt = {
 }
 if extra:
     receipt.update(json.loads(extra))
+# After the extras: what a check reports about itself never overwrites how long the
+# gate measured it taking.
+receipt["duration_ms"] = int(duration_ms)
 try:
     with open(log, encoding="utf-8", errors="replace") as fh:
         log_text = fh.read()

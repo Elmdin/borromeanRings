@@ -20,5 +20,5 @@ is **documented, not mitigated** in v0.
 ## Consequences
 - (+) Best available model quality with zero local hardware investment.
 - (+) Keeps v0 focused on the gate, not on inference infrastructure.
-- (−) Source code is transmitted to a third party per call; acceptable for the harness's own repo,
+- (−) Source code is transmitted to a third party per call; accepted for the harness's own repo,
   but must be surfaced to any future governed project. Tracked as a deferred concern.

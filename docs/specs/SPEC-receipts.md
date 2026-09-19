@@ -23,6 +23,7 @@ content_sha256 = sha256( canonical_json(receipt \ content_sha256)
   receipts — a value CI captures in its external log for later audit.
 
 ## Properties
+Verified by `tests/unit/test_receipts.py` (every row below is a unit case).
 
 | Property | Guarantee |
 |---|---|

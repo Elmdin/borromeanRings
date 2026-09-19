@@ -95,7 +95,7 @@ borromeanrings/
 **Contract:** `verify.sh` runs every check in `checks/` in filename order, captures each result as a receipt, and exits `0` only if **every declared check produced a receipt with exit code 0**. Any failing check, any missing receipt, or any missing required tool ⇒ non-zero exit. This is **fail-closed** (Brief §11): absence of proof = failure, never pass-on-trust.
 
 **Per-check contract (uniform, so the registry can grow):**
-- Each `checks/NN_name.sh` runs one tool, writes its raw stdout+stderr to `.meta-harness/receipts/<run-id>/NN_name.log`, and writes a receipt `NN_name.json`:
+- Each `checks/<NN_name>.sh` runs one tool, writes its raw stdout+stderr to `.meta-harness/receipts/<run-id>/NN_name.log`, and writes a receipt `NN_name.json`:
   ```json
   {
     "check": "test",
@@ -132,7 +132,7 @@ All three hooks point at scripts in `.claude/hooks/`, registered in committed `.
 `stop_gate.sh` receives Stop-event JSON on stdin. Logic:
 
 1. Parse `stop_hook_active`. **If `true`, `exit 0`** (let the agent stop) — this is the documented infinite-loop escape hatch.
-2. Maintain a per-session attempt counter at `.meta-harness/stop_attempts/<session_id>`.
+2. Maintain a per-session attempt counter at `.meta-harness/stop_attempts/<session_id>`. *(Superseded by ADR-0079: the count now lives outside the governed tree, under `$XDG_STATE_HOME/borromeanrings/`, because the agent could reset an in-tree count.)*
 3. Run `verify.sh`.
    - **Pass** → reset the counter, `exit 0` (allow stop). The agent only finishes when the code is green. Evidence-based completion (Brief principle 6).
    - **Fail** → increment counter.

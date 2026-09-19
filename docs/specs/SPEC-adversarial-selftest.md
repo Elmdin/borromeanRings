@@ -1,7 +1,7 @@
 # SPEC — Adversarial self-test (the gate must catch known-bad)
 
 **Status:** Implemented (increment 1 of the enforcement-coverage program)
-**Realized by:** `tests/test_gate_adversarial.py` · ADR-0025
+**Realized by:** `tests/integration/test_gate_adversarial.py` · ADR-0025
 
 ## Problem
 

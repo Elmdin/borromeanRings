@@ -36,7 +36,7 @@ fi
 # subdirectory-governed project), so the src_dir / adr_dir prefixes match either way.
 changed="$(git -C "$PROJECT_ROOT" diff --relative --name-only "$merge_base"...HEAD 2>/dev/null || true)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$branch" "$changed" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$branch" "$changed" >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.adr_discipline import adr_violation

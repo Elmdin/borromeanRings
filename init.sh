@@ -7,7 +7,17 @@
 set -uo pipefail
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET="${1:?usage: ./init.sh <target-dir>}"
+NO_GITIGNORE=0
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --no-gitignore) NO_GITIGNORE=1 ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- "${args[@]+"${args[@]}"}"
+
+TARGET="${1:?usage: ./init.sh [--no-gitignore] <target-dir>}"
 TARGET="$(cd "$TARGET" && pwd)"
 
 if [ ! -f "$TARGET/borromeanrings.toml" ]; then
@@ -45,7 +55,12 @@ cat >"$TARGET/.claude/settings.json" <<EOF
     "UserPromptSubmit": [ { "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/prompt_rewrite.sh", "timeout": 30 } ] } ],
     "Stop": [ { "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/stop_gate.sh", "timeout": 600 } ] } ],
     "PostToolUse": [ { "matcher": "Edit|Write|MultiEdit", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/post_edit_format.sh", "timeout": 60 } ] } ],
-    "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/pre_bash_guard.sh", "timeout": 30 } ] } ]
+    "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/pre_bash_guard.sh", "timeout": 30 } ] } ],
+    "PreCompact": [ { "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/pre_compact.sh", "timeout": 30 } ] } ],
+    "SessionStart": [
+      { "matcher": "compact", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/session_start.sh", "timeout": 30 } ] },
+      { "matcher": "resume", "hooks": [ { "type": "command", "command": "$BORROMEANRINGS_HOME/.claude/hooks/session_start.sh", "timeout": 30 } ] }
+    ]
   }
 }
 EOF
@@ -55,7 +70,30 @@ echo "wrote $TARGET/.claude/settings.json  (hooks reference borromeanRings at $B
 if [ -d "$BORROMEANRINGS_HOME/.claude/skills" ]; then
   mkdir -p "$TARGET/.claude/skills"
   cp -R "$BORROMEANRINGS_HOME/.claude/skills/." "$TARGET/.claude/skills/"
+  # Substitute the home placeholder, exactly as install-global.sh does. A skill that
+  # still carries it tells the agent to run a path that does not exist.
+  while IFS= read -r f; do
+    sed -i "s#__BORROMEANRINGS_HOME__#$BORROMEANRINGS_HOME#g" "$f"
+  done < <(find "$TARGET/.claude/skills" -type f -name '*.md')
   echo "installed borromeanRings skills into $TARGET/.claude/skills/ (e.g. borromeanrings-research)"
+fi
+
+# borromeanRings writes receipts, verdicts and state under .meta-harness/.
+# Unignored, that output becomes part of the state the gate examines: a governed
+# project's 12_secrets reads the git index, so `git add -A` puts the harness's own
+# check logs in it and the secret gate fails on them (#219). Never silent —
+# appending to a file the project owns is a real write, announced like the others.
+if [ "$NO_GITIGNORE" -eq 0 ]; then
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$TARGET" <<'GITIGNORE_PY'
+import sys
+from pathlib import Path
+
+from meta_harness.gitignore import ensure_ignored
+
+said = ensure_ignored(Path(sys.argv[1]))
+if said:
+    print(said)
+GITIGNORE_PY
 fi
 
 echo

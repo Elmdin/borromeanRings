@@ -50,10 +50,10 @@ exists and what's truly best.
 ## The operating vocabulary (AI Fluency 4D)
 What the gate *is*, named: borromeanRings mechanizes the **AI Fluency** disciplines —
 Delegation (the spine + explicit `merge.sh`), Description (the prompt-rewrite hook), Discernment
-(the gate + receipts), Diligence (human-vouched merges), and Stewardship (governing a run in
-motion). The full mapping, with attribution to the framework's authors, lives in
-[`AI-FLUENCY.md`](AI-FLUENCY.md); five `ai-fluency-*` skills make the disciplines actionable in
-a session. See `adr/0020`.
+(the gate + receipts), Diligence (human-vouched merges) — and Stewardship, the cadence on
+which those four are re-run while an agent is in motion (not a fifth competency). The full
+mapping, with attribution to the framework's authors, lives in [`AI-FLUENCY.md`](AI-FLUENCY.md);
+five `ai-fluency-*` skills make the disciplines actionable in a session. See `adr/0020`.
 
 ## The near-term mission
 Make **borromeanRings** genuinely good at its job: enhancing existing agents (the gate, CI, gated

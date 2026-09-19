@@ -137,65 +137,6 @@ def test_planted_json_cannot_forge_the_verdict(tmp_path: Path) -> None:
     )
 
 
-# A decoy ``meta_harness`` package: every check's trusted step imports meta_harness,
-# so this is the plant that reaches ALL of them, not just the verdict step. It records
-# each import to a marker OUTSIDE the project (so the tree the gate inspects is not
-# changed by the act of importing) and then fails the import.
-_DECOY_META_HARNESS = """\
-import os
-import sys
-
-with open(os.environ["BORROMEANRINGS_DECOY_MARKER"], "a", encoding="utf-8") as fh:
-    fh.write(" ".join(sys.argv) + "\\n")
-raise ImportError("decoy meta_harness imported from the governed project")
-"""
-
-
-def test_a_planted_meta_harness_is_never_imported_by_any_check(tmp_path: Path) -> None:
-    """#222 closed the verdict step; the checks written after it reopened the class.
-
-    Ten check scripts ran their trusted, meta_harness-importing step as a bare
-    ``python3 -`` from the project directory, so a planted ``meta_harness/`` replaced
-    the analysis behind 16_shellcheck, 19_context_budget and the rest. Every check
-    that runs on this fixture must import the REAL package.
-    """
-    project = _write(tmp_path / "proj", _FAILING_PROJECT)
-    decoy = project / "meta_harness"
-    decoy.mkdir()
-    (decoy / "__init__.py").write_text(_DECOY_META_HARNESS)
-    marker = tmp_path / "decoy-imported"
-
-    probe = subprocess.run(
-        [sys.executable, "-c", "import meta_harness"],
-        cwd=project,
-        env={**os.environ, "BORROMEANRINGS_DECOY_MARKER": str(marker)},
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert probe.returncode != 0 and marker.exists(), (
-        "the decoy did not win the import race from the project root — the test "
-        f"would prove nothing. stderr={probe.stderr!r}"
-    )
-    marker.unlink()
-
-    env = dict(os.environ)
-    env["BORROMEANRINGS_PROJECT"] = str(project)
-    env["BORROMEANRINGS_DECOY_MARKER"] = str(marker)
-    proc = subprocess.run(
-        ["bash", str(VERIFY)],
-        env=env,
-        cwd=str(project),
-        capture_output=True,
-        text=True,
-        timeout=GATE_TIMEOUT_S,
-    )
-    assert not marker.exists(), (
-        "a check imported meta_harness from the governed project:\n"
-        f"{marker.read_text()}\n--- gate output ---\n{proc.stdout}{proc.stderr}"
-    )
-
-
 # The gate's own trusted machinery: verify.sh (verdict, language detect) and
 # checks/_lib.sh (emit_receipt, config read). Every interpreter start here must go
 # through borromeanrings_py, defined only in checks/_py.sh.
@@ -217,12 +158,33 @@ _BANNED_FLAGS = re.compile(r"python3\s+-[A-Za-z]*[IP]")
 # M7), so routing them through a neutral cwd would protect nothing and break them.
 _PROJECT_CODE_RUNS = (
     (re.compile(r"python3 -m (pytest|pip_audit)\b"), "runs the project's tool, by design"),
-    (re.compile(r"command -v python3\b"), "a presence probe; starts no interpreter"),
+    # Anchored to the discard-output form: `X="$(command -v python3)"` is NOT a probe,
+    # it is the first half of an indirect start (review of #241).
+    (re.compile(r"command -v python3\s*>\s*/dev/null"), "a presence probe; starts no interpreter"),
     (re.compile(r"required tool 'python3'"), "message text"),
     (re.compile(r'python3 -c \\"import \$package\\"'), "00_build imports the package"),
     (
         re.compile(r'^\s*cd "\$PROJECT_ROOT" && python3 - <<'),
         "27_properties asks whether the PROJECT's env has the runner it is about to use",
+    ),
+)
+
+
+# Indirect interpreter starts the literal ``python3`` match cannot see. A static scan
+# can ban the forms it knows; it cannot prove none exists. The behavioural test in
+# test_checks_trusted_python_cwd.py is what proves the shared and Python lanes route.
+_INDIRECT = (
+    (
+        re.compile(r"\$\(\s*(command\s+-v|which|type\s+-[pP])\s+python"),
+        "interpreter path captured into a variable",
+    ),
+    (
+        re.compile(r"(^|[;&|(]|\$\()\s*(exec\s+|!\s+)?\"?\$\{?[A-Za-z_]\w*\}?\"?\s+-c?(\s|$)"),
+        "a variable run as a command with a program argument (- or -c)",
+    ),
+    (
+        re.compile(r"(^|[\s;&|(!/])python(?!3\s)(\d(\.\d+)?)?\s+-[cm]?(\s|$)"),
+        "an interpreter spelled other than python3",
     ),
 )
 
@@ -259,8 +221,9 @@ def test_gate_trusted_python_runs_through_the_neutral_cwd_helper() -> None:
 
 def test_every_check_routes_its_trusted_python() -> None:
     """#224 review S3, generalised: no check script may start a trusted interpreter
-    outside ``borromeanrings_py``. Covers every ``checks/**/*.sh`` — including checks
-    that do not exist yet — so a new check cannot reopen the shadow by omission."""
+    outside ``borromeanrings_py``. Covers every ``checks/**/*.sh``, including checks that
+    do not exist yet, and the known indirect forms (``_INDIRECT``). Text cannot rule out
+    every indirection; see test_checks_trusted_python_cwd.py for the observed proof."""
     offenders: list[str] = []
     scripts = sorted((BORROMEANRINGS_HOME / "checks").rglob("*.sh"))
     assert len(scripts) > 20, "the check corpus was not found — this guard would be vacuous"
@@ -269,7 +232,10 @@ def test_every_check_routes_its_trusted_python() -> None:
         if rel == "checks/_py.sh":
             continue  # defines the helper; guarded by the test above
         for number, line, code in _code_lines(rel):
-            if _BANNED_FLAGS.search(code):
+            indirect = [why for rx, why in _INDIRECT if rx.search(code)]
+            if indirect:
+                offenders.append(f"{rel}:{number}: {indirect[0]}: {line.strip()}")
+            elif _BANNED_FLAGS.search(code):
                 offenders.append(f"{rel}:{number}: banned flag: {line.strip()}")
             elif _PYTHON.search(code) and not any(rx.search(code) for rx, _ in _PROJECT_CODE_RUNS):
                 offenders.append(

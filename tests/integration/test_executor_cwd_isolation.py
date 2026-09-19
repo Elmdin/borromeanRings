@@ -85,3 +85,39 @@ def test_a_meta_harness_in_the_callers_directory_is_never_imported(tmp_path: Pat
         f"{result.stdout}\n{result.stderr}"
     )
     assert "RECEIPTS: " in result.stdout, result.stderr
+
+
+def test_a_package_that_cannot_be_located_refuses_rather_than_skipping(tmp_path: Path) -> None:
+    """Review of #212: if asking where the package imports from fails, the answer is
+    unknown, not "nowhere". An empty ORIGIN read as "not importable, nothing to shadow",
+    the same fail-open shape as the config read."""
+    project = _project(tmp_path)
+    # A DOTTED package: locating `fixturepkg.core` imports its parent, whose __init__
+    # raises something the probe does not expect. (A top-level find_spec runs no code.)
+    (project / "borromeanrings.toml").write_text(
+        CONFIG.replace('package = "fixturepkg"', 'package = "fixturepkg.core"')
+    )
+    (project / "src" / "fixturepkg" / "core").mkdir()
+    (project / "src" / "fixturepkg" / "core" / "__init__.py").write_text('"""Core."""\n')
+    init = project / "src" / "fixturepkg" / "__init__.py"
+    init.write_text('raise RuntimeError("an import-time failure the probe did not expect")\n')
+    subprocess.run(["git", "add", "-A"], cwd=project, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "boom"],
+        cwd=project,
+        capture_output=True,
+        check=True,
+    )
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "CLAUDE_PROJECT_DIR")}
+    env.update(BORROMEANRINGS_HEAVY="0", BORROMEANRINGS_CHECK_TIMEOUT="120")
+    result = subprocess.run(
+        ["bash", str(RUN_IN_WORKTREE), "--project", str(project)],
+        cwd=project,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "could not locate where" in result.stderr
+    assert "RECEIPTS: " not in result.stdout

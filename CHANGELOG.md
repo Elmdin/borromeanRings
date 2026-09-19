@@ -551,6 +551,8 @@ queue is merged.
   from wherever the executor was invoked, so a `meta_harness/` there was imported instead
   of the harness. A failed import emptied `PACKAGE`, which skipped the shadow check
   entirely: fail-open. Both now run from `/`, and the executor dies if either cannot run.
+  So does the probe that asks where the project's package imports from: an import that
+  raises no longer reads as "nothing to shadow".
   `tests/integration/test_executor_cwd_isolation.py` plants the decoy.
 - **The worktree executor's branch identity could follow the primary** (found in review of
   PR #212). A `git worktree` shares the repository's ref namespace, so pointing its HEAD at

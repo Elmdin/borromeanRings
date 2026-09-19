@@ -24,7 +24,41 @@ from pathlib import Path
 from typing import Any
 
 from meta_harness.adopt import plan_adoption
-from meta_harness.verdict import Verdict, is_failing, read_last_verdict
+from meta_harness.verdict import (
+    RewriteTally,
+    SelfReportTally,
+    Verdict,
+    is_failing,
+    read_last_verdict,
+    read_rewrite_tally,
+    read_self_report_tally,
+)
+
+__all__ = [
+    "HOOK_EVENTS",
+    "HOOK_SCRIPTS",
+    "NOOP",
+    "Enforcement",
+    "ProjectStatus",
+    "RewriteTally",
+    "SelfReportTally",
+    "Verdict",
+    "build_status",
+    "classify_enforcement",
+    "hollow_checks",
+    "obligations",
+    "read_project_verdict",
+    "read_rewrite_tally",
+    "read_self_report_tally",
+    "render",
+    "render_rewrite_line",
+    "render_self_report_line",
+    "render",
+    "render_rewrite_line",
+    "render",
+    "render_self_status",
+    "summarize",
+]
 
 
 @dataclass(frozen=True)
@@ -127,6 +161,10 @@ HOOK_SCRIPTS: dict[str, str] = {
     "Stop": "stop_gate.sh",
     "PostToolUse": "post_edit_format.sh",
     "PreToolUse": "pre_bash_guard.sh",
+    # Compaction is where governance state is silently lost (#137, ADR-0053): the
+    # snapshot before, and the re-injection after, are part of enforcement.
+    "PreCompact": "pre_compact.sh",
+    "SessionStart": "session_start.sh",
 }
 
 #: The hook events borromeanRings wires; all present ⇒ enforcement is automatic.
@@ -202,11 +240,70 @@ def classify_enforcement(settings: Mapping[str, Any] | None, harness_home: str) 
     return Enforcement("manual", "no borromeanRings hooks wired — the gate runs only when invoked")
 
 
+def obligations(verdict: Verdict | None) -> list[str]:
+    """What the last verdict still demands: failing checks first, then hollow ones.
+
+    The wording is what the compaction brief re-injects (ADR-0053); an empty list means
+    a clean pass, or no verdict at all — the caller says which.
+    """
+    if verdict is None:
+        return []
+    failing = [
+        f"{cid}: {status.upper()} — fix before the next Stop gate"
+        for cid, status in verdict.checks
+        if is_failing(status)
+    ]
+    hollow = [
+        f"{cid}: inspected nothing (noop) — a green here proves less than it looks"
+        for cid, status in verdict.checks
+        if status == NOOP
+    ]
+    return failing + hollow
+
+
 def hollow_checks(verdict: Verdict | None) -> tuple[str, ...]:
     """The checks in ``verdict`` that ran but inspected nothing."""
     if verdict is None:
         return ()
     return tuple(cid for cid, status in verdict.checks if status == NOOP)
+
+
+def render_rewrite_line(tally: RewriteTally | None) -> str:
+    """The rewrite-contract line of the self-status report (ADR-0059).
+
+    How often replies opened with the reading the UserPromptSubmit directive asks for.
+    A statement about the RECORD: exempt and unknown verdicts are shown as such, never
+    folded into either side of the tally.
+    """
+    if tally is None or tally.total == 0:
+        return "no record"
+    line = f"honoured {tally.honoured} of {tally.judged} in this project"
+    aside = [f"{tally.exempt} exempt"] if tally.exempt else []
+    if tally.unknown:
+        aside.append(f"{tally.unknown} unknown")
+    return f"{line} ({', '.join(aside)})" if aside else line
+
+
+def render_self_report_line(tally: SelfReportTally | None) -> str:
+    """The self-report line of the self-status report (ADR-0066).
+
+    How often replies ended with the structural VERIFICATION STATUS block. A statement
+    about the RECORD: malformed, graded, exempt and unknown verdicts are shown as such.
+    """
+    if tally is None or tally.total == 0:
+        return "no record"
+    line = f"present {tally.present} of {tally.judged}"
+    aside = [
+        f"{count} {name}"
+        for name, count in (
+            ("malformed", tally.malformed),
+            ("graded", tally.graded),
+            ("exempt", tally.exempt),
+            ("unknown", tally.unknown),
+        )
+        if count
+    ]
+    return f"{line} ({', '.join(aside)})" if aside else line
 
 
 def render_self_status(
@@ -218,6 +315,8 @@ def render_self_status(
     enforcement: Enforcement,
     harness_home: str,
     installed_version: str = "",
+    rewrite_tally: RewriteTally | None = None,
+    self_report_tally: SelfReportTally | None = None,
 ) -> str:
     """Render the one-project report (pure; safe on missing/partial facts)."""
     name = project.rstrip("/").rsplit("/", maxsplit=1)[-1] or project
@@ -266,6 +365,8 @@ def render_self_status(
 
     marker = {"auto": "", "partial": "⚠ ", "manual": "⚠ "}[enforcement.mode]
     lines.append(f"  {marker}Enforcement: {enforcement.mode.upper()} — {enforcement.detail}")
+    lines.append(f"  Rewrite:      contract {render_rewrite_line(rewrite_tally)}")
+    lines.append(f"  Self-report:  {render_self_report_line(self_report_tally)}")
     if installed_version:
         lines.append(f"  Installed:    borromeanRings {installed_version} at {harness_home}")
     lines += [f"  Re-gate:      {harness_home}/verify.sh", ""]

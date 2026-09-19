@@ -49,7 +49,7 @@ The hooks are now active for the agent prompted **in this project**.
 | Feature | How to test | Expected |
 |---|---|---|
 | **Gate (green)** | `"$BORROMEANRINGS/verify.sh"` (from `~/demo`) | all 7 checks PASS |
-| **Gate (bites)** | edit `src/app/core.py` → `return "oops"`; re-run | `30_typecheck` + `40_test` FAIL |
+| **Gate (bites)** | edit `~/demo/src/app/core.py` → `return "oops"`; re-run | `30_typecheck` + `40_test` FAIL |
 | **Stop hook** | in the session, have the agent leave that bug and try to finish | it's **blocked**: "borromeanRings gate FAILED (attempt 1/3)…" until fixed |
 | **Prompt rewriting** | submit any prompt | a `[borromeanRings]` rewrite directive is injected (agent shows the rewrite) |
 | **Dangerous-command guard** | ask the agent to run `rm -rf /` | **denied** with a reason |

@@ -62,6 +62,44 @@ def verify_receipt(receipt: dict[str, object], log_text: str) -> bool:
     return stored == compute_content_hash(receipt, log_text)
 
 
+def resolve_log_path(recorded: str, receipt_dir: Path | str) -> Path | None:
+    """Where this receipt's log actually is, or ``None`` if it cannot be found.
+
+    ``recorded`` is the ``log`` field: an absolute path in the namespace of the
+    executor that produced the receipt. It is the answer whenever it still exists.
+    When it does not, the bundle has been **transported** — a worktree or sandbox
+    run copied back to the primary's receipt dir (SPEC-executor.md §2.3, ADR-0076)
+    — and the log sits beside its receipt under the same basename.
+
+    Reader-side resolution, deliberately: the hash still covers the log's *content*
+    and the recorded path *string*, so an edited log still fails verification. This
+    finds where the bytes are; it never changes what they must be.
+    """
+    if not recorded:
+        return None
+    direct = Path(recorded)
+    if direct.exists():
+        return direct
+    beside = Path(receipt_dir) / direct.name
+    return beside if beside.exists() else None
+
+
+def read_log_text(receipt: dict[str, object], receipt_dir: Path | str) -> str:
+    """The log text ``receipt`` must be verified against — ``""`` when unreadable.
+
+    Never raises: an unresolvable or unreadable log yields ``""``, which fails the
+    hash check, so a receipt whose evidence is gone fails closed rather than
+    crashing the verdict.
+    """
+    path = resolve_log_path(str(receipt.get("log", "")), receipt_dir)
+    if path is None:
+        return ""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 def run_digest(content_hashes: list[str]) -> str:
     """A single anchor digest over a run's per-receipt hashes (order-independent)."""
     return _sha256("\n".join(sorted(content_hashes)))
@@ -92,8 +130,8 @@ def verify_dir(receipt_dir: Path) -> IntegrityReport:
             tampered.append(jf.stem)
             continue
 
-        log_path = Path(receipt.get("log", ""))
-        if not log_path.exists():
+        log_path = resolve_log_path(str(receipt.get("log", "")), receipt_dir)
+        if log_path is None:
             missing_log.append(jf.stem)
             continue
         log_text = log_path.read_text(errors="replace")

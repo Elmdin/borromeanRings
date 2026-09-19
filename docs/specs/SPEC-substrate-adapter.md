@@ -5,6 +5,7 @@
 **Hooks:** `.claude/hooks/*.sh` · **Gate:** `verify.sh` (unchanged by this spec) ·
 **Siblings:** `SPEC-executor.md` (where the checks run), `SPEC-generator.md` (who produces the
 change) — substrate, executor and generator are three separate axes (ADR-0071)
+**Hooks:** `.claude/hooks/*.sh` · **Gate:** `verify.sh` (unchanged by this spec)
 
 ## User story
 

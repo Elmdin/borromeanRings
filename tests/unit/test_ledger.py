@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from meta_harness.evidence import Evidence
 from meta_harness.ledger import (
     LedgerSummary,
     main,
@@ -32,6 +33,7 @@ def _pass(n: int) -> list[Verdict]:
 def test_summarize_empty_history() -> None:
     s = summarize_history("/p", [])
     assert s.runs == 0
+    assert s.evidenced == 0
     assert s.failures_caught == 0
     assert s.current_streak == 0
     assert s.streak_kind == "none"
@@ -80,12 +82,36 @@ def test_render_empty_is_exact() -> None:
 
 
 def test_render_row_shows_fields() -> None:
-    out = render([LedgerSummary("/x/proj", 5, 2, 3, "green")])
+    out = render([LedgerSummary("/x/proj", 5, 2, 3, "green", 4)])
     lines = out.splitlines()
-    assert lines[0].split() == ["PROJECT", "RUNS", "CAUGHT", "STREAK"]
+    assert lines[0].split() == ["PROJECT", "RUNS", "CAUGHT", "STREAK", "EVIDENCE"]
     # the row carries every field verbatim, in column order.
     row = lines[2]
-    assert row.split() == ["/x/proj", "5", "2", "3", "green"]
+    assert row.split() == ["/x/proj", "5", "2", "3", "green", "4/5"]
+
+
+# --- evidence presence per run (ADR-0056) -----------------------------------
+
+
+def test_summarize_counts_runs_that_carry_evidence() -> None:
+    history = [
+        Verdict(ok=True),  # pre-evidence record
+        Verdict(ok=True, evidence=(Evidence("a"),)),
+        Verdict(ok=False, evidence=(Evidence("a"), Evidence("b"))),
+    ]
+    s = summarize_history("/p", history)
+    assert s.runs == 3
+    assert s.evidenced == 2
+
+
+def test_render_never_gated_evidence_is_dash() -> None:
+    row = render([LedgerSummary("/p", 0, 0, 0, "none", 0)]).splitlines()[2]
+    assert row.split() == ["/p", "0", "0", "—", "—"]
+
+
+def test_summarize_line_counts_evidenced_runs() -> None:
+    rows = [LedgerSummary("/a", 4, 1, 2, "green", 3), LedgerSummary("/c", 6, 3, 1, "red", 0)]
+    assert "3 with evidence" in summarize(rows)
 
 
 def test_render_shortens_home_paths() -> None:

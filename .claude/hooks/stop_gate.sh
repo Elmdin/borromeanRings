@@ -4,8 +4,9 @@
 # This is the `claude-code` GENERATOR ADAPTER (SPEC-generator.md §3.1): the wrapped agent
 # sits in the generator's seat, the Stop event is its "I have written a change", the
 # stderr text is the retry request, and the exit code (2 = retry, 0 = done/escalated) is
-# how the substrate is told which. The loop's rules are NOT this script's: CAP and the
-# decision live in meta_harness.generator, shared with the headless driver (generate.sh).
+# how the substrate is told which. The loop's rules are NOT this script's: CAP lives in
+# meta_harness.generator, shared with the headless driver (generate.sh); the count and the
+# retry/escalate decision live in meta_harness.retry_state, outside the tree (ADR-0079).
 #
 # A thin ADAPTER over the substrate-neutral gate. Works whether borromeanRings governs
 # itself or is referenced from another project: it runs $BORROMEANRINGS_HOME/verify.sh
@@ -20,11 +21,12 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 # Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
 # This stays the FIRST thing the hook does — an ungoverned workspace must not pay for a
 # python3 start on every Stop.
-[ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
+# borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
+{ [ -f "$PROJECT_DIR/borromeanrings.toml" ] || [ -f "$PROJECT_DIR/borromeo.toml" ]; } || exit 0
 
 input="$(borromeanrings_read_stdin)"
 read -r stop_active session_id <<EOF
-$(printf '%s' "$input" | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('stop_hook_active', False)).lower(), d.get('session_id','default'))" 2>/dev/null || echo "false default")
+$(printf '%s' "$input" | borromeanrings_py -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('stop_hook_active', False)).lower(), d.get('session_id','default'))" 2>/dev/null || echo "false default")
 EOF
 
 if [ "$stop_active" = "true" ]; then
@@ -41,11 +43,44 @@ fi
 borromeanrings_claim stop "$session_id" || exit 0
 trap 'borromeanrings_release stop "$session_id"' EXIT TERM INT
 
+# Rewrite-contract receipt (ADR-0059, #81): did the reply that just ended open with the
+# "Reading this as:" line the UserPromptSubmit directive asked for? Decided from the
+# session transcript the substrate names in the payload (transcript_path) — nothing else
+# is read — and appended to .meta-harness/rewrite_contract.jsonl. Runs BEFORE the no-op
+# guard: a reply that only answered a question is exactly where the reading matters.
+# Record, don't nag: advisory in v1 — never blocks, never fails this hook. Skipped when
+# the directive is off ([prompt_rewriting].enabled) so an absent reading is never
+# recorded as a broken promise nobody made.
+# The payload travels over stdin (as for the parse above), never argv. Bounded
+# (BORROMEANRINGS_REWRITE_TIMEOUT seconds, default 10): a stalled filesystem under the
+# transcript must never park the Stop hook.
+printf '%s' "$input" | PYTHONPATH="$BORROMEANRINGS_HOME/src" \
+  borromeanrings_py_bounded "${BORROMEANRINGS_REWRITE_TIMEOUT:-10}" -c '
+import sys
+from pathlib import Path
+
+from meta_harness.rewrite_contract import record_from_payload
+from meta_harness.self_report import record_from_payload as record_self_report
+from meta_harness.spine import load_config
+
+project = Path(sys.argv[1])
+config = load_config(project / "borromeanrings.toml")
+# ONE read of stdin for BOTH records (ADR-0059 + ADR-0066): the payload arrives on a
+# pipe, so a second read would get nothing and the self-report would silently record
+# unknown on every Stop. (No backticks in this block: shellcheck reads them as a
+# command substitution that cannot expand inside the single-quoted -c argument.)
+payload = sys.stdin.read()
+if config.prompt_rewriting_enabled:
+    record_from_payload(project, payload)
+if config.self_report_enabled:
+    record_self_report(project, payload)
+' "$PROJECT_DIR" >/dev/null 2>&1 || true
+
 # No-op guard: if the governed input state is identical to the last proven-green
 # state (e.g. the agent only answered a question), skip the full gate — re-running
 # it adds no assurance and wastes compute/tokens. Fail-closed: any error or change
 # ⇒ fall through and run the gate.
-if PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" <<'PY'
+if PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR" <<'PY'
 import sys
 from pathlib import Path
 
@@ -69,7 +104,7 @@ fi
 # early pays for no python3 start. Unreadable ⇒ fail closed to a single attempt — the
 # smallest bound still escalates to the human, where guessing an unbounded one never
 # would — and say so, because "attempt 1/1" with no explanation is not an explanation.
-CAP="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
+CAP="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   'from meta_harness.generator import CAP; print(CAP)' 2>/dev/null || true)"
 case "$CAP" in
   '' | *[!0-9]* | 0)
@@ -81,24 +116,41 @@ esac
 # This adapter's self-declared provenance, recorded in the verdict as intent.generator —
 # like a git author line, and worth exactly as much. The gate makes no decision on it
 # (ADR-0049: the generator's word is not evidence); it only records who claimed to write
-# the change it judged (ADR-0071 §4). It is also what makes the retry bound survive a
-# deleted counter: the session id is how this adapter's rows are picked out of the gate's
-# append-only verdict history below.
+# the change it judged (ADR-0071 §4, ADR-0078).
 GENERATOR="claude-code:$session_id"
 
-attempt_dir="$PROJECT_DIR/.meta-harness/stop_attempts"
-mkdir -p "$attempt_dir"
-counter_file="$attempt_dir/$session_id"
+# The retry count lives outside the governed tree, under
+# $XDG_STATE_HOME/borromeanrings/<project-digest>/ (ADR-0079, #218): kept in the
+# tree, one `rm` bought unlimited attempts. The decisions (where, how much, retry
+# or escalate, legacy migration) are in meta_harness.retry_state; this adapter
+# only dispatches on its one-line verdict. This resists accident and a naive
+# reset, and fails closed on a broken state directory. It is NOT a bound against
+# intent: the gate below runs the project's own code (its tests) as the user, and
+# that code can reach the state directory like any same-user process.
+borromeanrings_retry_state() {
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$@" 2>/dev/null <<'PY'
+import os
+import sys
+
+from meta_harness.retry_state import main
+
+sys.exit(main(sys.argv[1:], os.environ))
+PY
+}
 
 # Bounded: a hanging check inside the gate must fail closed here, not park this
 # hook (and its children) until the substrate's own hook timeout — or forever.
 # Keep the bound under the Stop hook's 600s budget in .claude/settings.json.
+# --fast: the interactive lane. Same required checks; 40_test runs only the project's
+# declared [test].fast_paths (none declared ⇒ the whole suite, as before). The full
+# suite still gates on `./verify.sh`, `--heavy`, and in CI — a turn is not a merge.
+# See ADR-0081, issue #226.
 summary="$(BORROMEANRINGS_PROJECT="$PROJECT_DIR" \
   BORROMEANRINGS_GENERATOR="$GENERATOR" borromeanrings_bounded \
-  "${BORROMEANRINGS_GATE_TIMEOUT:-540}" bash "$BORROMEANRINGS_HOME/verify.sh" 2>&1)"
+  "${BORROMEANRINGS_GATE_TIMEOUT:-540}" bash "$BORROMEANRINGS_HOME/verify.sh" --fast 2>&1)"
 gate_code=$?
 if [ "$gate_code" -eq 0 ]; then
-  rm -f "$counter_file"
+  borromeanrings_retry_state clear "$PROJECT_DIR" "$session_id" >/dev/null
   exit 0
 fi
 if [ "$gate_code" -eq 124 ]; then
@@ -106,50 +158,32 @@ if [ "$gate_code" -eq 124 ]; then
 (gate TIMED OUT after ${BORROMEANRINGS_GATE_TIMEOUT:-540}s wall-clock — a check is hanging; treated as FAIL, fail-closed)"
 fi
 
-# Which attempt this is, and what happens next — BOTH from meta_harness.generator, so
-# this adapter and the headless driver run the same rules rather than two shell
-# transcriptions of them that agree today.
-#
-# The attempt number is anchored to two things, not one. The counter file is a single
-# small file that an agent working in this tree can delete, and deleting it used to hand
-# back a fresh set of three; the gate's verdict history (ADR-0047) is append-only, is what
-# the effectiveness ledger reports, and is picked out by THIS session's provenance label,
-# so the count survives. Whichever is higher wins.
-#
-# next_action is given tree_changed=true and exit_code=0 because a Stop event carries
-# neither signal: a hooked agent cannot say "I wrote nothing" or "I could not" (spec §6).
-# Fail-closed: anything unreadable escalates rather than retrying.
-attempts=""
-action=""
-read -r attempts action <<EOF
-$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - \
-  "$PROJECT_DIR" "$GENERATOR" "$(cat "$counter_file" 2>/dev/null || true)" "$CAP" 2>/dev/null <<'PY'
-import sys
-
-from meta_harness.generator import attempt_number, attempts_from_history, next_action
-from meta_harness.verdict import read_history
-
-project, generator, counter, cap = sys.argv[1:5]
-rows = [(v.generator, v.ok) for v in read_history(project)]
-attempts = attempt_number(counter, attempts_from_history(rows, generator))
-print(attempts, next_action(attempts, int(cap), False, True, 0))
-PY
-)
+read -r verdict detail <<EOF
+$(borromeanrings_retry_state fail "$PROJECT_DIR" "$session_id" "$CAP")
 EOF
-case "$attempts" in '' | *[!0-9]*) attempts="$CAP" ;; esac
-printf '%s' "$attempts" >"$counter_file"
 
-if [ "$action" = "retry" ]; then
-  {
-    echo "borromeanRings gate FAILED (attempt $attempts/$CAP). Fix the failing checks below, then finish again."
-    echo "$summary"
-  } >&2
-  exit 2
-fi
-
-{
-  echo "ESCALATION: borromeanRings gate failed $attempts times — handing control to the human."
-  echo "$summary"
-} >&2
-rm -f "$counter_file"
-exit 0
+case "$verdict" in
+  retry)
+    {
+      echo "borromeanRings gate FAILED (attempt $detail/$CAP) — fix the checks below, then finish."
+      echo "$summary"
+    } >&2
+    exit 2
+    ;;
+  escalate)
+    {
+      echo "ESCALATION: borromeanRings gate failed $detail times — over to the human."
+      echo "$summary"
+    } >&2
+    exit 0
+    ;;
+  *)
+    # Fail closed: without a durable count every Stop would read as attempt 1,
+    # which is the unbounded loop this bound exists to stop. Escalate now.
+    {
+      echo "ESCALATION: retry count unrecordable (${detail:-no answer from retry_state}) — the bound cannot hold, so over to the human, not an unbounded retry."
+      echo "$summary"
+    } >&2
+    exit 0
+    ;;
+esac

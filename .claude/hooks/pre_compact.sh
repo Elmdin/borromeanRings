@@ -17,11 +17,11 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 [ -f "$PROJECT_DIR/borromeanrings.toml" ] || exit 0
 
 input="$(borromeanrings_read_stdin)"
-trigger="$(printf '%s' "$input" | python3 -c "import json,sys; print(json.load(sys.stdin).get('trigger','unknown'))" 2>/dev/null || echo unknown)"
+trigger="$(printf '%s' "$input" | borromeanrings_py -c "import json,sys; print(json.load(sys.stdin).get('trigger','unknown'))" 2>/dev/null || echo unknown)"
 
 out_dir="$PROJECT_DIR/.meta-harness"
 mkdir -p "$out_dir" 2>/dev/null || exit 0
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" "$BORROMEANRINGS_HOME" "$trigger" "$out_dir/compaction_brief.txt" <<'PY' || exit 0
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_DIR" "$BORROMEANRINGS_HOME" "$trigger" "$out_dir/compaction_brief.txt" <<'PY' || exit 0
 import sys
 from datetime import datetime, timezone
 from pathlib import Path

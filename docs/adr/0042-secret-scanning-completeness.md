@@ -21,7 +21,7 @@ Two fail-closed hardenings, one security story:
 - **`74_secret_history`** (heavy lane, CI-tier) scans every blob **reachable from any
   ref** (`git rev-list --all`) via the existing native scanner. Deliberately *not*
   `--batch-all-objects`: unreachable/dangling blobs never get pushed and only surface
-  local test artifacts as false positives (verified — borromeo's own dangling
+  local test artifacts as false positives (verified — borromeanRings's own dangling
   adversarial fixture). History is immutable, so a finding demands **rotation**;
   `[secrets].history_allow` acknowledges rotated/benign findings by a one-way
   **fingerprint** (the secret itself is never emitted to logs/receipts).
@@ -34,7 +34,7 @@ Two fail-closed hardenings, one security story:
   enumeration is a few lines of git plumbing. Entropy-based tools remain a possible
   heavy-lane add where the false-positive budget is acceptable.
 - **Scan all objects, not just reachable** — rejected: dangling blobs aren't in the
-  shared history and produce false positives (borromeo's own case). Reachable-only is
+  shared history and produce false positives (borromeanRings's own case). Reachable-only is
   both correct (models what's pushed) and quiet.
 - **In-line `allow-secret` marker for history** — impossible: you can't edit the past.
   A fingerprint allowlist is the only acknowledgment that works for immutable history.

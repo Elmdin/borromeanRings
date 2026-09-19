@@ -4,7 +4,9 @@
 by summarising each project's append-only verdict history (:data:`~meta_harness.verdict.
 VERDICT_HISTORY_FILE`, written by ``verify.sh`` every run): how many times it ran, how
 many of those runs it **caught a failure** (the evidence the gate is load-bearing, not
-decorative), and the current pass/fail streak. A project with many runs and zero
+decorative), the current pass/fail streak, and how many runs carry per-check evidence
+(ADR-0056 — a run recorded before evidence capture proves less than one that shows what
+happened). A project with many runs and zero
 failures ever is either genuinely clean or under-tested; one that has caught failures is
 demonstrably doing work. Threshold-free — counts and a streak, no score.
 
@@ -33,12 +35,14 @@ class LedgerSummary:
     failures_caught: int
     current_streak: int
     streak_kind: str  # "green" | "red" | "none"
+    evidenced: int = 0  # runs whose verdict carries per-check evidence (ADR-0056)
 
 
 def summarize_history(path: str, history: Sequence[Verdict]) -> LedgerSummary:
-    """Distil a project's verdict history into run/failure/streak counts (pure)."""
+    """Distil a project's verdict history into run/failure/streak/evidence counts (pure)."""
     runs = len(history)
     failures = sum(1 for v in history if not v.ok)
+    evidenced = sum(1 for v in history if v.evidence)
     streak = 0
     kind = "none"
     if history:
@@ -48,7 +52,7 @@ def summarize_history(path: str, history: Sequence[Verdict]) -> LedgerSummary:
             if verdict.ok != latest:
                 break
             streak += 1
-    return LedgerSummary(path, runs, failures, streak, kind)
+    return LedgerSummary(path, runs, failures, streak, kind, evidenced)
 
 
 def _short(path: str) -> str:
@@ -60,11 +64,14 @@ def render(summaries: Sequence[LedgerSummary]) -> str:
     """Render the ledger as an aligned table."""
     if not summaries:
         return "no governed projects with recorded history."
-    header = f"{'PROJECT':<42} {'RUNS':<5} {'CAUGHT':<7} {'STREAK':<8}"
+    header = f"{'PROJECT':<42} {'RUNS':<5} {'CAUGHT':<7} {'STREAK':<9} {'EVIDENCE':<8}"
     lines = [header, "-" * len(header)]
     for s in summaries:
         streak = f"{s.current_streak} {s.streak_kind}" if s.runs else "—"
-        lines.append(f"{_short(s.path):<42} {s.runs:<5} {s.failures_caught:<7} {streak:<8}")
+        evidence = f"{s.evidenced}/{s.runs}" if s.runs else "—"
+        lines.append(
+            f"{_short(s.path):<42} {s.runs:<5} {s.failures_caught:<7} {streak:<9} {evidence:<8}"
+        )
     return "\n".join(lines)
 
 
@@ -73,9 +80,11 @@ def summarize(summaries: Sequence[LedgerSummary]) -> str:
     gated = sum(1 for s in summaries if s.runs)
     total_runs = sum(s.runs for s in summaries)
     total_caught = sum(s.failures_caught for s in summaries)
+    total_evidenced = sum(s.evidenced for s in summaries)
     return (
         f"{len(summaries)} governed · {gated} with history · "
-        f"{total_runs} gate runs · {total_caught} failures caught"
+        f"{total_runs} gate runs · {total_caught} failures caught · "
+        f"{total_evidenced} with evidence"
     )
 
 

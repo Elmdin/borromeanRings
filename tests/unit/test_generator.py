@@ -18,8 +18,6 @@ from meta_harness.generator import (
     CAP,
     HASH_CHUNK_BYTES,
     MAX_GENERATOR_LENGTH,
-    attempt_number,
-    attempts_from_history,
     evidence_writes,
     failing_check_ids,
     next_action,
@@ -251,69 +249,6 @@ def test_an_edit_that_restores_the_timestamps_is_still_caught(tmp_path: Path) ->
     assert counter.stat().st_mtime_ns == stat.st_mtime_ns, "the forgery is faithful"
 
     assert evidence_writes(before, snapshot_evidence(tmp_path)) == ("modified: counter",)
-
-
-# --- a DELETED counter alone no longer resets the bound (and nothing more) -----
-# The ledger being append-only is not a guarantee: appending a forged green row is
-# its sanctioned operation and defeats this. See ADR-0078 decision 8 and #218.
-
-
-def _rows(*pairs: tuple[str, bool]) -> tuple[tuple[str, bool], ...]:
-    return pairs
-
-
-def test_history_counts_this_generators_failures_since_its_last_green() -> None:
-    """The gate's own append-only history is the counter's second source of truth."""
-    rows = _rows(
-        ("claude-code:s1", False),
-        ("claude-code:s1", True),
-        ("claude-code:s1", False),
-        ("claude-code:s1", False),
-    )
-    assert attempts_from_history(rows, "claude-code:s1") == 2
-
-
-def test_history_stops_counting_at_the_last_green() -> None:
-    """A green run clears the bound — that is what "bounded per attempt key" means."""
-    rows = _rows(("claude-code:s1", False), ("claude-code:s1", False), ("claude-code:s1", True))
-    assert attempts_from_history(rows, "claude-code:s1") == 0
-
-
-def test_history_ignores_another_sessions_rows() -> None:
-    """Two sessions in one project keep independent counts (conformance §5.3)."""
-    rows = _rows(
-        ("claude-code:s1", False),
-        ("claude-code:s2", False),
-        ("claude-code:s2", False),
-        ("claude-code:s1", False),
-    )
-    assert attempts_from_history(rows, "claude-code:s1") == 2
-    assert attempts_from_history(rows, "claude-code:s2") == 2
-
-
-def test_history_of_an_unattributed_run_counts_nothing() -> None:
-    """Rows written before provenance existed carry ``""`` — never matched, never guessed."""
-    rows = _rows(("", False), ("", False))
-    assert attempts_from_history(rows, "claude-code:s1") == 0
-    assert attempts_from_history((), "claude-code:s1") == 0
-    assert attempts_from_history(rows, "") == 0
-
-
-def test_attempt_number_takes_the_higher_of_the_counter_and_the_ledger() -> None:
-    """Deleting the counter file must not buy a fresh set of attempts."""
-    assert attempt_number("1", 0) == 2, "the counter alone, incremented for this run"
-    assert attempt_number("", 3) == 3, "counter deleted — the ledger still remembers"
-    assert attempt_number("0", 0) == 1, "the first failure of a fresh key"
-    assert attempt_number("2", 3) == 3
-    assert attempt_number("2", 1) == 3
-    assert attempt_number(" 2 \n", 0) == 3, "a counter read back with a newline still reads"
-
-
-@pytest.mark.parametrize("garbage", ["", "x", "-4", "1.5", "٣", None])
-def test_attempt_number_fails_closed_on_an_unreadable_counter(garbage: str | None) -> None:
-    """An unreadable counter is never read as "no attempts spent" below the ledger."""
-    assert attempt_number(garbage, 2) == 2
-    assert attempt_number(garbage, 0) == 1
 
 
 # --- the verdict the driver retries against must be the one the run just made ---

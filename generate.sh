@@ -43,6 +43,22 @@ set -uo pipefail
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="$BORROMEANRINGS_HOME/src"
+# The driver's own Python runs from a neutral cwd: for `python3 -` the current directory
+# precedes PYTHONPATH on sys.path, so a `meta_harness/` wherever this was invoked from
+# would be imported instead of the harness (#240). Every argument passed is absolute.
+harness_py() { (cd / && PYTHONPATH="$PY" python3 "$@"); }
+# The attempt count lives outside the tree, beside the Stop hook's (ADR-0079): the
+# generator works in the tree, so a count inside it is one the generator can reset.
+retry_state() {
+  harness_py - "$@" 2>/dev/null <<'RETRY'
+import os
+import sys
+
+from meta_harness.retry_state import main
+
+sys.exit(main(sys.argv[1:], os.environ))
+RETRY
+}
 
 # Pre-flight only: "there is nothing to drive", before any attempt has been made. It
 # deliberately does not clear the attempt counter, because it runs before one is written.
@@ -73,7 +89,7 @@ CONFIG="$PROJECT_ROOT/borromeanrings.toml"
 
 # CAP and the declared command, in one read.
 if ! generator_meta="$(
-  PYTHONPATH="$PY" python3 - "$CONFIG" 2>&1 <<'PY'
+  harness_py - "$CONFIG" 2>&1 <<'PY'
 import sys
 
 from meta_harness.generator import CAP
@@ -107,10 +123,9 @@ RUN_KEY="${BORROMEANRINGS_RUN_KEY-headless}"
 case "$RUN_KEY" in '' | . | .. | */*) refuse "invalid BORROMEANRINGS_RUN_KEY: '$RUN_KEY'" ;; esac
 
 EVIDENCE="$PROJECT_ROOT/.meta-harness"
-COUNTER_DIR="$EVIDENCE/stop_attempts"
 LOG_DIR="$EVIDENCE/generator/$RUN_KEY"
-COUNTER="$COUNTER_DIR/$RUN_KEY"
-mkdir -p "$COUNTER_DIR" "$LOG_DIR" || refuse "cannot write the evidence area under $EVIDENCE"
+STATE_KEY="headless-$RUN_KEY" # never collides with a Claude session id's counter
+mkdir -p "$LOG_DIR" || refuse "cannot write the evidence area under $EVIDENCE"
 
 LANE="fast"
 [ "${BORROMEANRINGS_HEAVY:-0}" = "1" ] && LANE="heavy"
@@ -210,7 +225,7 @@ snapshot_identity() {
 # for the driver's own log, which is written outside this directory until the comparison
 # is done. An exception the generator can compute is not an exception, it is a door.
 snapshot_evidence() {
-  PYTHONPATH="$PY" python3 - "$EVIDENCE" "$1" <<'PY'
+  harness_py - "$EVIDENCE" "$1" <<'PY'
 import json
 import sys
 
@@ -224,7 +239,7 @@ PY
 
 # Every way the evidence area moved since $1 was taken, one reason per line.
 evidence_writes() {
-  PYTHONPATH="$PY" python3 - "$EVIDENCE" "$1" <<'PY'
+  harness_py - "$EVIDENCE" "$1" <<'PY'
 import json
 import sys
 
@@ -243,7 +258,7 @@ PY
 # retry that cannot name what failed — or that names an older run's failures — is a retry
 # the generator would be guessing at (conformance §5.4).
 failing_check_ids() {
-  PYTHONPATH="$PY" python3 - "$PROJECT_ROOT" "$1" "$2" <<'PY'
+  harness_py - "$PROJECT_ROOT" "$1" "$2" <<'PY'
 import sys
 
 from meta_harness.generator import failing_check_ids, verdict_mismatch
@@ -268,7 +283,7 @@ PY
 
 # The decision itself — the pure function, nothing more.
 decide() {
-  PYTHONPATH="$PY" python3 - "$@" 2>/dev/null <<'PY' || true
+  harness_py - "$@" 2>/dev/null <<'PY' || true
 import sys
 
 from meta_harness.generator import next_action
@@ -289,7 +304,7 @@ abort() {
 
 finish() {
   local code="$1" action="$2"
-  rm -f "$COUNTER"
+  retry_state clear "$PROJECT_ROOT" "$STATE_KEY" >/dev/null
   echo
   echo "  borromeanRings headless generator  (project: $PROJECT_ROOT, run-key: $RUN_KEY)"
   echo "  generator: $BORROMEANRINGS_GENERATOR   lane: $LANE"
@@ -310,9 +325,15 @@ git -C "$PROJECT_ROOT" check-ignore -q .meta-harness 2>/dev/null ||
 
 # Resume rather than restart: a counter left behind by a killed run means this key has
 # already spent attempts, and N5 bounds the key, not the invocation.
-resumed="$(cat "$COUNTER" 2>/dev/null || true)"
-case "$resumed" in '' | *[!0-9]*) resumed=0 ;; esac
+# A count that cannot be read escalates rather than reading as zero, which would hand a
+# fresh set of attempts to whatever made it unreadable.
 attempts_run=0
+attempt=1
+counted="$(retry_state count "$PROJECT_ROOT" "$STATE_KEY")"
+case "$counted" in
+  "count "[0-9]*) resumed="${counted#count }" ;;
+  *) abort "the attempt count cannot be read (${counted:-no answer from retry_state}) — the bound cannot hold" ;;
+esac
 attempt=$((resumed + 1))
 last_verdict=""
 export BORROMEANRINGS_FAILING_CHECKS=""
@@ -323,13 +344,13 @@ if [ "$attempt" -gt "$CAP" ]; then
 fi
 
 while :; do
-  # The attempt counter is the GATE's. It is written here and never read back inside a
-  # run (the loop's own count is authoritative), so editing it buys a generator nothing;
-  # it is read at startup to resume a killed run, and it is one of two anchors for the
-  # bound — the other being the append-only verdict history, which is what makes deleting
-  # this file useless. Written BEFORE the snapshot, so the driver's own bookkeeping is
-  # never mistaken for the generator's, and checked, because every other write here is.
-  printf '%s' "$attempt" >"$COUNTER" || abort "cannot write the attempt counter at $COUNTER"
+  # The attempt count is the GATE's, kept outside the tree (ADR-0079). It is written here
+  # and never read back inside a run (the loop's own count is authoritative); it is read
+  # at startup to resume a killed run. Written BEFORE the snapshot, and checked, because
+  # a count that did not land is a bound that does not hold.
+  recorded="$(retry_state record "$PROJECT_ROOT" "$STATE_KEY" "$attempt")"
+  [ "$recorded" = "recorded $attempt" ] ||
+    abort "cannot record attempt $attempt (${recorded:-no answer from retry_state})"
 
   scratch="$(mktemp -d "${TMPDIR:-/tmp}/borromeanrings-generator.XXXXXX")" ||
     abort "cannot create a scratch directory for this attempt"

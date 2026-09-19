@@ -35,6 +35,7 @@ from pathlib import Path
 import pytest
 
 from meta_harness.receipts import verify_receipt
+from meta_harness.retry_state import counter_path, read_attempts, record_attempt
 
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 GENERATE = BORROMEANRINGS_HOME / "generate.sh"
@@ -180,8 +181,16 @@ def _logs(project: Path, run_key: str = "headless") -> list[Path]:
     return sorted(log_dir.glob("*.log")) if log_dir.is_dir() else []
 
 
-def _counter(project: Path, run_key: str = "headless") -> Path:
-    return project / ".meta-harness" / "stop_attempts" / run_key
+# The attempt count lives outside the tree (ADR-0079), keyed ``headless-<run key>``; the
+# suite's XDG_STATE_HOME is private (tests/conftest.py), so these never touch a real home.
+def _count(project: Path, run_key: str = "headless") -> str:
+    return read_attempts(str(project), f"headless-{run_key}", os.environ)
+
+
+def _seed(project: Path, run_key: str, attempts: int) -> None:
+    assert record_attempt(str(project), f"headless-{run_key}", attempts, os.environ) == (
+        f"recorded {attempts}"
+    )
 
 
 def _receipt_status(bundle: Path, check_id: str) -> str:
@@ -222,10 +231,9 @@ def test_fixed_on_retry_is_green_at_attempt_two(tmp_path: Path) -> None:
     failed_in_bundle = [cid for cid in ("20_lint",) if _receipt_status(bundles[0], cid) != "pass"]
     assert f"failing=[{','.join(failed_in_bundle)}]" in second
 
-    assert not _counter(project).exists(), "the counter is cleared on green"
-    assert json.loads((project / ".meta-harness" / "last_verdict.json").read_text("utf-8"))[
-        "intent"
-    ] == {"generator": "headless:apply_patch.sh"}
+    assert _count(project) == "count 0", "the counter is cleared on green"
+    verdict = json.loads((project / ".meta-harness" / "last_verdict.json").read_text("utf-8"))
+    assert verdict["intent"]["generator"] == "headless:apply_patch.sh"
 
 
 def test_never_fixed_escalates_after_exactly_cap_attempts(tmp_path: Path) -> None:
@@ -243,7 +251,7 @@ def test_never_fixed_escalates_after_exactly_cap_attempts(tmp_path: Path) -> Non
     assert proc.returncode == EXIT_ESCALATED
     assert len(_bundles(project)) == 3
     assert [p.name for p in _logs(project)] == ["1.log", "2.log", "3.log"]
-    assert not _counter(project).exists(), "the counter is cleared at escalation"
+    assert _count(project) == "count 0", "the counter is cleared at escalation"
     assert "ESCALATION" in proc.stderr
 
 
@@ -287,14 +295,15 @@ def test_a_crashing_generator_is_generator_failed(tmp_path: Path) -> None:
 
 
 def test_a_generator_that_resets_the_retry_counter_is_caught(tmp_path: Path) -> None:
-    """The counter lives with the gate. A generator that edits it has forged an attempt,
-    so the run ends there — it does not buy itself a fresh set of three."""
+    """The count lives with the gate, outside the tree (ADR-0079), so the fixture cannot
+    reach it; it writes where the count USED to live instead. Any write under the gate's
+    evidence area is caught, so the run ends there rather than buying a fresh set of three."""
     project = _project(tmp_path / "reset", _LAYOUT_TOML, {}, "reset_counter.sh")
     proc = _drive(project)
 
     assert _result(proc) == "generator-failed"
     assert proc.returncode == EXIT_GENERATOR_FAILED
-    assert "modified: stop_attempts/headless" in proc.stderr
+    assert "added: stop_attempts/headless" in proc.stderr
     assert _bundles(project) == [], "a run this untrustworthy is never gated"
 
 
@@ -348,15 +357,13 @@ def test_run_keys_keep_independent_counters(tmp_path: Path) -> None:
     project = _project(
         tmp_path / "keys", _LAYOUT_TOML, {"patches/1.diff": "bad\n"}, "apply_patch.sh"
     )
-    other = _counter(project, "another-agent")
-    other.parent.mkdir(parents=True, exist_ok=True)
-    other.write_text("2", encoding="utf-8")
+    _seed(project, "another-agent", 2)
 
     proc = _drive(project, run_key="mine")
 
     assert _result(proc) == "generator-failed"
-    assert other.read_text(encoding="utf-8") == "2", "the other key's count is untouched"
-    assert not _counter(project, "mine").exists()
+    assert _count(project, "another-agent") == "count 2", "the other key's count is untouched"
+    assert _count(project, "mine") == "count 0"
     assert len(_logs(project, "mine")) == 1
     assert _logs(project, "another-agent") == []
 
@@ -386,7 +393,7 @@ def test_the_stop_hook_records_itself_as_the_generator(tmp_path: Path) -> None:
     )
     assert proc.returncode in (0, 2), proc.stderr
     verdict = json.loads((project / ".meta-harness" / "last_verdict.json").read_text("utf-8"))
-    assert verdict["intent"] == {"generator": "claude-code:sess-42"}
+    assert verdict["intent"]["generator"] == "claude-code:sess-42"
 
 
 def test_a_gate_run_with_no_adapter_records_no_generator(tmp_path: Path) -> None:
@@ -398,7 +405,7 @@ def test_a_gate_run_with_no_adapter_records_no_generator(tmp_path: Path) -> None
         ["bash", str(VERIFY)], env=env, capture_output=True, text=True, timeout=DRIVER_TIMEOUT_S
     )
     verdict = json.loads((project / ".meta-harness" / "last_verdict.json").read_text("utf-8"))
-    assert verdict["intent"] == {"generator": ""}
+    assert verdict["intent"]["generator"] == ""
 
 
 def test_the_driver_refuses_a_project_with_no_declared_generator(tmp_path: Path) -> None:
@@ -464,7 +471,7 @@ def test_a_hostile_generator_label_cannot_touch_the_verdict(tmp_path: Path) -> N
     verdict = json.loads((project / ".meta-harness" / "last_verdict.json").read_text("utf-8"))
     assert verdict["ok"] is False
     assert verdict["checks"] == [["07_layout", "fail"]]
-    assert verdict["intent"] == {"generator": hostile}, "recorded, inert, and escaped"
+    assert verdict["intent"]["generator"] == hostile, "recorded, inert, and escaped"
 
     # And the sanitiser is actually wired into the gate, not merely unit-tested: a label
     # carrying a newline would break the record it goes into, so it is dropped entirely.
@@ -480,7 +487,7 @@ def test_a_hostile_generator_label_cannot_touch_the_verdict(tmp_path: Path) -> N
         timeout=DRIVER_TIMEOUT_S,
     )
     verdict = json.loads((project / ".meta-harness" / "last_verdict.json").read_text("utf-8"))
-    assert verdict["intent"] == {"generator": ""}
+    assert verdict["intent"]["generator"] == ""
 
 
 def test_a_failure_after_the_loop_begins_escalates_instead_of_refusing(tmp_path: Path) -> None:
@@ -498,7 +505,7 @@ def test_a_failure_after_the_loop_begins_escalates_instead_of_refusing(tmp_path:
     assert proc.returncode == EXIT_ESCALATED
     assert _result(proc) == "escalated (the driver could not continue)"
     assert "git repository is required" in proc.stderr
-    assert not _counter(project).exists(), "a terminal outcome leaves no live counter behind"
+    assert _count(project) == "count 0", "a terminal outcome leaves no live counter behind"
 
 
 def test_an_unreadable_config_says_so_rather_than_blaming_the_generator(tmp_path: Path) -> None:
@@ -569,16 +576,13 @@ def test_untracking_a_file_is_a_change(tmp_path: Path) -> None:
 
 
 def test_deleting_the_counter_alone_no_longer_resets_the_hooks_bound(tmp_path: Path) -> None:
-    """The shipped adapter's hole: the counter is one small file in the agent's own tree,
-    and deleting it used to hand back a fresh set of three — an unbounded retry loop with
-    nothing to detect it. The bound is anchored to the gate's append-only verdict history
-    as well, picked out by this session's provenance label.
+    """The shipped adapter's old hole: the counter was one small file in the agent's own
+    tree, and deleting it handed back a fresh set of three. The count now lives outside the
+    tree (ADR-0079), so deleting the old in-tree location changes nothing.
 
-    Read the name literally: this covers the ONE sabotage the anchor defeats. Deleting the
-    history, appending a forged green row for the label, or relabelling the rows each still
-    defeat it, because the anchor is a second file in the same tree rather than a second
-    authority. A real bound is issue #218. A test named for the property rather than for
-    the case would be a claim this suite cannot support."""
+    Read the name literally: this covers the naive reset. A same-user process that finds
+    and edits the out-of-tree count still defeats it; the bound resists accident and naive
+    forgery, not intent (#218)."""
     project = _project(
         tmp_path / "hooked-bound", _LAYOUT_TOML, {"BAD.md": "disallowed\n"}, "inert.sh"
     )
@@ -604,16 +608,30 @@ def test_a_resumed_run_key_does_not_get_a_fresh_set_of_attempts(tmp_path: Path) 
     """N5 bounds the attempt KEY, not the invocation. A driver killed mid-run leaves its
     counter behind; starting again on that key resumes rather than restarting."""
     project = _project(tmp_path / "resume", _LAYOUT_TOML, {}, "apply_patch.sh")
-    counter = _counter(project)
-    counter.parent.mkdir(parents=True, exist_ok=True)
-    counter.write_text("3", encoding="utf-8")
+    _seed(project, "headless", 3)
 
     proc = _drive(project)
 
     assert proc.returncode == EXIT_ESCALATED
     assert "already spent 3 of 3" in proc.stderr
     assert _logs(project) == [], "the generator is not invoked for an attempt it cannot have"
-    assert not counter.exists()
+    assert _count(project) == "count 0"
+
+
+def test_an_unreadable_count_escalates_rather_than_restarting_at_zero(tmp_path: Path) -> None:
+    """Integration with ADR-0079: the old driver read an unreadable counter as 0, a fresh
+    set of attempts for whatever made it unreadable. Now the bound cannot be shown to hold,
+    so the human gets it, before the generator runs at all."""
+    project = _project(tmp_path / "unreadable", _LAYOUT_TOML, {}, "apply_patch.sh")
+    _seed(project, "headless", 1)
+    counter = counter_path(os.environ, os.path.realpath(project), "headless-headless")
+    counter.write_text("not a number", encoding="utf-8")
+
+    proc = _drive(project)
+
+    assert proc.returncode == EXIT_ESCALATED
+    assert "the attempt count cannot be read" in proc.stderr
+    assert _logs(project) == [], "no attempt is made against a bound that cannot hold"
 
 
 def test_a_broken_config_is_misconfigured_not_merely_absent(tmp_path: Path) -> None:

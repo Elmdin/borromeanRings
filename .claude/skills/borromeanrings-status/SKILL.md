@@ -32,7 +32,8 @@ Then run, from the project root:
 ```
 
 That prints the whole report. It is **read-only** — it reports the last known
-state and changes nothing.
+state and changes nothing. Asked what the project practises, lacks, or should
+adopt next, run `status.sh --swe` and answer from its sections, not from memory.
 
 ## 2. Read the report honestly
 
@@ -46,6 +47,11 @@ Do not stop at PASS/FAIL. Three lines matter more:
 
 A verdict of PASS with a hollow count is **not** a clean bill of health. Say so
 plainly rather than reporting "all green".
+
+`Rewrite: contract honoured N of M` records whether replies opened with the
+`Reading this as:` line the directive asks for (ADR-0059). `no record` = nothing
+judged here yet; a low share means the directive is being rationalised away — say
+so, and honour it yourself.
 
 ## 3. If checks are hollow, find out why
 

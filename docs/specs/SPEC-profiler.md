@@ -70,6 +70,6 @@ gate-able artifact** (a config the spine can load and the gate can run), not a v
 - Not a product-strategy or "what to build" tool — it configures enforcement only.
 
 ## 6. Verification
-Unit tests (no network): profile lookup + fail-safe default; classify valid + invalid→default;
+Verified by `tests/unit/test_profiler.py`. Unit tests (no network): profile lookup + fail-safe default; classify valid + invalid→default;
 `render_config` **round-trips through `load_config`** (P-2); rendering includes stacks + priorities.
 100% coverage of `profiler.py`.

@@ -72,7 +72,7 @@ the mechanism is fully testable without a model, and the model is a substrate de
   `deep_research.verify_claim_adversarial`, is the natural next strengthening).
 
 ## 6. Verification
-Unit tests exercise the full mechanism with stub judges (C-4): fail-closed on unsure/error,
+Verified by `tests/unit/test_critic.py`. Unit tests exercise the full mechanism with stub judges (C-4): fail-closed on unsure/error,
 required-vs-advisory aggregation, the `make_rubric_judge` parser, and rendering. 100% coverage of
 `critic.py` (coverage ratchet). No network.
 

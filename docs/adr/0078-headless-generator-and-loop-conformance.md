@@ -1,6 +1,6 @@
 # ADR-0078 — The headless generator: one decision, two thin drivers, and provenance in the verdict
 
-**Status:** Accepted · 2026-09-10 · issue #202 (build phase of #143) ·
+**Status:** Accepted · 2026-09-10 · **amended 2026-09-19** (see the end) · issue #202 (build phase of #143) ·
 **Spec:** `docs/specs/SPEC-generator.md` (§2, §3.2, §5) ·
 **Implements:** ADR-0071 decisions 3 and 4 · **Builds on:** ADR-0049 (self-report is not
 evidence), ADR-0026 (tamper-evident receipts), ADR-0056 (`intent`)
@@ -157,7 +157,7 @@ doing so forces the loop's rules out of both scripts and into one tested place.
    executor the generator cannot reach (#145). Naming the scope is the fix, because the
    list of things a check might read will never be complete.
 
-8. **The retry bound is anchored to the gate's append-only history as well as to the
+8. **(Superseded by ADR-0079 — see the amendment.)** **The retry bound is anchored to the gate's append-only history as well as to the
    counter file.** The counter is one small file in the agent's own working tree. In the
    headless driver a write to it is caught; in `stop_gate.sh` — the adapter most runs
    actually use — there is no evidence guard at all and the file *is* read back, so
@@ -359,3 +359,35 @@ doing so forces the loop's rules out of both scripts and into one tested place.
 - (−) Roughly a dozen real gate runs are added to the test suite (about 40 s of CPU). Three of the
   four scenarios use a language-agnostic fixture whose gate costs ~2 s; only
   fixed-on-retry uses a Python fixture, because that row of the spec names `20_lint`.
+
+## Amendment — integration with ADR-0056 and ADR-0079 (2026-09-19)
+
+This branch was written before two decisions landed on `dev`, and merging it meant
+re-deciding three things rather than resolving text.
+
+1. **`generator` lives on `evidence.Intent`.** ADR-0056's `Intent` arrived as
+   `(branch, head_sha, input_digest)`, so the six edits listed under Consequences were made:
+   `Intent` gains `generator` (emitted by `to_dict`; read by `parse_intent`, which accepts
+   only an actual string, as `_parse_generator` did); `read_intent` takes it as an argument;
+   `verify.sh` passes `read_generator(BORROMEANRINGS_GENERATOR)` through it;
+   `Verdict.generator` and `_parse_generator` are deleted. The persisted shape stays
+   `intent.generator`, now beside the branch, head and digest.
+2. **Decision 8 is superseded.** ADR-0079 moved the Stop hook's count out of the tree
+   (`$XDG_STATE_HOME/borromeanrings/<project digest>/stop_attempts/`). That answers the
+   hole decision 8 was a speed bump against, and answers it better: the history anchor
+   could be defeated by one forged row, while the out-of-tree count cannot be reached by
+   editing the tree at all. So `stop_gate.sh` keeps `dev`'s `retry_state` block unchanged,
+   and `attempts_from_history` / `attempt_number` are removed along with their tests.
+   The hook still reads CAP from `meta_harness.generator`, and still exports its
+   provenance label for the verdict.
+3. **The headless driver's count moves out of the tree too.** `generate.sh` records each
+   attempt through `retry_state` (`count` / `record` / `clear`, keyed `headless-<run key>`
+   so it can never collide with a session id) instead of `.meta-harness/stop_attempts/`.
+   A count that cannot be read or recorded now **escalates**; the old read of an
+   unreadable counter as `0` handed a fresh set of attempts to whatever made it
+   unreadable. The driver's own Python runs from a neutral cwd (#240), and the
+   `reset_counter.sh` fixture now writes where the count *used* to live, which the
+   evidence guard still catches.
+
+What this does not change: the bound resists accident and naive reset, not intent. A
+same-user process that finds and edits the out-of-tree count still defeats it (#218).

@@ -13,16 +13,42 @@ set -uo pipefail
 # Heavy (CI-tier) lane: `--heavy` (or BORROMEANRINGS_HEAVY=1) additionally runs +
 # requires the checks/ci/ set — expensive checks (mutation, CVE audit, secret-scan
 # tools) that must NOT run on the fast inner Stop gate. Off by default. See ADR-0033.
-HEAVY="${BORROMEANRINGS_HEAVY:-0}"
-for _arg in "$@"; do
-  [ "$_arg" = "--heavy" ] && HEAVY=1
-done
 
 BORROMEANRINGS_HOME="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${BORROMEANRINGS_PROJECT:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 export BORROMEANRINGS_HOME PROJECT_ROOT
+
+# borromeanrings_py: the gate's trusted Python must run from a neutral directory,
+# never with the governed project on sys.path (a planted json.py / meta_harness/
+# would otherwise shadow stdlib and forge the verdict — #222).
+source "$BORROMEANRINGS_HOME/checks/_py.sh"
 CONFIG="$PROJECT_ROOT/borromeanrings.toml"
+
+# Which lanes this run is in. Fast (interactive): `--fast` runs the SAME required set, but
+# tells each check it may narrow its scope to what the project declared for interactive
+# work — today only 40_test, via [test].fast_paths. The Stop hook runs this lane so an
+# agent is not held for the whole test suite on every turn; the full suite still gates
+# pre-merge and in CI, and a project that declares no fast paths sees no change at all.
+# meta_harness.lane owns the precedence (--heavy always wins) so it is unit-testable; a
+# resolution failure refuses to run rather than guessing a lane. See ADR-0081.
+_lane_line="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$@" <<'PY'
+import os
+import sys
+
+from meta_harness.lane import resolve_lane
+
+lane, heavy = resolve_lane(sys.argv[1:], os.environ)
+print(lane, "1" if heavy else "0")
+PY
+)" || _lane_line=""
+LANE="${_lane_line%% *}"
+HEAVY="${_lane_line##* }"
+if [ -z "$LANE" ] || [ -z "$HEAVY" ] || [ "$LANE" = "$HEAVY" ]; then
+  echo "borromeanRings: could not resolve the run lane (fast/full/heavy) — refusing to run." >&2
+  exit 1
+fi
+export BORROMEANRINGS_LANE="$LANE"
 
 # Which borromeanRings version is governing this run. `git describe` on borromeanRings's own
 # repo reflects the exact code state (tag when clean, `-N-g<sha>-dirty` when ahead/modified,
@@ -34,14 +60,47 @@ HARNESS_VERSION="$(git -C "$BORROMEANRINGS_HOME" describe --tags --always --dirt
 export HARNESS_VERSION
 
 if [ ! -f "$CONFIG" ]; then
-  echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
-  exit 1
+  if [ -f "$PROJECT_ROOT/borromeo.toml" ]; then
+    # Pre-rename config name (issue #62): still honored (meta_harness.spine falls back to
+    # it), but deprecated — say so on every run until the project renames the file.
+    echo "borromeanRings: DEPRECATED config name borromeo.toml in $PROJECT_ROOT — still honored; rename it: git mv borromeo.toml borromeanrings.toml (see docs/RENAME.md)." >&2
+  else
+    echo "borromeanRings: no borromeanrings.toml in $PROJECT_ROOT — run borromeanRings's init.sh there first." >&2
+    exit 1
+  fi
 fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
 # per-language set selected by [project].language (default python).
-language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 -c \
+# An invalid config is NOT refused here. Every check fails closed on its own and writes
+# a receipt saying why, which is better evidence than one message and no receipts — see
+# tests/integration/*::*_fails_closed_not_noop, which assert exactly that.
+language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
   "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
+
+# An UNKNOWN ARCHETYPE is the exception, and refuses before any check runs (#79). The
+# distinction is deliberate: a malformed config is a fact each check can report on, but
+# `archetypes = ["firmware"]` is a claim about what this project IS, and every
+# archetype-derived requirement below it would be silently vacuous. Narrow on purpose —
+# it refuses only for that error, so the fail-closed-per-check behaviour above is intact.
+archetype_error="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" 2>&1 <<'PY' || true
+import sys
+
+from meta_harness.spine import load_config
+
+try:
+    load_config(sys.argv[1])
+except ValueError as exc:
+    if "archetype" in str(exc):
+        print(str(exc))
+except Exception:
+    pass  # any other config problem is the individual checks' to report
+PY
+)"
+if [ -n "$archetype_error" ]; then
+  echo "borromeanRings: refusing to run — $archetype_error" >&2
+  exit 1
+fi
 case "$language" in
   "" | *[!a-z0-9_-]*)
     echo "borromeanRings: invalid [project].language: '$language' (use [a-z0-9_-])." >&2
@@ -70,27 +129,53 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" "$LANE" <<'PY'
+
 import json
 import os
 import sys
 from pathlib import Path
 
-from meta_harness.change_detect import record_green
+from meta_harness.archetypes import non_noop_violations
+from meta_harness.change_detect import compute_state_hash, record_green
+from meta_harness.evidence import LANE_FAST, LANE_HEAVY, evidence_from_receipt, read_intent
 from meta_harness.generator import read_generator
+from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
-from meta_harness.verdict import Verdict, append_history, is_failing, write_last_verdict
+from meta_harness.verdict import (
+    Verdict,
+    append_history,
+    is_failing,
+    risk_band,
+    status_label,
+    write_last_verdict,
+)
 
-config_path, receipt_dir, project_root, heavy, harness_version = sys.argv[1:6]
+config_path, receipt_dir, project_root, heavy, harness_version, lane = sys.argv[1:7]
 config = load_config(config_path)
 # Under --heavy the CI-tier heavy checks are also required; otherwise only the
 # fast required set gates (the heavy set never blocks the inner Stop gate).
+# Report the lane that describes the verification that actually happened: `--fast` in a
+# project that declared no fast paths ran everything, and must not be labelled partial.
+# An invalid declaration is already a clean FAIL receipt from 40_test; it must not also
+# cost the run its table, its last_verdict.json, and its history line.
+try:
+    lane = effective_lane(config, lane)
+except ValueError as exc:
+    print(f"\n  borromeanRings: {exc}")
+    lane = FULL
 expected = config.required_checks + (config.heavy_checks if heavy == "1" else ())
 
 rows = []
 ok = True
 intact_hashes = []
+# What each check SHOWED (command, exit, log, hash) — carried on the verdict so a
+# reviewer can trust a green that comes with proof, not just a status. See ADR-0056.
+evidence = []
+# Optional per-check one-liners (a receipt's `summary` field, e.g. 60_mutation's
+# "evaluated N, score S"), printed beside the status. Only intact receipts contribute.
+summaries = {}
 for cid in expected:
     rpath = os.path.join(receipt_dir, f"{cid}.json")
     if not os.path.exists(rpath):
@@ -113,12 +198,28 @@ for cid in expected:
         rows.append((cid, f"{status.upper()} !TAMPERED"))
         continue
     intact_hashes.append(receipt.get("content_sha256", ""))
+    # `check_lane`, not `lane`: `lane` is the RUN's lane (fast/full, ADR-0081) and is
+    # read after this loop for the verdict line and the record.
+    check_lane = LANE_HEAVY if cid in config.heavy_checks else LANE_FAST
+    evidence.append(evidence_from_receipt(receipt, lane=check_lane))
     # Fail-closed by ALLOWLIST, never by negation: only statuses meta_harness.verdict
     # declares non-failing (pass, noop) survive, so an unknown/typo'd/forged status
     # still fails. See ADR-0049.
     if is_failing(status):
         ok = False
     rows.append((cid, status.upper()))
+    summaries[cid] = receipt.get("summary")
+
+# Archetype clause (ADR-0062): a check the declared [project].archetypes require to be
+# non-noop but whose receipt is `noop` — or which is not in the expected set at all — turns
+# the run FAIL. The one place an archetype overrides a check's own non-failing `noop`
+# (ADR-0049): "inspected nothing" is legitimate for a greenfield project, not for a
+# declared web app. No archetypes declared ⇒ empty tuple ⇒ behaviour unchanged.
+archetype_failures = non_noop_violations(
+    config.archetypes, {cid: status.lower() for cid, status in rows}
+)
+if archetype_failures:
+    ok = False
 
 width = max(len(c) for c, _ in rows)
 print()
@@ -126,9 +227,28 @@ print(f"  borromeanRings gate  (project: {project_root})")
 print(f"  harness-version: {harness_version}")
 print("  " + "-" * (width + 14))
 for cid, status in rows:
-    print(f"  {cid.ljust(width)}   {status}")
+    # status_label validates + bounds the summary (untrusted JSON a check wrote).
+    print(f"  {cid.ljust(width)}   {status_label(status, summaries.get(cid))}")
 print("  " + "-" * (width + 14))
-print(f"  RESULT: {'PASS' if ok else 'FAIL'}")
+# A declared archetype names features the project must actually have. A check that
+# noops where the archetype demands a real result is a violation, not an absence:
+# "this project claims to be a CLI" and "no CLI entry point was inspected" cannot
+# both be true (#79). Computed BEFORE the verdict because it DECIDES the verdict —
+# printed after it, the line was an annotation on a run that still exited 0.
+archetype_failures = non_noop_violations(
+    config.archetypes, {cid: status.lower() for cid, status in rows}
+)
+for msg in archetype_failures:
+    print(f"  ARCHETYPE: {msg}")
+if archetype_failures:
+    ok = False
+
+print(f"  RESULT: {'PASS' if ok else 'FAIL'}{' (FAST LANE)' if lane == FAST else ''}")
+# A narrowed run must say so on its own verdict line, not only inside one check's row: a
+# fast-lane PASS is not the PASS a full run would have produced, and must never be read as
+# one. See ADR-0081.
+if lane == FAST:
+    print(f"  {FAST_LANE_NOTE}")
 # A green built partly on checks that inspected NOTHING is not the same green as one
 # where every check did real work. Say so here, or the verdict over-claims (ADR-0049).
 hollow = [cid for cid, status in rows if status == "NOOP"]
@@ -137,6 +257,11 @@ if hollow:
 digest = run_digest(intact_hashes) if intact_hashes else ""
 if digest:
     print(f"  run-digest: {digest}")
+# Categorical risk band from the recorded statuses alone (red > hollow > green): it
+# allocates human review attention and never relaxes the gate itself (ADR-0056).
+checks = tuple((cid, status.lower()) for cid, status in rows)
+risk = risk_band(checks)
+print(f"  risk-band: {risk.upper()} · evidence: {len(evidence)} receipt(s)")
 if not ok:
     print("  One or more checks failed or produced no receipt; see logs in the run dir.")
 print()
@@ -145,17 +270,33 @@ print()
 # the effectiveness-ledger history (best-effort: a write failure must never turn a real
 # PASS into a FAIL). See ADR-0046 (status) and ADR-0047 (ledger).
 try:
-    # WHO produced the change this verdict judged — self-declared by the generator
-    # adapter that ran the gate (claude-code:<session>, headless:<command>). Provenance
-    # for the ledger, never evidence: it is read AFTER `ok` is decided and can only be
-    # recorded, never consulted. Unset ⇒ "" — an unattributed run says so (ADR-0071 §4).
+    # Intent: which branch/commit was gated, over which gated-input digest (the same
+    # fingerprint the no-op Stop skip trusts), read from git with a fixed argv — and WHO
+    # produced the change, self-declared by the adapter that ran the gate
+    # (claude-code:<session>, headless:<command>). The generator is provenance, never
+    # evidence: read AFTER `ok` is decided, recorded, never consulted; unset ⇒ ""
+    # (ADR-0071 §4, ADR-0078).
+    # Evidence is best-effort by contract (ADR-0056): whatever the digest raises, the
+    # verdict's exit code must not depend on it — so this catches everything, not
+    # just OSError, and records an empty digest ("not recorded"), never a crash.
+    try:
+        input_digest = compute_state_hash(Path(project_root), config)
+    except Exception:  # noqa: BLE001 - best-effort evidence, gate exit must not depend on it
+        input_digest = ""
     _verdict = Verdict(
         ok=ok,
-        checks=tuple((cid, status.lower()) for cid, status in rows),
+        checks=checks,
         run_id=os.path.basename(receipt_dir),
         digest=digest,
         harness_version=harness_version,
-        generator=read_generator(os.environ.get("BORROMEANRINGS_GENERATOR")),
+        risk=risk,
+        intent=read_intent(
+            Path(project_root),
+            input_digest,
+            generator=read_generator(os.environ.get("BORROMEANRINGS_GENERATOR")),
+        ),
+        evidence=tuple(evidence),
+        lane=lane,
     )
     write_last_verdict(Path(project_root), _verdict)
     append_history(Path(project_root), _verdict)

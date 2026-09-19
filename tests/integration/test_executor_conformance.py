@@ -676,10 +676,8 @@ def concurrent_runs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, objec
         )
         for _ in range(2)
     ]
-    outputs = []
     try:
-        for process in processes:
-            outputs.append(process.communicate(timeout=900))
+        outputs = [process.communicate(timeout=900) for process in processes]
     finally:
         for process in processes:
             if process.poll() is None:  # pragma: no cover — only on a hang

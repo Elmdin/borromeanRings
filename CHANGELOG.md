@@ -56,6 +56,12 @@ queue is merged.
   string, so an edited log still fails `!TAMPERED`. Used by the verdict and `verify_dir`.
 
 ### Fixed
+- **The worktree executor imported its own Python from the caller's directory** (found in
+  review of PR #212). The config read and the import-shadow check ran as `python3 -`
+  from wherever the executor was invoked, so a `meta_harness/` there was imported instead
+  of the harness. A failed import emptied `PACKAGE`, which skipped the shadow check
+  entirely: fail-open. Both now run from `/`, and the executor dies if either cannot run.
+  `tests/integration/test_executor_cwd_isolation.py` plants the decoy.
 - **The worktree executor's branch identity could follow the primary** (found in review of
   PR #212). A `git worktree` shares the repository's ref namespace, so pointing its HEAD at
   `refs/heads/<branch>` to satisfy G8 pointed it at the primary's **live** ref: correct at

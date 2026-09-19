@@ -116,6 +116,7 @@ SNAPSHOT_INDEX="$WT_ROOT/index-snapshot"
 # traps exit, which runs this one). The rm is bounded to the directory this run
 # created: re-resolve it and refuse if it is anything else (a symlink swapped under
 # us, a $TMPDIR that moved). Never a bare rm -rf on a computed path.
+# shellcheck disable=SC2329  # invoked indirectly, by `trap cleanup EXIT` below
 cleanup() {
   local resolved
   if [ "$KEEP" = "1" ] && [ -d "$WT_DIR" ]; then
@@ -221,8 +222,11 @@ WT_BRANCH="$(git -C "$WT_DIR" rev-parse --abbrev-ref HEAD)"
 WT_PROJECT="$WT_DIR${PREFIX:+/$PREFIX}"
 
 # --- Toolchain: the checks must resolve THIS tree's source ------------------------
+# The harness's own Python runs from a neutral cwd: for a `python3 -` script the
+# current directory precedes PYTHONPATH on sys.path, so a `meta_harness/` wherever
+# this was invoked from would be imported instead (the borromeanrings_py rule).
 project_cfg() {
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$1" <<'PY'
+  (cd / && PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$1") <<'PY'
 import sys
 
 from meta_harness.spine import load_config
@@ -230,9 +234,11 @@ from meta_harness.spine import load_config
 print(getattr(load_config(sys.argv[1]), sys.argv[2]))
 PY
 }
-LANGUAGE="$(project_cfg language 2>/dev/null || echo python)"
-PACKAGE="$(project_cfg package 2>/dev/null || echo '')"
-SRC_DIR="$(project_cfg src_dir 2>/dev/null || echo '')"
+# Fail closed: an unreadable config would empty PACKAGE, and an empty PACKAGE skips
+# the shadow check below — a protection silently switched off, not a default.
+LANGUAGE="$(project_cfg language)" || die "could not read $PROJECT_ROOT/borromeanrings.toml"
+PACKAGE="$(project_cfg package)" || die "could not read $PROJECT_ROOT/borromeanrings.toml"
+SRC_DIR="$(project_cfg src_dir)" || die "could not read $PROJECT_ROOT/borromeanrings.toml"
 
 if [ "$LANGUAGE" = "python" ] && [ -n "$PACKAGE" ]; then
   # Put the worktree's source first, so an uninstalled or path-installed package
@@ -253,14 +259,14 @@ except (ImportError, ValueError):
 print((spec.origin or "") if spec is not None else "")
 PY
   )"
-  SHADOW="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$ORIGIN" "$WT_DIR" <<'PY'
+  SHADOW="$(cd / && PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$ORIGIN" "$WT_DIR" <<'PY'
 import sys
 
 from meta_harness.executor import import_shadow_violation
 
 print(import_shadow_violation(sys.argv[1], sys.argv[2]) or "")
 PY
-  )"
+  )" || die "could not run the import-shadow check — refusing to gate an unproven tree"
   [ -z "$SHADOW" ] || die "$SHADOW"
 fi
 
@@ -300,8 +306,9 @@ DEST="$PROJECT_ROOT/.meta-harness/receipts/$RUN_ID"
   printf 'worktree: %s\n' "$WT_PROJECT"
   printf 'harness_home: %s\n' "$BORROMEANRINGS_HOME"
 } >"$BUNDLE/executor.txt"
-mkdir -p "$DEST" && cp -R "$BUNDLE/." "$DEST/" ||
+if ! { mkdir -p "$DEST" && cp -R "$BUNDLE/." "$DEST/"; }; then
   die "could not copy the receipt bundle to $DEST"
+fi
 
 printf 'RECEIPTS: %s\n' "$DEST"
 exit "$GATE_CODE"

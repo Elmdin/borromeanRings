@@ -145,6 +145,7 @@ from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.verdict import (
     Verdict,
+    advisory_failures,
     append_history,
     is_failing,
     risk_band,
@@ -254,6 +255,11 @@ if lane == FAST:
 hollow = [cid for cid, status in rows if status == "NOOP"]
 if hollow:
     print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} — {', '.join(hollow)}")
+# A failing check outside the expected set is reported, never hidden, and never decides
+# the verdict (#229; verdict.advisory_failures).
+advisory = advisory_failures(receipt_dir, expected)
+if advisory:
+    print(f"  advisory — not required, did not decide the verdict: {', '.join(advisory)}")
 digest = run_digest(intact_hashes) if intact_hashes else ""
 if digest:
     print(f"  run-digest: {digest}")

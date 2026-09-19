@@ -557,6 +557,13 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- A check that ran and failed outside `[checks].required` wrote its `fail` receipt and was
+  then reported nowhere: the gate summary listed only the expected set, so the run dir and
+  the verdict disagreed, and the verdict is what people read (#229). Such failures are now
+  printed on an `advisory — not required, did not decide the verdict:` line. They still
+  never change `ok`. The scan is `verdict.advisory_failures`, and it treats the run dir's
+  JSON as untrusted: anything that is not a receipt naming its own file is skipped, never
+  raised on.
 - The test suite wrote the developer's real out-of-tree state: every test that ran the gate
   or the Stop hook left a last-green record or retry count under `~/.local/state/borromeanrings`
   (ADR-0079/0082), mixed in with the records of projects actually governed. Hundreds had

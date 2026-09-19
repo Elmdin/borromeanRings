@@ -40,15 +40,20 @@ Building the fix exposed two more ways the check could pass without looking:
    file that exists but cannot be read was skipped silently (it now fails closed, named),
    and inherited `GIT_DIR` / `GIT_WORK_TREE` overrode `git -C` so the scan read a decoy
    repository (`verify.sh` now unsets them, and the `GIT_CONFIG*` injection variables,
-   for every check). A second pass found a third: a `.git` *file* pointing at another
-   repository listed paths none of which exist here, so nothing was read. When every
-   tracked file is absent from the working tree, the index does not describe this
-   directory, and the check now fails closed.
+   for every check). Later passes found a third route, and it is naive rather than
+   crafted: a `.git` *file* pointing at another project's repository (a copy, a rename,
+   a stale worktree). Every borromeanRings project shares scaffold filenames, so some
+   paths resolve and the scan read the wrong project while passing. Counting overlapping
+   names cannot catch that, so identity is decided by the pointer
+   (`meta_harness.repo_identity`): a linked worktree's metadata must name this project,
+   a submodule's `core.worktree` must be this project, and another directory's own
+   `.git` is refused. Behind that, an index none of whose files exist here still fails.
 
-   **The boundary, stated:** a decoy crafted to share this project's filenames is
-   intent-level forgery by something that controls the project directory. The README's
-   trust boundary excludes exactly that (the gate resists accident and naive forgery, not
-   a hostile agent; #144, #145), so it is out of scope here rather than unconsidered.
+   **What remains, stated:** a *detached* store (`--separate-git-dir` style, no working
+   tree of its own) belongs to whoever points at it, so one hand-built to hold only
+   harmless files would pass. Building that is intent-level forgery by something that
+   controls the project directory, which the README's trust boundary excludes (#144,
+   #145).
 
 ## Alternatives considered
 

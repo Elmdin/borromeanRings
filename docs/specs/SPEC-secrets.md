@@ -62,8 +62,10 @@ assurance, over a credential it had never been taught to see.
   `GIT_DIR`, `GIT_WORK_TREE` and the other repository-redirecting variables before any
   check runs, and the `GIT_CONFIG*` injection variables: they override `git -C`, and a
   pair pointing at a clean decoy made the scan read the decoy (found in review of
-  #250). A decoy *crafted* to share the project's filenames is intent-level forgery,
-  outside the trust boundary (ADR-0084).
+  #250). A `.git` *file* must point at this project's own repository
+  (`meta_harness.repo_identity`: a linked worktree, a submodule, or a detached store);
+  another directory's `.git` is refused. A hand-built detached store is intent-level
+  forgery, outside the trust boundary (ADR-0084).
 - **Escape hatch:** a line carrying `borromeanrings: allow-secret` is skipped
   (documented examples/fixtures). The marker is **line-scoped**, and `ruff format`
   can wrap a long statement and carry the comment off the literal's line, silently

@@ -21,6 +21,23 @@ if ! git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; the
   exit 1
 fi
 
+# The repository git finds must be this project's own. A .git FILE can point at another
+# project's repository, and every borromeanRings project shares scaffold filenames, so
+# its "tracked files" would describe that project while this one's went unread
+# (review of #250). Decided by the pointer (meta_harness.repo_identity), not by names.
+if ! foreign="$(borromeanrings_py -c 'import sys
+from meta_harness.repo_identity import foreign_repository
+print(foreign_repository(sys.argv[1]))' "$PROJECT_ROOT" 2>&1)"; then
+  printf 'could not check which repository this project is:\n%s\n' "$foreign" >"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
+if [ -n "$foreign" ]; then
+  printf "NOT THIS PROJECT'S REPOSITORY — %s.\nIts tracked files would describe another project, so this one cannot be scanned.\n" "$foreign" >"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
+
 # Write the NUL-delimited tracked-file list to a file (a bash variable would strip
 # the NULs, and stdin is taken by the heredoc). Paths with spaces/newlines stay safe.
 list_file="$RECEIPT_DIR/$id.files"

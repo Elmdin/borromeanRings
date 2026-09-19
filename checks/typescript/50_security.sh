@@ -27,7 +27,7 @@ err="$RECEIPT_DIR/$id.ast-grep.stderr"
 # is unparseable exactly when there are findings to show.
 borromeanrings_run_bounded "$out" "\"$tool\" scan --rule \"$rules\" --json \"$src_dir\" 2>\"$err\""
 tool_code=$?
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$out" "$err" "$tool_code" >"$log" 2>&1 <<'PY'
+borromeanrings_py - "$out" "$err" "$tool_code" >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.lang_security import parse_ast_grep_json, render_findings

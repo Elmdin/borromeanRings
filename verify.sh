@@ -88,21 +88,20 @@ language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
 archetype_error="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" 2>&1 <<'PY' || true
 import sys
 
-from meta_harness.spine import load_config
+from meta_harness.spine import ProjectClaimError, load_config
 
 try:
     load_config(sys.argv[1])
-except ValueError as exc:
-    if "archetype" in str(exc) or "has no check lane" in str(exc):
-        print(str(exc))
+except ProjectClaimError as exc:
+    print(f"{exc.kind}\t{exc}")  # matched by TYPE, never by the message's wording
 except Exception:
     pass  # any other config problem is the individual checks' to report
 PY
 )"
 if [ -n "$archetype_error" ]; then
   case "$archetype_error" in
-    *"has no check lane"*) echo "borromeanRings: cannot load $CONFIG — $archetype_error" >&2 ;;
-    *) echo "borromeanRings: refusing to run — $archetype_error" >&2 ;;
+    language$'\t'*) echo "borromeanRings: cannot load $CONFIG — ${archetype_error#*$'\t'}" >&2 ;;
+    *) echo "borromeanRings: refusing to run — ${archetype_error#*$'\t'}" >&2 ;;
   esac
   exit 1
 fi

@@ -182,12 +182,36 @@ class Config:
     shell_exclude: tuple[str, ...] = ()
 
 
+class ProjectClaimError(ValueError):
+    """A config that is invalid because of what it claims the project IS.
+
+    Every other config error is a fact each check reports on in its own receipt; these
+    two refuse the gate before any check runs, because everything derived from the claim
+    would be wrong (verify.sh, ADR-0068). Subclasses of ValueError, so every caller that
+    treats a ValueError as "invalid config" is unchanged.
+    """
+
+    kind = "claim"
+
+
+class UnknownArchetype(ProjectClaimError):
+    """``[project].archetypes`` names an archetype that does not exist (#79)."""
+
+    kind = "archetype"
+
+
+class UnknownLanguage(ProjectClaimError):
+    """``[project].language`` names a language with no check lane (ADR-0068)."""
+
+    kind = "language"
+
+
 def _archetypes(project: Mapping[str, Any]) -> tuple[str, ...]:
     """``[project].archetypes`` validated against :data:`ARCHETYPES`; unknown ⇒ raise."""
     declared = tuple(str(name) for name in project.get("archetypes", []))
     unknown = [name for name in declared if name not in ARCHETYPES]
     if unknown:
-        raise ValueError(
+        raise UnknownArchetype(
             f"borromeanrings.toml [project].archetypes has unknown archetype(s) "
             f"{', '.join(unknown)} — known: {', '.join(ARCHETYPES)} (fail-closed)."
         )
@@ -236,7 +260,7 @@ def _validated_language(project: Mapping[str, Any]) -> str:
     """
     language = str(project.get("language", "python"))
     if language not in SUPPORTED_LANGUAGES:
-        raise ValueError(
+        raise UnknownLanguage(
             f"borromeanrings.toml [project].language = '{language}' has no check lane; "
             f"supported: {', '.join(SUPPORTED_LANGUAGES)} (fail-closed)."
         )

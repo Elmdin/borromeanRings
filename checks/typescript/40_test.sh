@@ -37,7 +37,7 @@ baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 # The parser's stdout is the heredoc body; `read` splits it into these variables. An
 # empty body (parser crash) leaves them empty — the guard below fails closed on that.
 read -r current regressed <<EOF
-$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$covdir/coverage-summary.json" "$baseline" <<'PY'
+$(borromeanrings_py - "$covdir/coverage-summary.json" "$baseline" <<'PY'
 import sys
 
 from meta_harness.lang_coverage import istanbul_line_percent

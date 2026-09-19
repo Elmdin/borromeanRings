@@ -164,4 +164,44 @@ def test_a_git_pointer_to_an_unrelated_repository_fails_closed(tmp_path: Path) -
 
     assert status == "fail", log
     assert code != 0
-    assert "none of the" in log and "exist" in log
+    assert "not this project" in log  # caught by identity, before enumeration
+
+
+def test_a_checkout_missing_every_tracked_file_fails_closed(tmp_path: Path) -> None:
+    """Defence in depth behind the identity check: an index none of whose files exist in
+    the working tree (a broken checkout) does not describe this directory, and an empty
+    scan over it cannot be declared clean."""
+    project = _repo(tmp_path)
+    creds = _commit_secret(project)
+    # The config stays on disk (the gate needs it) but untracked; the one tracked file is
+    # gone from the working tree, so no tracked path exists here.
+    subprocess.run(["git", "rm", "-q", "--cached", "borromeanrings.toml"], cwd=project, check=True)
+    creds.unlink()
+
+    status, log, code = _status(project)
+
+    assert status == "fail", log
+    assert "none of the" in log
+
+
+def test_a_pointer_to_a_sibling_project_fails_even_when_names_overlap(tmp_path: Path) -> None:
+    """Third review of #250, the naive accident: every borromeanRings project has
+    borromeanrings.toml, so a .git pointing at a sibling project's repository resolves
+    that one name, the all-absent rule does not fire, and the scan passed over a secret
+    the sibling's index never mentions. Identity is decided by the pointer."""
+    sibling = tmp_path / "sibling"
+    sibling.mkdir()
+    (sibling / "borromeanrings.toml").write_text(CONFIG, encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=sibling, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=sibling, check=True)
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "borromeanrings.toml").write_text(CONFIG, encoding="utf-8")
+    (project / "creds.py").write_text(f'aws_secret_access_key = "{_AWS_SECRET}"\n', "utf-8")
+    (project / ".git").write_text(f"gitdir: {sibling / '.git'}\n", encoding="utf-8")
+
+    status, log, code = _status(project)
+
+    assert status == "fail", log
+    assert code != 0
+    assert "not this project" in log

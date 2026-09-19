@@ -1,0 +1,24 @@
+# ast-grep rules for checks/typescript/50_security.sh (SPEC-multi-language.md §3).
+# High-confidence, low-noise dangerous sinks only — a finding is a fact about a call site.
+# Run: ast-grep scan --rule <this file> --json <src_dir>
+# Format per https://ast-grep.github.io/guide/rule-config.html (id / language / rule / message / severity).
+id: no-eval
+language: TypeScript
+severity: error
+message: eval executes arbitrary code (CWE-95); parse data instead
+rule:
+  pattern: eval($ARG)
+---
+id: no-new-function
+language: TypeScript
+severity: error
+message: the Function constructor is eval by another name (CWE-95)
+rule:
+  pattern: new Function($$$ARGS)
+---
+id: no-document-write
+language: TypeScript
+severity: error
+message: document.write injects unescaped markup (CWE-79)
+rule:
+  pattern: document.write($$$ARGS)

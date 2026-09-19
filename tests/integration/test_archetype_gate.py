@@ -22,7 +22,7 @@ BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 GATE_TIMEOUT_S = 180
 
-# language "c" selects no per-language check set, so only the shared checks in
+# language "none" selects no per-language check set (ADR-0068), so only the shared checks in
 # [checks].required run — the fixtures exercise the archetype rule in isolation.
 EMBEDDED_FILES = {
     ".clang-tidy": "Checks: '-*,misra-*'\n",
@@ -34,7 +34,7 @@ EMBEDDED_FILES = {
 }
 
 
-def _config(archetypes: str, required: str, language: str = "c") -> str:
+def _config(archetypes: str, required: str, language: str = "none") -> str:
     return (
         f'[project]\nlanguage = "{language}"\nsrc_dir = "src"\n{archetypes}\n'
         f"[checks]\nrequired = [{required}]\n\n[hygiene]\nrequires = []\n"

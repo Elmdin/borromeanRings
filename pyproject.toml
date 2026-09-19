@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "meta-harness"
 version = "0.0.0"
 description = "borromeanRings — a model- and harness-agnostic meta-harness that enforces engineering standards as deterministic gates."
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [project.optional-dependencies]
 # The check toolchain. Installed in CI via `pip install -e ".[dev]"` so the gate

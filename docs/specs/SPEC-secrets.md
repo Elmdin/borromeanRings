@@ -44,12 +44,15 @@ assurance, over a credential it had never been taught to see.
   and has none, as do `.env` files, Dockerfile `ENV` and `export`. A terminator
   (quote, whitespace or end of line) is required instead, so a longer base64 run
   never matches its first 40 characters.
-- **Not yet required by default, and that is a known gap.** `12_secrets` is not a
-  ratchet — no baseline to seed, no threshold to meet — so the "start green"
-  reasoning does not apply to it and it belongs in `init.sh`'s defaults. It is not
-  there because it fails closed outside a git repository ("cannot enumerate
-  tracked files") while `init.sh` must produce a project that gates green. The
-  decision is #236.
+- **Required by default** (ADR-0084, #236). `12_secrets` is not a ratchet — no
+  baseline to seed, no threshold to meet — so it is in `init.sh`'s defaults, and
+  `init.sh` runs `git init` in a target that is not yet a repository, so the check
+  can enumerate tracked files there.
+- **Never a pass without looking.** Outside a git repository: `fail` ("cannot
+  enumerate tracked files"). Inside one, a failed `git ls-files` (a corrupt index):
+  `fail`, with git's error in the log. A repository that tracks nothing yet: `noop`
+  ("no tracked files: nothing to scan yet"), counted among the checks that inspected
+  nothing. Otherwise: a real scan.
 - **Escape hatch:** a line carrying `borromeanrings: allow-secret` is skipped
   (documented examples/fixtures). The marker is **line-scoped**, and `ruff format`
   can wrap a long statement and carry the comment off the literal's line, silently

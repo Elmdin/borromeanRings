@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from meta_harness.adopt import (
+    PACKAGE_FREE_RATCHETS,
     RATCHET_BASELINES,
     RECOMMENDED,
     plan_adoption,
@@ -85,3 +86,10 @@ def test_rewrite_required_raises_without_checks_table() -> None:
 def test_rewrite_required_raises_without_required_array() -> None:
     with pytest.raises(ValueError, match="no required array"):
         rewrite_required('[checks]\nheavy = ["60_mutation"]\n', ("40_test",))
+
+
+def test_context_budget_is_a_recommended_package_free_ratchet() -> None:
+    assert "19_context_budget" in RECOMMENDED
+    assert RATCHET_BASELINES["19_context_budget"] == ".borromeanrings-context-baseline"
+    assert frozenset({"19_context_budget"}) == PACKAGE_FREE_RATCHETS
+    assert set(RATCHET_BASELINES) >= PACKAGE_FREE_RATCHETS

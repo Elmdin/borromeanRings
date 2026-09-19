@@ -22,13 +22,16 @@ prompt="$(cat)"
 if command -v claude >/dev/null 2>&1; then
   printf '%s' "$prompt" | claude -p 2>/dev/null || echo "no: judge (claude CLI) failed"
 elif [ -n "${ANTHROPIC_API_KEY:-}" ] && command -v python3 >/dev/null 2>&1; then
-  printf '%s' "$prompt" | python3 - <<'PY'
+  # The prompt travels by environment, not stdin: a heredoc supplying the program
+  # overrides a pipe on the same stdin, so the previous `printf | python3 - <<PY`
+  # form silently delivered an EMPTY prompt to the model (shellcheck SC2259).
+  BORROMEANRINGS_JUDGE_PROMPT="$prompt" python3 - <<'PY'
 import json
 import os
 import sys
 import urllib.request
 
-prompt = sys.stdin.read()
+prompt = os.environ["BORROMEANRINGS_JUDGE_PROMPT"]
 model = os.environ.get("BORROMEANRINGS_JUDGE_MODEL", "claude-sonnet-5")
 request = urllib.request.Request(  # noqa: trusted Anthropic endpoint
     "https://api.anthropic.com/v1/messages",

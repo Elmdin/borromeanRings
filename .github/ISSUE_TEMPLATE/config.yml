@@ -1,5 +1,7 @@
-blank_issues_enabled: true
+# Issue chooser. Blank issues are off: every issue goes through a form so triage
+# (docs/TRIAGE.md) has the fields it needs. Vulnerabilities never go in a public issue.
+blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/3MagicLabs/borromeanrings/security/advisories/new
-    about: Please report security issues privately, never as a public issue. See SECURITY.md.
+    url: https://github.com/3MagicLabs/borromeanRings/security/advisories/new
+    about: Report privately via a GitHub security advisory (or see .github/SECURITY.md). Never as a public issue.

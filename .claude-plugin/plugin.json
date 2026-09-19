@@ -1,0 +1,12 @@
+{
+  "name": "borromeanrings",
+  "displayName": "borromeanRings",
+  "version": "0.1.0",
+  "description": "Meta-harness that governs an AI coding agent with deterministic, fail-closed gates. Installs the six governance hooks and the skills; inert in any project without a borromeanrings.toml (per-project opt-in).",
+  "author": {
+    "name": "3MagicLabs"
+  },
+  "repository": "https://github.com/3MagicLabs/borromeanRings",
+  "license": "Apache-2.0",
+  "keywords": ["governance", "quality-gate", "hooks", "fail-closed", "meta-harness"]
+}

@@ -139,6 +139,9 @@ class Config:
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [generator] — the headless generator's command (ADR-0071/ADR-0078). Empty ⇒ there
+    # is no headless generator and `generate.sh` refuses to run; never a silent default.
+    generator_command: str = ""
     # [charter] — session-charter gate (ADR-0063): a committed CHARTER.toml naming goal,
     # stakes (low|high), done_when, stop_when, may_not, owner. Opt-in; off by default.
     charter_enabled: bool = False
@@ -423,6 +426,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         a11y_exclude=tuple(
             _table(raw, "a11y").get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        generator_command=str(raw.get("generator", {}).get("command", "")),
         charter_enabled=bool(charter.get("enabled", False)),
         charter_path=str(charter.get("path", "CHARTER.toml")),
         charter_high_stakes_fields=tuple(

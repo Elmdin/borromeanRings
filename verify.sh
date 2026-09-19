@@ -143,6 +143,7 @@ from pathlib import Path
 from meta_harness.archetypes import non_noop_violations
 from meta_harness.change_detect import compute_state_hash, record_green
 from meta_harness.evidence import LANE_FAST, LANE_HEAVY, evidence_from_receipt, read_intent
+from meta_harness.generator import read_generator
 from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
 from meta_harness.receipts import run_digest, verify_receipt
 from meta_harness.spine import load_config
@@ -274,7 +275,11 @@ print()
 # PASS into a FAIL). See ADR-0046 (status) and ADR-0047 (ledger).
 try:
     # Intent: which branch/commit was gated, over which gated-input digest (the same
-    # fingerprint the no-op Stop skip trusts). Read from git with a fixed argv.
+    # fingerprint the no-op Stop skip trusts), read from git with a fixed argv — and WHO
+    # produced the change, self-declared by the adapter that ran the gate
+    # (claude-code:<session>, headless:<command>). The generator is provenance, never
+    # evidence: read AFTER `ok` is decided, recorded, never consulted; unset ⇒ ""
+    # (ADR-0071 §4, ADR-0078).
     # Evidence is best-effort by contract (ADR-0056): whatever the digest raises, the
     # verdict's exit code must not depend on it — so this catches everything, not
     # just OSError, and records an empty digest ("not recorded"), never a crash.
@@ -289,7 +294,11 @@ try:
         digest=digest,
         harness_version=harness_version,
         risk=risk,
-        intent=read_intent(Path(project_root), input_digest),
+        intent=read_intent(
+            Path(project_root),
+            input_digest,
+            generator=read_generator(os.environ.get("BORROMEANRINGS_GENERATOR")),
+        ),
         evidence=tuple(evidence),
         lane=lane,
     )

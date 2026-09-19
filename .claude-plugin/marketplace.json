@@ -1,0 +1,14 @@
+{
+  "name": "borromeanrings",
+  "description": "Self-hosted single-plugin marketplace for borromeanRings (the plugin lives at this repository's root).",
+  "owner": {
+    "name": "3MagicLabs"
+  },
+  "plugins": [
+    {
+      "name": "borromeanrings",
+      "source": "./",
+      "description": "Meta-harness that governs an AI coding agent with deterministic, fail-closed gates. Inert in any project without a borromeanrings.toml."
+    }
+  ]
+}

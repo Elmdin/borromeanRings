@@ -2,9 +2,9 @@
 
 > **Scope note:** this is a **borromeanRings harness feature** — borromeanRings *enhances the deep-research
 > capability the wrapped agent already has* (it does not build a research product from scratch). The
-> features below are the enhancements borromeanRings adds. See [`MANIFESTO.md`](MANIFESTO.md).
+> features below are the enhancements borromeanRings adds. See [`MANIFESTO.md`](../MANIFESTO.md).
 >
-> Status: spec, derived from [`research/deep-research-landscape.md`](research/deep-research-landscape.md).
+> Status: spec, derived from [`research/deep-research-landscape.md`](../research/deep-research-landscape.md).
 > Awaiting sign-off before implementation. The first tool borromeanRings builds *through* the harness and
 > then **adopts** (self-extension). The "best way to find & synthesize information."
 > CS130-structured: requirements → architecture → patterns → phased build.
@@ -84,6 +84,7 @@ every stage streams a receipt (query · engine · chosen site · read passage ·
   layer (DR-3) and the determinism log (DR-4).
 
 ## 4. Built through borromeanRings, then adopted
+Verified by `tests/unit/test_deep_research.py` (the pipeline's pure stages, no network).
 Spec'd → built on a branch → passes borromeanRings's own gate → human-approved merge. It is a **trust-root
 capability**, so it faces the **same-or-stricter** gate (full checks + the verification critic). Once
 merged, it registers as a capability borromeanRings can use, and it **augments** the agent's own research.

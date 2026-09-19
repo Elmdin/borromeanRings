@@ -15,7 +15,7 @@ cmd="container hygiene (non-root, pinned base, healthcheck per [container].requi
 
 # Resolve the Dockerfile path from config (default "Dockerfile"), relative to root.
 dockerfile_rel="$(
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" 2>/dev/null <<'PY'
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" 2>/dev/null <<'PY'
 import sys
 from meta_harness.spine import load_config
 print(load_config(sys.argv[1]).container_dockerfile)
@@ -30,7 +30,7 @@ if [ ! -f "$dockerfile_path" ]; then
   exit 0
 fi
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$dockerfile_path" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$dockerfile_path" >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.container import hygiene_findings

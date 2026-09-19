@@ -11,10 +11,15 @@ set -uo pipefail
 : "${RECEIPT_DIR:?_lib.sh: RECEIPT_DIR must be exported by verify.sh}"
 : "${BORROMEANRINGS_HOME:?_lib.sh: BORROMEANRINGS_HOME must be exported by verify.sh}"
 
+# borromeanrings_py — start Python from a neutral directory so a stdlib or
+# meta_harness name planted in the governed project can never shadow the gate's
+# own modules (#222). Every trusted, verdict-deciding call below routes through it.
+source "$(dirname "${BASH_SOURCE[0]}")/_py.sh"
+
 # borromeanrings_project_cfg <Config-attr> — print a [project] value from the GOVERNED
 # project's borromeanrings.toml (meta_harness is borromeanRings's own code at BORROMEANRINGS_HOME).
 borromeanrings_project_cfg() {
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" "$1" <<'PY'
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$1" <<'PY'
 import sys
 
 from meta_harness.spine import load_config
@@ -28,7 +33,7 @@ PY
 # the digest covers every field + the log content, so a later status/log edit no
 # longer matches. The verdict step re-verifies it. Evidence, not proof (ADR-0026).
 emit_receipt() {
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$1" "$2" "$3" "$4" "$5" "$RECEIPT_DIR/$1.json" "${6:-}" <<'PY'
+  PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$1" "$2" "$3" "$4" "$5" "$RECEIPT_DIR/$1.json" "${6:-}" <<'PY'
 import json
 import sys
 

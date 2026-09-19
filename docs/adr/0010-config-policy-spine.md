@@ -4,7 +4,7 @@
 
 ## Context
 borromeanRings's differentiator is a config-driven **spine** that enforces declared invariants on every
-run (Manifesto / VISION). v0 had only `checks/manifest.json` (a hard-coded check list) + receipts.
+run (Manifesto / VISION). v0 had only a hard-coded `manifest.json` check list under `checks/`, plus receipts.
 We need a real declarative source where a repo declares *what must always hold* — the required
 checks and the operating context (account, value priorities, requirements) — enforced consistently
 rather than restated ad hoc.
@@ -12,7 +12,7 @@ rather than restated ad hoc.
 ## Decision
 Introduce **`borromeanrings.toml`** as the single declarative source of invariants, loaded by a tested
 `meta_harness.spine` module. `verify.sh` reads the required-check set from the spine (replacing
-`checks/manifest.json` — Single Choice Principle) and enforces **config-compliance**: every declared
+that `manifest.json` — Single Choice Principle) and enforces **config-compliance**: every declared
 check must produce a pass receipt. A `[context]` section declares operating context that the wrapped
 agent consumes (e.g. for prompt rewriting, the next build).
 

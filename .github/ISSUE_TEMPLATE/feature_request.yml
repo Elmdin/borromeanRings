@@ -1,0 +1,83 @@
+name: Feature request
+description: Propose a new check, capability, or improvement to borromeanRings.
+title: "[feat] "
+labels: ["harness-feature", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        borromeanRings builds only what a real project needs, and nothing past v0 until
+        directed (`docs/ROADMAP.md`, "How items graduate"; `docs/HANDOFF.md` §3). A request
+        that names the check which would enforce it, and the evidence it would produce, is
+        one that can actually be built.
+  - type: textarea
+    id: user-story
+    attributes:
+      label: User story
+      description: Who needs this, what do they want, and why? Say what goes wrong today without it.
+      placeholder: As a maintainer governing a non-Python project, I want ..., so that ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete, checkable. Each line becomes a box the closing PR ticks with evidence.
+      value: |
+        - [ ] ...
+        - [ ] ...
+        - [ ] Fails closed when ... (never a silent pass)
+    validations:
+      required: true
+  - type: input
+    id: enforcing-check
+    attributes:
+      label: Which check or gate would enforce this?
+      description: An existing check id (e.g. `07_layout`), a new one (`NN_name`), a hook, or "advisory only — cannot be a gate, because ...".
+      placeholder: new check 17_something under checks/shared, required in [checks].required
+    validations:
+      required: true
+  - type: checkboxes
+    id: quality-attributes
+    attributes:
+      label: Quality attributes it serves
+      description: Tick what this improves. Threshold-free is a hard rule — no "80% of X" targets.
+      options:
+        - label: Correctness (the gate says pass only when the claim is true)
+        - label: Security
+        - label: Maintainability / information hiding
+        - label: Portability (works for a governed project that is not this repo)
+        - label: Efficiency (fewer tokens / less compute at equal output quality)
+        - label: Honesty (`noop` when nothing was inspected, never `pass`)
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered and prior art
+      description: Other approaches, existing tools that already do this, and why this proposal is preferable. Link a survey under docs/research/ if one exists.
+    validations:
+      required: false
+  - type: dropdown
+    id: decision-weight
+    attributes:
+      label: Does this need an ADR?
+      description: docs/TRIAGE.md §5 — a change that adds/removes a gate, changes pass/fail, or changes the trust model needs one.
+      options:
+        - "Yes — adds or removes a gate, or changes what pass/fail means"
+        - "Yes — changes the trust model or picks between real alternatives"
+        - "No — restores intended behaviour, or docs only"
+        - "Not sure"
+    validations:
+      required: true
+  - type: dropdown
+    id: milestone-fit
+    attributes:
+      label: Which milestone question does it answer?
+      description: Leave "Unsure" rather than guessing (docs/TRIAGE.md §4).
+      options:
+        - "Unsure"
+        - "M1 — is this safe and presentable to strangers?"
+        - "M2 — does the platform actually do what it claims?"
+        - "M3 — can it do the same for less?"
+        - "M4 — can someone else contribute to it?"
+    validations:
+      required: true

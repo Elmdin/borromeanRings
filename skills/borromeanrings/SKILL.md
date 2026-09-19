@@ -13,7 +13,7 @@ description: >
 When invoked, set up borromeanRings to govern the **current workspace**, then work under it.
 
 1. **Initialize (idempotent):** run
-   `__BORROMEANRINGS_HOME__/init.sh .`
+   `${CLAUDE_PLUGIN_ROOT}/init.sh .`
    This writes a `borromeanrings.toml` into the current project and installs borromeanRings's
    skills. If borromeanRings's hooks are installed globally (`~/.claude`), governance
    (the Stop gate, prompt-rewriting, the dangerous-command guard, auto-format)
@@ -21,7 +21,7 @@ When invoked, set up borromeanRings to govern the **current workspace**, then wo
 2. **Tune `borromeanrings.toml`** to the project: `[project].language` (python today),
    `package`/`src_dir`, `[checks].required`, `[hygiene].requires`, `[context]`.
 3. **Operate under borromeanRings for the rest of the session:**
-   - The gate is `__BORROMEANRINGS_HOME__/verify.sh`. **Do not declare a task done until
+   - The gate is `${CLAUDE_PLUGIN_ROOT}/verify.sh`. **Do not declare a task done until
      it exits 0** — show its output as evidence (if global hooks are active, the
      Stop hook enforces this automatically).
    - For thorough web research, use the **`borromeanrings-research`** skill.

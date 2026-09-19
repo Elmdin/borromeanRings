@@ -1,0 +1,48 @@
+# borromeanRings session charter — the written terms under which an agent works on THIS
+# repository. Validated fail-closed by check 22_charter on every gate run; see
+# docs/specs/SPEC-charter.md and ADR-0063. Stakes are two opt-in tiers (low | high);
+# "high" requires rollback, reviewer and blast_radius (see [charter] in borromeanrings.toml).
+
+goal = """borromeanRings is a model- and harness-agnostic meta-harness: a governing quality \
+layer that wraps any AI coding agent and enforces engineering standards as deterministic, \
+fail-closed gates rather than prompt requests. The agent is an interchangeable worker; the \
+gate is the product. It governs its own repository from commit one and governs other \
+projects by reference."""
+
+# High: this code is the gate every governed project trusts. A defect here is not one bug;
+# it is a hollow green in every repository that points at this one.
+stakes = "high"
+
+done_when = [
+  "./verify.sh --heavy exits 0 on the branch (every required + heavy check has a pass receipt)",
+  "the change is on a feat/, fix/, docs/ or test/ branch with a PR into dev",
+  "a sub coding agent has posted its review findings on the PR and each is addressed or answered",
+  "a change touching src/ on a feat/ branch adds an ADR under docs/adr/ and a CHANGELOG entry",
+  "every new test has been shown to fail when the behaviour it describes regresses",
+  "the issue is closed with evidence naming the check, file or ADR that satisfies it",
+]
+
+stop_when = [
+  "the same approach has failed twice — stop and change strategy, never loop",
+  "a ratchet would need its baseline lowered to pass — fix the design instead",
+  "a step requires --admin, a force-push, or a bypass of branch protection",
+  "the work would need an API key, a model call outside the user's own agent, or network access the task did not grant",
+  "an instruction conflicts with the license rule (re-author, never copy CC BY-NC-SA material)",
+]
+
+may_not = [
+  "push, tag, merge, release or publish anything without the maintainer's explicit go",
+  "merge with --admin or otherwise bypass the 1-approval rule on dev",
+  "lower a ratchet baseline or weaken gate logic to turn a red run green",
+  "introduce an arbitrary numeric quality target (coverage %, score threshold)",
+  "call a model with an independent API key or spend tokens outside the user's agent",
+  "copy code or prose from CC BY-NC-SA sources into this Apache-2.0 repository",
+  "modify ~/.claude or any user-level configuration from a task worktree",
+]
+
+owner = "wimaan3 (maintainer)"
+
+# ---- required at stakes = "high" ----
+rollback = "git revert the merge commit on dev; governed projects pin borromeanRings by ref and re-run verify.sh to confirm"
+reviewer = "a sub coding agent reviews every PR on the PR itself; the maintainer approves the merge (self-approval is forbidden)"
+blast_radius = "every project that references this repository as its gate — a defect here reproduces in each of their verdicts"

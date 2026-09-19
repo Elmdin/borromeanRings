@@ -9,6 +9,7 @@ from meta_harness.mutation import (
     MutationCounts,
     mutation_score,
     parse_mutmut_summary,
+    summary_line,
     total_evaluated,
 )
 from meta_harness.ratchet import RatchetDecision, decide_ratchet
@@ -101,3 +102,29 @@ def test_total_evaluated_counts_caught_and_escaped_only() -> None:
 def test_total_evaluated_zero_signals_setup_failure() -> None:
     # The false-pass guard: no verdicts (only skipped/no-tests) → the check must fail closed.
     assert total_evaluated(MutationCounts(0, 0, 0, 0, 5, 5)) == 0
+
+
+# --- mutation: the one-line receipt summary the gate prints on the 60_mutation row ---
+#
+# A score with no count is unreadable (a vacuous run scores 1.0); the count is what
+# tells a reader whether mutmut did any work. See ADR-0022, issue #187.
+
+
+def test_summary_line_carries_count_and_score() -> None:
+    counts = parse_mutmut_summary(_REAL_SUMMARY)  # 2 killed + 1 survived
+    assert summary_line(counts, decide_ratchet(2 / 3, 0.5, higher_is_better=True)) == (
+        "evaluated 3, score 0.67"
+    )
+
+
+def test_summary_line_zero_evaluated_names_the_count_not_a_vacuous_score() -> None:
+    counts = MutationCounts(0, 0, 0, 0, skipped=3, no_tests=4)
+    decision = decide_ratchet(mutation_score(counts), 0.8, higher_is_better=True)
+    assert summary_line(counts, decision) == "evaluated 0"
+
+
+def test_summary_line_shows_the_baseline_on_regression() -> None:
+    counts = MutationCounts(killed=1, survived=1, timeout=0, suspicious=0, skipped=0, no_tests=0)
+    decision = decide_ratchet(0.5, 0.8, higher_is_better=True)
+    assert decision.regressed
+    assert summary_line(counts, decision) == "evaluated 2, score 0.50 < baseline 0.80"

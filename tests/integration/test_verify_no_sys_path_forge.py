@@ -208,13 +208,12 @@ def _code_lines(rel: str):
 def test_gate_trusted_python_runs_through_the_neutral_cwd_helper() -> None:
     """Regression guard for #222 (ADR-0080). The behavioral test above catches a call
     that stops routing; this catches the subtler regression it cannot see — a
-    "simplification" to ``python3 -P`` / ``-I`` (or a combined ``-IP``). ``-P`` (3.11+)
-    is an unknown option on 3.10 (``requires-python``), and CI runs 3.12 only, so the
-    break would be invisible there while re-opening the class on a supported
-    interpreter. ``-I`` also drops ``PYTHONPATH``, which is how the gate finds
-    ``meta_harness``. A neutral working directory is the version-agnostic fix, so both
-    flags are banned outright and the interpreter may be named only inside
-    ``borromeanrings_py``.
+    "simplification" to ``python3 -P`` / ``-I`` (or a combined ``-IP``). ``-P`` keeps the cwd
+    off ``sys.path`` but not a user-site startup hook, and was an unknown option on the
+    floor this was written against (3.10; 3.11 since #223). ``-I`` drops
+    ``PYTHONPATH``, which is how the gate finds ``meta_harness``. A neutral working
+    directory is the version-agnostic fix, so both flags are banned outright and the
+    interpreter may be named only inside ``borromeanrings_py``.
     """
     offenders: list[str] = []
     for rel in _TRUSTED_GATE_SCRIPTS:

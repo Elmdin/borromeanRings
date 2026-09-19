@@ -18,7 +18,7 @@ BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 GATE_TIMEOUT_S = 180
 
 CONFIG = (
-    '[project]\nlanguage = "c"\nsrc_dir = "src"\narchetypes = ["cli"]\n\n'
+    '[project]\nlanguage = "none"\nsrc_dir = "src"\narchetypes = ["cli"]\n\n'
     '[checks]\nrequired = ["14_container", "21_archetype"]\n\n[hygiene]\nrequires = []\n'
 )
 FILES = {

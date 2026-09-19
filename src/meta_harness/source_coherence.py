@@ -46,6 +46,7 @@ SKIP_DIRS = frozenset(
         "dist",
         "mutants",
         "node_modules",
+        "vendor",
         "venv",
         ".venv",
     }

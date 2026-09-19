@@ -92,6 +92,8 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `12_secrets` | No high-confidence provider tokens / private keys in tracked files; **fails closed on a non-git dir** | (scan; escape hatch inline) | 0032 / 0042 |
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
+| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass` | `[a11y].require`, `exclude` | 0045, 0049 |
+| `21_archetype` | The project has every **required feature of its declared archetypes** (a health route, structured logging, a `MODEL_CARD.md`, a rollback command, an i18n catalog, …) — binary presence/content facts with an evidence path each; no archetypes ⇒ `noop`. Separately, the verdict **fails the run when a check an archetype requires to be non-`noop` inspected nothing** (e.g. `web-app` ⇒ `15_a11y`) | `[project].archetypes` (`library`, `cli`, `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`); catalog + playbooks in `meta_harness.archetypes` | 0062 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). Opt-in per project: form controls have an accessible name, `<a href>` has discernible text, one `<h1>` and no skipped levels (WCAG 3.3.2+4.1.2/2.4.4/1.3.1). Reports `file:line — [rule] — reason`. No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass`. Contrast/focus/target size need a rendered DOM — not faked here (#210) | `[a11y].require`, `exclude` | 0045, 0049, 0075 |
 | `21_archetype` | The project has every **required feature of its declared archetypes** (a health route, structured logging, a `MODEL_CARD.md`, a rollback command, an i18n catalog, …) — binary presence/content facts with an evidence path each; no archetypes ⇒ `noop`. Separately, the verdict **fails the run when a check an archetype requires to be non-`noop` inspected nothing** (e.g. `web-app` ⇒ `15_a11y`) | `[project].archetypes` (`library`, `cli`, `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`); catalog + playbooks in `meta_harness.archetypes` | 0062 |
 | `26_citations` | Citations in changed Markdown (repo paths, heading anchors, `ADR-NNNN`, check ids) resolve on this branch; URLs and issue numbers deliberately excluded | `[citations].enabled`, `paths` | 0073 |
@@ -128,6 +130,10 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 
 | Check | Enforces | Config / notes | ADR |
 |-------|----------|----------------|-----|
+| `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; fails on 0 evaluated | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
+| `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
+| `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |
+| `74_secret_history` | No high-confidence secret in **any** blob reachable from any ref (history, not just HEAD) | `[secrets].history_allow` | 0042 |
 | `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; **fails closed on 0 evaluated mutants** (a clean-test failure inside mutmut's sandbox is "MUTATION CHECK DID NOT RUN", never a vacuous 1.0). The verdict row shows the count: `PASS (evaluated N, score S)` / `FAIL (evaluated 0)` | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
 | `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
 | `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |

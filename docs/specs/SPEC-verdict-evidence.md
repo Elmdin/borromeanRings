@@ -119,8 +119,9 @@ prints one line: `risk-band: HOLLOW · evidence: 19 receipt(s)`.
 ### 4.5 Surfaces
 
 - **Self-status** (`status.sh`): `Risk band:    GREEN · evidence: 19 receipt(s) recorded
-  (4 heavy-lane)` and `Intent:       feat/x @ 0123456789ab` (branch and/or 12-char SHA,
-  omitted entirely when nothing was recorded). A pre-evidence record renders
+  (4 heavy-lane)` and `Intent:       feat/x @ 0123456789ab` (whichever of the branch and
+  the 12-char SHA was recorded; the line is omitted when neither was). A pre-evidence
+  record renders
   `Risk band:    not recorded (verdict predates evidence capture)`.
 - **Ledger** (`ledger.sh`): a new `EVIDENCE` column (`evidenced/runs`, `—` when never
   gated) and `… · N with evidence` in the tally.

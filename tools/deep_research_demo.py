@@ -16,7 +16,7 @@ import urllib.request
 
 from meta_harness.deep_research import candidate_passages, federated_search, research
 
-_UA = "borromeanrings-deep-research/0.0 (https://github.com/3MagicLabs/borromeanrings)"
+_UA = "borromeanrings-deep-research/0.0 (https://github.com/Elmdin/borromeanrings)"
 _ENGINES = ("en.wikipedia.org", "simple.wikipedia.org")
 
 

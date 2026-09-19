@@ -194,6 +194,17 @@ for cid in expected:
     rows.append((cid, status.upper()))
     summaries[cid] = receipt.get("summary")
 
+# Archetype clause (ADR-0062): a check the declared [project].archetypes require to be
+# non-noop but whose receipt is `noop` — or which is not in the expected set at all — turns
+# the run FAIL. The one place an archetype overrides a check's own non-failing `noop`
+# (ADR-0049): "inspected nothing" is legitimate for a greenfield project, not for a
+# declared web app. No archetypes declared ⇒ empty tuple ⇒ behaviour unchanged.
+archetype_failures = non_noop_violations(
+    config.archetypes, {cid: status.lower() for cid, status in rows}
+)
+if archetype_failures:
+    ok = False
+
 width = max(len(c) for c, _ in rows)
 print()
 print(f"  borromeanRings gate  (project: {project_root})")

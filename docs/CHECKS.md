@@ -96,8 +96,6 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `12_secrets` | No high-confidence provider tokens / private keys in tracked files; **fails closed on a non-git dir** | (scan; escape hatch inline) | 0032 / 0042 |
 | `13_adr` | On a feature branch, a change touching `src` must add/modify an ADR | `[adr].dir`, `require_prefixes` | 0043 |
 | `14_container` | Dockerfile hygiene: non-root final user, pinned base, healthcheck | `[container].dockerfile`, `require` | 0044 |
-| `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass` | `[a11y].require`, `exclude` | 0045, 0049 |
-| `21_archetype` | The project has every **required feature of its declared archetypes** (a health route, structured logging, a `MODEL_CARD.md`, a rollback command, an i18n catalog, …) — binary presence/content facts with an evidence path each; no archetypes ⇒ `noop`. Separately, the verdict **fails the run when a check an archetype requires to be non-`noop` inspected nothing** (e.g. `web-app` ⇒ `15_a11y`) | `[project].archetypes` (`library`, `cli`, `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`); catalog + playbooks in `meta_harness.archetypes` | 0062 |
 | `15_a11y` | Tracked HTML declares `<html lang>`, `<img alt>`, `<title>` (WCAG 3.1.1/1.1.1/2.4.2). Opt-in per project: form controls have an accessible name, `<a href>` has discernible text, one `<h1>` and no skipped levels (WCAG 3.3.2+4.1.2/2.4.4/1.3.1). Reports `file:line — [rule] — reason`. No tracked HTML (after `exclude`) ⇒ `noop`, never a hollow `pass`. Contrast/focus/target size need a rendered DOM — not faked here (#210) | `[a11y].require`, `exclude` | 0045, 0049, 0075 |
 | `21_archetype` | The project has every **required feature of its declared archetypes** (a health route, structured logging, a `MODEL_CARD.md`, a rollback command, an i18n catalog, …) — binary presence/content facts with an evidence path each; no archetypes ⇒ `noop`. Separately, the verdict **fails the run when a check an archetype requires to be non-`noop` inspected nothing** (e.g. `web-app` ⇒ `15_a11y`) | `[project].archetypes` (`library`, `cli`, `web-api`, `web-app`, `ml`, `embedded`, `data-pipeline`); catalog + playbooks in `meta_harness.archetypes` | 0062 |
 | `26_citations` | Citations in changed Markdown (repo paths, heading anchors, `ADR-NNNN`, check ids) resolve on this branch; URLs and issue numbers deliberately excluded | `[citations].enabled`, `paths` | 0073 |
@@ -130,14 +128,37 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 | `55_doc_drift` | *(Advisory)* an external model judge checks docstrings against code | `[critic].judge_command` (dormant if empty) | 0030 |
 | `56_critics` | *(Advisory)* model judge applies Wave-2 rubrics (error-handling, naming, security, boundary-value, test-smell) | `[critic].rubrics`, `judge_command` | 0036 |
 
+## Fast lane — TypeScript checks (`[project].language = "typescript"`)
+
+Same ids and guarantees as the Python lane (SPEC-multi-language.md, ADR-0068). A lane tool
+that is **not installed** ⇒ `noop` naming it (`tsc not installed`, …) — never installed,
+never a failed project. Tools resolve from `node_modules/.bin` first, then `PATH`. Nothing
+on this lane touches the network (`npm audit` is excluded; #193 tracks it for the heavy lane).
+
+| Check | Enforces | Tool / notes | ADR |
+|-------|----------|--------------|-----|
+| `00_build` | Source compiles under the project's `tsconfig.json`; source with no `tsconfig.json` ⇒ fail | `tsc -p tsconfig.json --noEmit` | 0068 |
+| `10_format` | No unformatted files | `prettier --check .` | 0068 |
+| `20_lint` | No lint violations (ESLint 9 with no config errors ⇒ fail) | `eslint .` | 0068 |
+| `30_typecheck` | Source holds under `--strict` | `tsc -p tsconfig.json --noEmit --strict` | 0068 |
+| `40_test` | Tests pass **and** line coverage doesn't regress (**ratchet**) | `vitest run --coverage` (json-summary) or `jest --coverage`; `.borromeanrings-coverage-baseline` | 0068 |
+| `50_security` | No high-confidence dangerous sink (`eval`, `new Function`, `document.write`) | `ast-grep scan --json` with `checks/typescript/rules/security.yml` | 0068 |
+
+## Fast lane — Go checks (`[project].language = "go"`)
+
+| Check | Enforces | Tool / notes | ADR |
+|-------|----------|--------------|-----|
+| `00_build` | Every package compiles | `go build ./...` | 0068 |
+| `10_format` | `gofmt -l` lists nothing (verdict on the list, not gofmt's exit code) | `gofmt -l <src_dir>` | 0068 |
+| `20_lint` | `go vet` reports nothing | `go vet ./...` | 0068 |
+| `30_typecheck` | Type-aware static analysis beyond the compiler | `staticcheck ./...` (`noop` when absent) | 0068 |
+| `40_test` | Tests pass, at least one package has tests, statement coverage doesn't regress (**ratchet**) | `go test -coverprofile ./...` + `go tool cover -func`; `.borromeanrings-coverage-baseline` | 0068 |
+| `50_security` | `gosec` reports nothing (`govulncheck` is network — excluded, #193) | `gosec ./...` | 0068 |
+
 ## Heavy (CI-tier) lane — run under `./verify.sh --heavy` or CI only
 
 | Check | Enforces | Config / notes | ADR |
 |-------|----------|----------------|-----|
-| `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; fails on 0 evaluated | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
-| `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
-| `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |
-| `74_secret_history` | No high-confidence secret in **any** blob reachable from any ref (history, not just HEAD) | `[secrets].history_allow` | 0042 |
 | `60_mutation` | **Ratchet**: mutation score (assertion strength beyond coverage) doesn't regress; **fails closed on 0 evaluated mutants** (a clean-test failure inside mutmut's sandbox is "MUTATION CHECK DID NOT RUN", never a vacuous 1.0). The verdict row shows the count: `PASS (evaluated N, score S)` / `FAIL (evaluated 0)` | `.borromeanrings-mutation-baseline` (0.80) | 0022 |
 | `70_pip_audit` | No known-vulnerable dependencies (pip-audit) | `[audit].ignore_packages`, `ignore_vulns` | 0034 |
 | `72_licenses` | No incompatible copyleft licenses in the dependency tree | `[licenses].deny`, `allow_packages` | 0035 |
@@ -148,8 +169,9 @@ Without that block, the project is *enrolled but dormant* — the gate runs only
 ## Notes
 
 - **Ratchets are threshold-free.** `32/33/40/45/60` enforce *non-regression* against a seeded
-  baseline, never an arbitrary target number — you can only improve or hold, never silently
-  slip. Move a baseline deliberately (a reviewed commit), never as a side effect.
+  baseline (`40_test`'s `.borromeanrings-coverage-baseline` is one file for every language lane;
+  `adopt.sh` seeds it from the latest measured run), never an arbitrary target number — you can
+  only improve or hold, never silently slip. Move a baseline deliberately (a reviewed commit), never as a side effect.
 - **Advisory checks** (`55_doc_drift`, `56_critics`) require a wired model judge
   (`[critic].judge_command`, e.g. the local `claude` CLI — no API keys). Empty ⇒ dormant; they
   never block until you opt in.

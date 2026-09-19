@@ -556,6 +556,12 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- The test suite wrote the developer's real out-of-tree state: every test that ran the gate
+  or the Stop hook left a last-green record or retry count under `~/.local/state/borromeanrings`
+  (ADR-0079/0082), mixed in with the records of projects actually governed. Hundreds had
+  accumulated. `tests/conftest.py` now gives each session a private `XDG_STATE_HOME`, removed
+  afterwards; `test_suite_state_isolation.py` proves a real gate run lands there and nowhere
+  else.
 - A config section written as a scalar (`charter = "high"` for `[charter] stakes = "high"`)
   crashed `load_config` with a bare `AttributeError`: a traceback, not the `ValueError`
   every caller treats as an invalid config, so tools crashed instead of refusing. Every

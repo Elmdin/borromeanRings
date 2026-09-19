@@ -258,7 +258,7 @@ except (ImportError, ValueError):
     spec = None
 print((spec.origin or "") if spec is not None else "")
 PY
-  )"
+  )" || die "could not locate where '$PACKAGE' imports from (its import raised) — refusing to gate an unproven tree"
   SHADOW="$(cd / && PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$ORIGIN" "$WT_DIR" <<'PY'
 import sys
 

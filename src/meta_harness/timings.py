@@ -38,7 +38,12 @@ def slowest(
     same configuration.
     """
     measured: Sequence[tuple[str, int]] = [
-        (cid, ms) for cid, ms in entries if isinstance(ms, int) and not isinstance(ms, bool)
+        (cid, ms)
+        for cid, ms in entries
+        # A negative duration is a broken measurement (a clock that stepped back, a
+        # receipt written by something other than emit_receipt). It is dropped like an
+        # absent one: the gate reports what it knows and never dies rendering a report.
+        if isinstance(ms, int) and not isinstance(ms, bool) and ms >= 0
     ]
     return tuple(sorted(measured, key=lambda pair: -pair[1])[:limit])
 

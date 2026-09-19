@@ -128,6 +128,8 @@ class Intent:
     branch: str = ""
     head_sha: str = ""
     input_digest: str = ""
+    #: Who produced the change: the self-declared ``<kind>:<id>`` label (ADR-0078).
+    generator: str = ""
 
     def to_dict(self) -> dict[str, object]:
         """A JSON-serialisable view."""
@@ -135,6 +137,7 @@ class Intent:
             "branch": self.branch,
             "head_sha": self.head_sha,
             "input_digest": self.input_digest,
+            "generator": self.generator,
         }
 
 
@@ -146,6 +149,9 @@ def parse_intent(raw: object) -> Intent:
         branch=str(raw.get("branch", "")),
         head_sha=str(raw.get("head_sha", "")),
         input_digest=str(raw.get("input_digest", "")),
+        # Only an actual string: a record whose generator is anything else reads as "no
+        # generator recorded", never a coerced guess (ADR-0078).
+        generator=raw["generator"] if isinstance(raw.get("generator"), str) else "",
     )
 
 
@@ -163,11 +169,16 @@ def _git_query(project_root: Path, *args: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def read_intent(project_root: Path | str, input_digest: str) -> Intent:
-    """Read the gated intent from git (branch + head SHA); fail-soft outside a repo."""
+def read_intent(project_root: Path | str, input_digest: str, generator: str = "") -> Intent:
+    """Read the gated intent from git (branch + head SHA); fail-soft outside a repo.
+
+    ``generator`` is passed through as given: it is already sanitised by
+    :func:`meta_harness.generator.read_generator`.
+    """
     root = Path(project_root)
     return Intent(
         branch=_git_query(root, "rev-parse", "--abbrev-ref", "HEAD"),
         head_sha=_git_query(root, "rev-parse", "HEAD"),
         input_digest=input_digest,
+        generator=generator,
     )

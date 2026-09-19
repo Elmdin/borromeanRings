@@ -134,7 +134,12 @@ def test_read_history_skips_blank_and_malformed_lines(tmp_path: Path) -> None:
 
 def test_to_dict_is_json_shaped() -> None:
     v = Verdict(
-        ok=True, checks=(("00_build", "pass"),), run_id="r", digest="d", harness_version="v1.2.3"
+        ok=True,
+        checks=(("00_build", "pass"),),
+        run_id="r",
+        digest="d",
+        harness_version="v1.2.3",
+        intent=Intent(generator="claude-code:s1"),
     )
     d = v.to_dict()
     assert d == {
@@ -143,7 +148,12 @@ def test_to_dict_is_json_shaped() -> None:
         "digest": "d",
         "harness_version": "v1.2.3",
         "risk": "",
-        "intent": {"branch": "", "head_sha": "", "input_digest": ""},
+        "intent": {
+            "branch": "",
+            "head_sha": "",
+            "input_digest": "",
+            "generator": "claude-code:s1",
+        },
         "lane": "",
         "checks": [["00_build", "pass"]],
         "evidence": [],
@@ -213,6 +223,62 @@ def test_non_failing_allowlist_is_immutable_and_minimal() -> None:
     assert sorted(NON_FAILING_STATUSES) == ["noop", "pass"]
 
 
+# --- intent.generator: who produced the change this verdict judged (ADR-0071 §4) ------
+# Provenance, not evidence. Self-declared by the adapter that ran the gate; the gate
+# makes no decision on it, and a record that carries none reads "" — never a guess.
+
+
+def test_generator_round_trips_under_intent(tmp_path: Path) -> None:
+    """The persisted shape is ``intent.generator``, a field of ADR-0056's Intent (ADR-0078)."""
+    verdict = Verdict(
+        ok=True,
+        checks=(("20_lint", "pass"),),
+        intent=Intent(generator="headless:apply_patch.sh"),
+    )
+    assert verdict.to_dict()["intent"]["generator"] == "headless:apply_patch.sh"
+    write_last_verdict(tmp_path, verdict)
+    got = read_last_verdict(tmp_path)
+    assert got is not None
+    assert got.intent.generator == "headless:apply_patch.sh"
+
+
+def test_generator_defaults_to_empty_not_guessed() -> None:
+    """A gate run with nothing declared records nothing, and says so as ``""``."""
+    assert Verdict(ok=True).intent.generator == ""
+    assert Verdict(ok=True).to_dict()["intent"]["generator"] == ""
+
+
+def test_records_without_an_intent_read_unchanged(tmp_path: Path) -> None:
+    """Fail-soft: every verdict written before this field parses as before."""
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    path.write_text('{"ok": true, "checks": [["20_lint", "pass"]]}', encoding="utf-8")
+    got = read_last_verdict(tmp_path)
+    assert got is not None
+    assert (got.ok, got.intent.generator) == (True, "")
+
+
+def test_a_malformed_intent_yields_no_generator(tmp_path: Path) -> None:
+    """Anything that is not an object carrying a string is not provenance."""
+    path = tmp_path / LAST_VERDICT_FILE
+    path.parent.mkdir(parents=True)
+    for intent in ('"claude-code"', "[]", "17", "null", '{"generator": 17}', '{"branch": "dev"}'):
+        path.write_text(f'{{"ok": true, "checks": [], "intent": {intent}}}', encoding="utf-8")
+        got = read_last_verdict(tmp_path)
+        assert got is not None, intent
+        assert got.intent.generator == "", intent
+
+
+def test_history_carries_the_generator_too(tmp_path: Path) -> None:
+    """The ledger's rows attribute their change like the last-verdict record does."""
+    append_history(tmp_path, Verdict(ok=False, intent=Intent(generator="claude-code:s1")))
+    append_history(tmp_path, Verdict(ok=True, intent=Intent(generator="claude-code:s1")))
+    assert [v.intent.generator for v in read_history(tmp_path)] == [
+        "claude-code:s1",
+        "claude-code:s1",
+    ]
+
+
 # --- evidence, intent and the risk band (ADR-0056) ------------------------------------
 # The verdict records what was SHOWN to happen, not only pass/fail: per-check evidence,
 # the gated intent, and a band derived deterministically from the recorded facts.
@@ -242,7 +308,7 @@ def test_rich_verdict_to_dict_is_exact_and_human_readable() -> None:
         "harness_version": "v1",
         "lane": "",
         "risk": "hollow",
-        "intent": {"branch": "feat/x", "head_sha": "abc", "input_digest": "in"},
+        "intent": {"branch": "feat/x", "head_sha": "abc", "input_digest": "in", "generator": ""},
         "checks": [["00_build", "pass"], ["60_mutation", "noop"]],
         "evidence": [
             {

@@ -87,7 +87,12 @@ def _tools_named_by_the_checks() -> set[str]:
         found |= {
             _DIST_OF_MODULE.get(m, m) for m in re.findall(r"python3 -m ([A-Za-z0-9_]+)", text)
         }
-    return {canonical(_DIST_OF_BINARY.get(name, name)) for name in found - _NOT_A_DISTRIBUTION}
+    # A `$variable` is not a tool name: the language lanes (ADR-0068) pass the binary they
+    # resolved from the PROJECT's own node_modules/.bin or Go toolchain, which the project
+    # pins and pip cannot. TOOLS covers the Python distributions borromeanRings itself
+    # installs (ADR-0077); a variable reached this way was always invisible to the scan.
+    literal = {name for name in found if not name.startswith("$")}
+    return {canonical(_DIST_OF_BINARY.get(n, n)) for n in literal - _NOT_A_DISTRIBUTION}
 
 
 def test_the_tools_table_mirrors_what_the_checks_actually_invoke() -> None:

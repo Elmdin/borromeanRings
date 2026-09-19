@@ -24,7 +24,7 @@ cmd="property tests (pytest + Hypothesis over [verification].properties)"
 # --- 1. What does the project claim? A config that will not load is a FAIL, never a
 # silent "nothing declared" (that would switch the rule off by accident). ------------
 props="$(
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/borromeanrings.toml" 2>"$log" <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" 2>"$log" <<'PY'
 import sys
 
 from meta_harness.spine import load_config
@@ -124,6 +124,6 @@ else
   } >>"$log"
 fi
 
-extra="$(python3 -c "import json,sys; print(json.dumps({'properties_dir': sys.argv[1]}))" "$props" 2>/dev/null || echo '')"
+extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'properties_dir': sys.argv[1]}))" "$props" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

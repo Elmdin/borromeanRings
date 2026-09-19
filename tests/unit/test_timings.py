@@ -63,3 +63,11 @@ def test_a_negative_duration_is_refused_rather_than_reported() -> None:
     """A clock that went backwards mid-run is a broken measurement, not a fast check."""
     with pytest.raises(ValueError, match="negative"):
         format_duration_ms(-1)
+
+
+def test_a_broken_measurement_is_dropped_rather_than_crashing_the_report() -> None:
+    """`format_duration_ms` refuses a negative duration, and the gate prints this line
+    on every run: a receipt written by something other than `emit_receipt` must not be
+    able to take the verdict's output down with it (review of #254)."""
+    assert slowest((("40_test", 900), ("13_adr", -5)), 3) == (("40_test", 900),)
+    assert timings_line((("13_adr", -5),), 3) is None

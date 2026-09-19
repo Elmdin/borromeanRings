@@ -45,7 +45,9 @@ borromeanrings_now_ms() {
 
 # When this check started: every check sources this library as its first act, so the
 # receipt's duration is the check's own work — its tools, not the gate's bookkeeping.
-BORROMEANRINGS_CHECK_STARTED_MS="$(borromeanrings_now_ms)"
+# `:=` on purpose: sourcing the library a second time must not restart the clock and
+# report a long check as a fast one.
+: "${BORROMEANRINGS_CHECK_STARTED_MS:=$(borromeanrings_now_ms)}"
 
 # emit_receipt <id> <command> <exit_code> <log> <status> [extra_json]
 # Writes the receipt with a tamper-evident content hash (see meta_harness.receipts):

@@ -117,3 +117,29 @@ def test_the_measurement_never_changes_the_verdict(tmp_path: Path) -> None:
     assert proc.returncode != 0
     assert "RESULT: FAIL" in proc.stdout
     assert "slowest:" in proc.stdout, "the measurement is printed on a red run too"
+
+
+def test_sourcing_the_library_twice_does_not_restart_the_clock(tmp_path: Path) -> None:
+    """A check that sources `_lib.sh` again mid-run would otherwise report the work it
+    did before that as instant — a long check recorded as a fast one (review of #254)."""
+    lib = BORROMEANRINGS_HOME / "checks" / "_lib.sh"
+    script = (
+        f'source "{lib}"; first="$BORROMEANRINGS_CHECK_STARTED_MS"; sleep 0.05; '
+        f'source "{lib}"; echo "$first $BORROMEANRINGS_CHECK_STARTED_MS"'
+    )
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        env={
+            **os.environ,
+            "PROJECT_ROOT": str(tmp_path),
+            "RECEIPT_DIR": str(tmp_path),
+            "BORROMEANRINGS_HOME": str(BORROMEANRINGS_HOME),
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    first, second = proc.stdout.split()
+    assert first == second, "the second source restarted the clock"

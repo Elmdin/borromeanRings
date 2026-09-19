@@ -516,6 +516,10 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- A config section written as a scalar (`charter = "high"` for `[charter] stakes = "high"`)
+  crashed `load_config` with a bare `AttributeError`: a traceback, not the `ValueError`
+  every caller treats as an invalid config, so tools crashed instead of refusing. Every
+  section is now read through one helper that fails closed and names the section.
 - Checks written after #222 reopened the working-directory import shadow (#240): 25
   trusted steps in 19 check scripts started a bare `python3 -` from the governed
   project, so a planted `meta_harness/` or `json.py` replaced their analysis (a

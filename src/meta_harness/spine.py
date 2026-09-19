@@ -228,7 +228,7 @@ def _validated_required(raw: Mapping[str, Any]) -> list[str]:
 
     Fail-closed: borromeanRings never reads "nothing declared" as "nothing to enforce".
     """
-    required = list(raw.get("checks", {}).get("required", []))
+    required = list(_table(raw, "checks").get("required", []))
     if not required:
         raise ValueError(
             "borromeanrings.toml must declare a non-empty [checks].required — "
@@ -243,13 +243,30 @@ def _reject_unknown_verification(raw: Mapping[str, Any]) -> None:
     A misspelled verification claim would otherwise read as "nothing declared",
     which is the silent-downgrade this project exists to prevent.
     """
-    unknown = sorted(set(raw.get("verification", {})) - VERIFICATION_KEYS)
+    unknown = sorted(set(_table(raw, "verification")) - VERIFICATION_KEYS)
     if unknown:
         raise ValueError(
             f"borromeanrings.toml [verification] has unknown key(s): {', '.join(unknown)}. "
             f"Known: {', '.join(sorted(VERIFICATION_KEYS))}. A misspelled verification "
             "claim would silently read as 'nothing declared' — fail-closed instead."
         )
+
+
+def _table(raw: Mapping[str, Any], name: str) -> Mapping[str, Any]:
+    """``[name]`` as a table (``{}`` when absent); anything else is a config error.
+
+    Every section is read with ``.get``. A scalar in a section's place (``charter =
+    "high"`` for ``[charter] stakes = "high"``) used to surface as an AttributeError
+    from deep inside :func:`load_config`: a traceback rather than the ``ValueError``
+    every caller treats as an invalid config. Fail closed, and name the section.
+    """
+    value = raw.get(name, {})
+    if not isinstance(value, Mapping):
+        raise ValueError(
+            f"[{name}] must be a table, got {type(value).__name__} — "
+            f"write it as a [{name}] section, not `{name} = ...`"
+        )
+    return value
 
 
 def load_config(path: str | Path = CONFIG_NAME) -> Config:
@@ -274,29 +291,29 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     raw: dict[str, Any] = tomllib.loads(resolve_config_path(path).read_text(encoding="utf-8"))
     required = _validated_required(raw)
     _reject_unknown_verification(raw)
-    verification: Mapping[str, Any] = raw.get("verification", {})
-    context: Mapping[str, Any] = raw.get("context", {})
-    prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
-    self_report_enabled = bool(raw.get("self_report", {}).get("enabled", prompt_rewriting_enabled))
-    hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
-    project = raw.get("project", {})
-    git = raw.get("git", {})
-    layout = raw.get("layout", {})
-    collaboration = raw.get("collaboration", {})
-    architecture = raw.get("architecture", {})
-    api_contracts = raw.get("api_contracts", {})
-    changelog = raw.get("changelog", {})
-    critic = raw.get("critic", {})
-    audit = raw.get("audit", {})
-    licenses = raw.get("licenses", {})
-    charter = raw.get("charter", {})
-    supply_chain = raw.get("supply_chain", {})
-    provenance = raw.get("provenance", {})
-    predicates = raw.get("predicates", {})
-    test = raw.get("test", {})
+    verification: Mapping[str, Any] = _table(raw, "verification")
+    context: Mapping[str, Any] = _table(raw, "context")
+    prompt_rewriting_enabled = bool(_table(raw, "prompt_rewriting").get("enabled", False))
+    self_report_enabled = bool(_table(raw, "self_report").get("enabled", prompt_rewriting_enabled))
+    hygiene_requires = tuple(_table(raw, "hygiene").get("requires", []))
+    project = _table(raw, "project")
+    git = _table(raw, "git")
+    layout = _table(raw, "layout")
+    collaboration = _table(raw, "collaboration")
+    architecture = _table(raw, "architecture")
+    api_contracts = _table(raw, "api_contracts")
+    changelog = _table(raw, "changelog")
+    critic = _table(raw, "critic")
+    audit = _table(raw, "audit")
+    licenses = _table(raw, "licenses")
+    charter = _table(raw, "charter")
+    supply_chain = _table(raw, "supply_chain")
+    provenance = _table(raw, "provenance")
+    predicates = _table(raw, "predicates")
+    test = _table(raw, "test")
     return Config(
         required_checks=tuple(required),
-        heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
+        heavy_checks=tuple(_table(raw, "checks").get("heavy", [])),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
         self_report_enabled=self_report_enabled,
@@ -336,36 +353,36 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         audit_ignore_vulns=tuple(audit.get("ignore_vulns", [])),
         license_deny=tuple(licenses.get("deny", [])),
         license_allow_packages=tuple(licenses.get("allow_packages", [])),
-        enhancements_interests=tuple(raw.get("enhancements", {}).get("interests", [])),
-        api_allow_breaking=bool(raw.get("api", {}).get("allow_breaking", False)),
-        secrets_history_allow=tuple(raw.get("secrets", {}).get("history_allow", [])),
-        adr_dir=str(raw.get("adr", {}).get("dir", "docs/adr")),
-        adr_require_prefixes=tuple(raw.get("adr", {}).get("require_prefixes", ["feat/"])),
-        prior_art_dir=str(raw.get("prior_art", {}).get("dir", "docs/surveys")),
+        enhancements_interests=tuple(_table(raw, "enhancements").get("interests", [])),
+        api_allow_breaking=bool(_table(raw, "api").get("allow_breaking", False)),
+        secrets_history_allow=tuple(_table(raw, "secrets").get("history_allow", [])),
+        adr_dir=str(_table(raw, "adr").get("dir", "docs/adr")),
+        adr_require_prefixes=tuple(_table(raw, "adr").get("require_prefixes", ["feat/"])),
+        prior_art_dir=str(_table(raw, "prior_art").get("dir", "docs/surveys")),
         prior_art_require_prefixes=tuple(
-            raw.get("prior_art", {}).get("require_prefixes", ["feat/"])
+            _table(raw, "prior_art").get("require_prefixes", ["feat/"])
         ),
-        container_dockerfile=str(raw.get("container", {}).get("dockerfile", "Dockerfile")),
+        container_dockerfile=str(_table(raw, "container").get("dockerfile", "Dockerfile")),
         container_require=tuple(
-            raw.get("container", {}).get("require", ["non_root", "pinned_base", "healthcheck"])
+            _table(raw, "container").get("require", ["non_root", "pinned_base", "healthcheck"])
         ),
-        citations_enabled=bool(raw.get("citations", {}).get("enabled", False)),
+        citations_enabled=bool(_table(raw, "citations").get("enabled", False)),
         citations_paths=tuple(
-            raw.get("citations", {}).get("paths", ["docs/", "README.md", "CHANGELOG.md", "skills/"])
+            _table(raw, "citations").get("paths", ["docs/", "README.md", "CHANGELOG.md", "skills/"])
         ),
         a11y_require=tuple(
-            raw.get("a11y", {}).get("require", ["html_lang", "img_alt", "page_title"])
+            _table(raw, "a11y").get("require", ["html_lang", "img_alt", "page_title"])
         ),
         a11y_exclude=tuple(
-            raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
+            _table(raw, "a11y").get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
         charter_enabled=bool(charter.get("enabled", False)),
         charter_path=str(charter.get("path", "CHARTER.toml")),
         charter_high_stakes_fields=tuple(
             charter.get("high_stakes_fields", ["rollback", "reviewer", "blast_radius"])
         ),
-        quotes_enabled=bool(raw.get("quotes", {}).get("enabled", False)),
-        quotes_paths=tuple(raw.get("quotes", {}).get("paths", ["docs"])),
+        quotes_enabled=bool(_table(raw, "quotes").get("enabled", False)),
+        quotes_paths=tuple(_table(raw, "quotes").get("paths", ["docs"])),
         supply_chain_lockfile=str(supply_chain.get("lockfile", "")),
         supply_chain_manifests=tuple(
             supply_chain.get("manifests", ["pyproject.toml", "package.json"])
@@ -386,7 +403,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         predicates_hedges=tuple(str(h) for h in predicates.get("hedges", [])),
         predicates_require_reference=bool(predicates.get("require_reference", True)),
         shell_source_paths=tuple(
-            raw.get("shell", {}).get("source_paths", ["SCRIPTDIR", "SCRIPTDIR/.."])
+            _table(raw, "shell").get("source_paths", ["SCRIPTDIR", "SCRIPTDIR/.."])
         ),
-        shell_exclude=tuple(raw.get("shell", {}).get("exclude", [])),
+        shell_exclude=tuple(_table(raw, "shell").get("exclude", [])),
     )

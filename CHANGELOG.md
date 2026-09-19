@@ -13,6 +13,54 @@ queue is merged.
 ## [Unreleased]
 
 ### Added
+- **The `worktree` executor** (`./run-in-worktree.sh`, ADR-0076) — the gate, run against a
+  *snapshot* of your project in a throwaway repository, with the receipts brought back.
+  Materialises HEAD + the dirty tree (tracked edits **and** untracked-not-ignored files;
+  ignored paths stay out) + the ref state, keeps the primary's branch identity
+  (`git rev-parse HEAD` and `--abbrev-ref HEAD` both equal the primary's — asserted at
+  runtime, fail-closed) and **pins it so it cannot move while the primary commits**, gives
+  the run its own working tree, index, ref namespace, `.meta-harness/`, `mutants/` and
+  caches while borrowing only the object store, never commits, never writes a ref or
+  reflog in the primary, and cleans up on every exit path (success, failure, interrupt)
+  with the removal bounded to the temp dir it created. A separate entry point on purpose:
+  it *calls* `verify.sh`, so the default path cannot regress. This is the isolation
+  primitive #144 needs.
+- **Executor conformance test** (`tests/integration/test_executor_conformance.py`) — the
+  deliverable that makes "one contract, two executors" more than a claim: the whole fast
+  lane, run over one fixture project under `local` and under `worktree`, compared receipt
+  by receipt (every field, extras included, modulo `log` and `content_sha256`) and log by
+  log after canonicalisation. The fixture is built to *discriminate*: a `feat/` branch
+  touching `src/` (so `08_branch` and `13_adr` would both move on a detached checkout), a
+  dirty tracked edit and an untracked file (each with its own lint error, and the
+  untracked one moves `coverage_percent`), and an ignored forged receipt that must not be
+  materialised.
+- `meta_harness.executor` — the equivalence relation as code, not prose:
+  `receipt_differences` (field-by-field, volatile fields excluded), `canonicalise_log`
+  (run paths and durations masked, longest needle first, integer-second timeout bounds
+  preserved) and `import_shadow_violation` (the editable-install tripwire).
+- **Reader-side log resolution** (`receipts.resolve_log_path` / `read_log_text`) — a
+  receipt whose bundle was produced elsewhere and copied here now verifies: when the
+  recorded absolute `log` path is gone, the log is read beside its receipt. Tamper
+  evidence is unweakened — the hash still covers the log's content and the recorded path
+  string, so an edited log still fails `!TAMPERED`. Used by the verdict and `verify_dir`.
+- Approach advisor (ADR-0072, #32): `advise.sh` (and `status.sh --advise`) turns the facts
+  already on disk — declared archetypes, the last verdict's failing and hollow checks, the
+  SWE-state lacks (ratchets without a baseline, RECOMMENDED not adopted, archetype features
+  absent), the branch and its diff, whether enforcement is on, and `[charter]` stakes when
+  present — into two lists: the **questions** the agent should ask the human before
+  proceeding and the **approaches** that fit this change. Rules are data (a frozen
+  catalog of 19, each a predicate over the facts with its text and the check/SPEC/ADR it
+  comes from; a test proves every source exists). A rule that says a check will fail
+  fires only where that check is adopted **and** its own opt-in rule is on, so the advice
+  never claims a mechanism that is switched off here — including the archetype-feature
+  rules (`21_archetype` is opt-in too) and the heavy-lane rule (which names the project's
+  declared `[checks].heavy`, and says nothing when that is empty). A malformed `[charter]`
+  (a scalar, or a non-string field) degrades to a question rather than a traceback. No model, no score, no ranking beyond
+  one fixed order (questions, then approaches, each in catalog order); no facts ⇒ "no
+  advice", never something generic. Advisory, never a gate; always exits 0; `--json`.
+  Pure core `meta_harness.advisor` (fan-out at the coupling baseline, the same two seams
+  as the SWE-state report). The `borromeanrings-status` skill now says to run it when
+  starting a task. Spec: `docs/specs/SPEC-approach-advisor.md`.
 - TypeScript and Go check lanes (`checks/typescript/`, `checks/go/`; phase 1 of #67, ADR-0068, SPEC-multi-language.md): the six fast-lane checks behind the same ids and semantics as Python's. A lane tool that is not installed ⇒ `noop` naming it (`tsc not installed`, `go not installed`, `ast-grep not installed`, …) — never installed, never a failed project; a tool that runs and fails ⇒ fail closed. Nothing on the fast lane touches the network (`npm audit`, `govulncheck` excluded → #193). `[project].language` is now a closed vocabulary (`spine.SUPPORTED_LANGUAGES`) and `verify.sh` refuses an unknown language instead of silently falling back to Python. The refusal happens before any check runs, like an unknown archetype's: a project on a language with no lane (which used to get the shared checks only, silently) now declares `language = "none"` for exactly that. One coverage ratchet file for every lane, parsed by the new pure `lang_coverage` (istanbul json-summary, `go tool cover -func`) and `lang_security` (`ast-grep --json`) modules; `adopt.sh` seeds `.borromeanrings-coverage-baseline` from the latest measured `40_test` receipt. `vendor/` joins `SKIP_DIRS`. Phase 2 filed: #190 #191 #192 #193.
 - Headless generator + generate → gate → retry → escalate loop conformance (#202, ADR-0078, the build phase of #143): `generate.sh` is a second generator adapter with **no model behind it** — it runs `[generator].command` with the project path, the last verdict and the failing check ids, learns "a change is written" from exit 0 plus a changed dirty-tree OID, runs the gate itself, and exits `0` green / `1` escalated / `2` generator-failed / `3` refused. The loop's rules left both shell scripts: `meta_harness.generator` now owns the retry cap (read by `stop_gate.sh` *and* the driver; a test asserts neither hardcodes it, and an unreadable cap falls back to **one** attempt) and `next_action(attempt, cap, gate_ok, tree_changed, exit_code)`, a pure, exhaustively-tested decision. The generator cannot touch what the gate owns: a write anywhere under `.meta-harness/` while it runs is detected (size + mtime either side) and ends the run as `generator-failed`, so resetting the retry counter forges nothing — and the counter is never handed over as a path, only as a number. Verdicts now record **who** produced the change they judged (`intent.generator`: `claude-code:<session_id>` from the Stop hook, `headless:<command>` from the driver, `""` when unset — provenance the gate makes no decision on, read after `ok` is decided). Conformance: the four scenarios of SPEC-generator.md §3.2 (fixed-on-retry → green at attempt 2, never-fixed → escalated after exactly 3 gate runs, no-change → escalated with the gate never asked, crash → generator-failed with the log kept) plus two negative fixtures (one resets the counter, one edits a receipt in an earlier bundle — caught, and the edited bundle stops verifying). Every one was shown to fail against a deliberately regressed loop. One spec correction came out of building it: SPEC-generator.md N3 said "the tree changed" is the dirty-tree OID, but 08_branch, 09_commits, 11_changelog and 13_adr read the branch and the history — a generator that amends a commit message changes what the gate sees and no file at all, so the driver compares the executor's full snapshot identity `(branch, head, dirty tree)`, with a fixture that discriminates. Refusal (exit 3, "nothing to drive") is pre-flight only, and a config that is present and broken exits 4 rather than 3, so an orchestrator can never skip a run where something was attempted or a governed project whose config broke. The change detection covers `(branch, head, dirty tree, all refs, the index)` — `git update-ref` and `git rm --cached` each move what the gate reads while the first three stay identical — and always excludes `.meta-harness/`, gitignored or not: the driver's own capture of the generator's stdout used to live in the gated tree, so on a project without that ignore (which `init.sh` never writes) a generator that wrote **nothing** was reported green. The evidence guard hashes content rather than reading size and mtime, which one `os.utime` could restore. Both adapters keep their attempt count **outside the tree** in `meta_harness.retry_state` (ADR-0079; the headless driver keyed `headless-<run key>`), so `rm .meta-harness/stop_attempts/*` resets nothing, and a count that cannot be read or recorded escalates instead of restarting at zero. An earlier history-anchored bound (a speed bump: one forged green row defeated it) was superseded by that and removed; ADR-0078's amendment records the integration. The bound resists accident and naive reset, not a same-user process that finds and edits the count (#218). One test asserted **git's** error prose (`unrecognized input` on git 2.34, `No valid patches in input` on 2.55) and so went red in CI on a git release rather than on a defect; the fixture now emits its own marker and the test asserts that. Sweeping the class found a second instance that had not failed yet — a fixture moving `refs/heads/main` is a no-op where `init.defaultBranch` is `main` — plus two global-config dependencies (`apply.whitespace`, `commit.gpgsign`). ADR-0077 pins the tools whose output decides a verdict, but only Python distributions; for `git` the mitigation has to be not to read the prose at all.
 - Branch policy enforcement (ADR-0058, #75) — nothing lands on a declared
@@ -573,6 +621,49 @@ queue is merged.
   transcript and the README's quoted blocks are regenerated from a real run, and the
   README's secret-scanning paragraph no longer says the AWS secret access key is
   missed (#230 closed that).
+- A check that ran and failed outside `[checks].required` wrote its `fail` receipt and was
+  then reported nowhere: the gate summary listed only the expected set, so the run dir and
+  the verdict disagreed, and the verdict is what people read (#229). Such failures are now
+  printed on an `advisory — not required, did not decide the verdict:` line. They still
+  never change `ok`. The scan is `verdict.advisory_failures`, and it treats the run dir's
+  JSON as untrusted: anything that is not a receipt naming its own file is skipped, never
+  raised on.
+- `requires-python` claimed `>=3.10`, but seven modules, the spine among them, import
+  `tomllib`, which exists only from 3.11: on 3.10 the harness could not load a config
+  at all, and CI (3.12 only) never noticed (#223). The floor is now `>=3.11`, which
+  matches the code and keeps it stdlib-only; 3.10 reaches end of life in October 2026.
+  A second CI job, `floor-python`, imports every module and runs the unit suite on
+  3.11, so a construct the floor lacks fails CI instead of a user.
+- **The worktree executor imported its own Python from the caller's directory** (found in
+  review of PR #212). The config read and the import-shadow check ran as `python3 -`
+  from wherever the executor was invoked, so a `meta_harness/` there was imported instead
+  of the harness. A failed import emptied `PACKAGE`, which skipped the shadow check
+  entirely: fail-open. Both now run from `/`, and the executor dies if either cannot run.
+  So does the probe that asks where the project's package imports from: an import that
+  raises no longer reads as "nothing to shadow".
+  `tests/integration/test_executor_cwd_isolation.py` plants the decoy.
+- **The worktree executor's branch identity could follow the primary** (found in review of
+  PR #212). A `git worktree` shares the repository's ref namespace, so pointing its HEAD at
+  `refs/heads/<branch>` to satisfy G8 pointed it at the primary's **live** ref: correct at
+  the instant it was asserted, and then silently following the branch forward on the
+  primary's next commit while the materialised tree stayed pinned — so `09_commits`,
+  `13_adr`, `11_changelog` and `34_api_diff` would judge a commit range that did not match
+  the tree they were reading. Unfixable within one repository (HEAD must point at the
+  shared ref for `--abbrev-ref` to print the branch name), so the executor now builds a
+  **snapshot repository**: `git init` + `objects/info/alternates` (no object copied) + the
+  primary's refs copied in verbatim + the branch pinned at the captured commit. HEAD cannot
+  move, the primary's refs and reflogs are never written, two concurrent runs on one branch
+  no longer share anything, and `git worktree prune` is not merely avoided but unneeded.
+  Three new tests cover it: HEAD immovability while the primary commits, an in-flight
+  commit during a run, and two concurrent runs on one branch.
+- Three corrections to `SPEC-executor.md` found by building against it (ADR-0076): its
+  materialisation (`read-tree --reset -u` alone) leaves every untracked file *tracked* in
+  the worktree, which makes `12_secrets` and `01_source_coherence` see a different project
+  than `local` does — the executor restores the primary's index; and its D2 fixture
+  expects `12_secrets` to flag an untracked credential, which it cannot, because it scans
+  tracked files only; and its §3.2 materialisation (`git worktree add`, either variant)
+  cannot hold G8 for the duration of a run at all — the guarantee needs "and neither can
+  change while the run lasts" in its wording.
 - The test suite wrote the developer's real out-of-tree state: every test that ran the gate
   or the Stop hook left a last-green record or retry count under `~/.local/state/borromeanrings`
   (ADR-0079/0082), mixed in with the records of projects actually governed. Hundreds had

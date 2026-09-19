@@ -11,7 +11,7 @@
 |---|---|
 | Brand / prose | **borromeanRings** |
 | Identifiers (repo slug, config file, skill dirs, env vars, shell helpers) | `borromeanrings`, `borromeanrings.toml`, `BORROMEANRINGS_HOME`, `borromeanrings_*` |
-| GitHub repo | `https://github.com/3MagicLabs/borromeanRings` (GitHub slugs are case-insensitive; `borromeanrings` resolves too) |
+| GitHub repo | `https://github.com/Elmdin/borromeanRings` (GitHub slugs are case-insensitive; `borromeanrings` resolves too) |
 
 ## 2. What was renamed (PR #46 + this tail)
 
@@ -72,7 +72,7 @@ Pushes to the old URL still work via GitHub's redirect, but print
 `This repository moved. Please use the new location` on every push. Fix it once:
 
 ```bash
-git remote set-url origin https://github.com/3MagicLabs/borromeanRings.git
+git remote set-url origin https://github.com/Elmdin/borromeanRings.git
 git remote -v   # verify both fetch and push show the new URL
 ```
 

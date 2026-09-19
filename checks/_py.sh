@@ -24,10 +24,10 @@
 # dropping PYTHONPATH — the reason -I is unacceptable here. meta_harness resolves from
 # PYTHONPATH, never user-site, so this loses nothing the gate needs.
 #
-# Do NOT "simplify" this with the interpreter's -P or -I flag. -P exists only from
-# Python 3.11, and requires-python is 3.10 (#223), where it is an unknown option; CI
-# runs 3.12 only, so the break would be invisible. -I also discards PYTHONPATH, which
-# is how meta_harness is found. This mirrors .claude/hooks/_lib.sh's borromeanrings_py,
+# Do NOT "simplify" this with the interpreter's -P or -I flag. -P keeps the cwd off
+# sys.path but not a user-site startup hook (PYTHONNOUSERSITE above is what stops
+# that), and it was an unknown option on the floor this was written against (3.10;
+# 3.11 since #223). -I also discards PYTHONPATH, which is how meta_harness is found. This mirrors .claude/hooks/_lib.sh's borromeanrings_py,
 # added by #221 for the substrate hooks; #222 applies the same technique to the gate.
 #
 # Tool runs that execute the project's OWN code by design (pytest, mypy, mutmut,

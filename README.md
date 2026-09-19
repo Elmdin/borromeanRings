@@ -7,9 +7,10 @@
 >
 > The specific gaps holding this notice in place, so you can judge for yourself:
 >
-> - **#229** — a check that is registered but not required still runs and still writes
->   a `fail` receipt that the verdict never mentions, so the run directory and the
->   verdict disagree about what happened.
+> - **#236** — `12_secrets` is not in the required set a new project gets from
+>   `init.sh`, because it fails closed outside a git repository while `init.sh` must
+>   produce a project that gates green. So a freshly initialised project does not gate
+>   secrets at all until it is configured to.
 > - **#144 / #145** — the gate runs the project's code as your user, so it cannot bound
 >   an agent that is actively trying to defeat it. See the trust boundary below.
 > - The PR queue is still draining, so `dev` is moving daily.
@@ -32,7 +33,7 @@
 > Like the rings, the gates hold only together: remove any one check and the
 > guarantee falls apart.
 
-[![borromeanRings gate](https://github.com/3MagicLabs/borromeanrings/actions/workflows/verify.yml/badge.svg)](https://github.com/3MagicLabs/borromeanrings/actions/workflows/verify.yml)
+[![borromeanRings gate](https://github.com/Elmdin/borromeanrings/actions/workflows/verify.yml/badge.svg)](https://github.com/Elmdin/borromeanrings/actions/workflows/verify.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 borromeanRings is a **meta-harness**: a governing quality layer that wraps any AI coding
@@ -51,7 +52,7 @@ You need Python ≥ 3.11 and the check toolchain on `PATH`
 (`pip install -e ".[dev]"` from this checkout installs `ruff mypy pytest pytest-cov bandit`).
 
 ```bash
-git clone https://github.com/3MagicLabs/borromeanRings.git && cd borromeanRings
+git clone https://github.com/Elmdin/borromeanRings.git && cd borromeanRings
 ./init.sh  /path/to/project     # NEW project: writes borromeanrings.toml + .claude/settings.json there
 ./adopt.sh /path/to/project     # EXISTING governed project: adds the recommended checks, seeds ratchet baselines
 cd /path/to/project && /path/to/borromeanRings/verify.sh   # the gate: exit 0 only if every required check is non-failing
@@ -163,7 +164,7 @@ deviation. The full annotated walk-through, with what each step proves, is in
 ## Install as a Claude Code plugin (one line)
 
 ```bash
-claude plugin marketplace add 3MagicLabs/borromeanRings && claude plugin install borromeanrings@borromeanrings
+claude plugin marketplace add Elmdin/borromeanRings && claude plugin install borromeanrings@borromeanrings
 ```
 
 Wires the six hooks and the skills into every session; a project is governed only once it
@@ -209,8 +210,10 @@ keys, and how to enable it — is catalogued in **`docs/CHECKS.md`**.
 - **Governs by reference, per-project opt-in** (ADR-0013).
 
 - `verify.sh` — the gate (the single source of truth, called by humans, CI, and hooks)
+- `run-in-worktree.sh` — the **`worktree` executor**: the same gate against a snapshot of this project, in a throwaway repository that borrows the object store and owns its refs (so its HEAD cannot follow yours) with its own evidence area; cleans up on every exit path (ADR-0076)
 - `status.sh` — **this project's** status by default: governed? enforcement actually on (hooks wired vs. disabled)? last verdict, and how many of those checks inspected **nothing** (ADR-0049). `--all` opts into the portfolio table across every governed project; `--run` re-gates, `--list` prints paths (ADR-0046)
 - `swe-state.sh` — the **SWE-state report**: what this project *practises*, *lacks* and should *adopt next*, from the spine, the last verdict, the archetype catalog, `adopt.sh`'s recommended set and the matrices' "Enforced by" column — categorical, sourced, no score; `status.sh --swe` appends it to the self-status (ADR-0067, [SPEC](docs/specs/SPEC-swe-state.md))
+- `advise.sh` — the **approach advisor**: from the declared archetypes, the last verdict's failing/hollow checks, the SWE-state lacks and the branch's diff, the *questions* to ask the human before proceeding and the *approaches* that fit this change — deterministic rules, each citing its check/SPEC/ADR; no score, no ranking, never a gate; `status.sh --advise` appends it to the self-status (ADR-0072, [SPEC](docs/specs/SPEC-approach-advisor.md))
 - `ledger.sh` — the **effectiveness view**: per project, gate runs / failures caught / pass-fail streak from the recorded verdict history — is the gate actually catching anything (ADR-0047)
 - `checks/` — one script per check under a uniform contract (`borromeanrings.toml` declares the required set); catalogued in `docs/CHECKS.md`
 - `VERSION` — the declared release marker; every gate run is stamped with the governing borromeanRings version (ADR-0048)

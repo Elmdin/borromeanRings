@@ -270,7 +270,7 @@ requires = [
 # Declared operating context. borromeanRings surfaces this to the wrapped agent (e.g. for prompt
 # rewriting — the next build) so the user's intent is preserved and improved per the declared
 # context, every run. Declaring it here applies it consistently instead of restating it ad hoc.
-account = "3MagicLabs/borromeanrings"
+account = "Elmdin/borromeanrings"
 # Value priorities guide trade-offs, highest first. Consumed by prompt rewriting.
 value_priorities = ["correctness", "security", "maintainability", "performance"]
 

@@ -83,7 +83,8 @@ EXPECTED_LACKS = (
     "Lacks\n"
     "  checks required but last reported noop/fail: 14_container (noop), 21_archetype (fail)\n"
     "  recommended by adopt.sh, not required: 12_secrets, 11_changelog, 32_complexity,"
-    " 33_coupling, 45_docstrings, 01_source_coherence\n"
+    " 33_coupling, 45_docstrings, 01_source_coherence, 19_context_budget, 18_api_contracts,"
+    " 17_prior_art, 04_self_description\n"
     "  ratchets without a baseline: none\n"
     "  archetype features absent: usage_documented — usage is documented in the README\n"
     "  matrix rows at a gap: S6 (→ #58)\n"
@@ -101,7 +102,11 @@ EXPECTED_ADOPT = (
     "  6. [check]    33_coupling — recommended by adopt.sh; add to [checks].required\n"
     "  7. [check]    45_docstrings — recommended by adopt.sh; add to [checks].required\n"
     "  8. [check]    01_source_coherence — recommended by adopt.sh; add to [checks].required\n"
-    "  9. [feature]  usage_documented — usage is documented in the README (Nielsen #10 —"
+    "  9. [check]    19_context_budget — recommended by adopt.sh; add to [checks].required\n"
+    "  10. [check]    18_api_contracts — recommended by adopt.sh; add to [checks].required\n"
+    "  11. [check]    17_prior_art — recommended by adopt.sh; add to [checks].required\n"
+    "  12. [check]    04_self_description — recommended by adopt.sh; add to [checks].required\n"
+    "  13. [feature]  usage_documented — usage is documented in the README (Nielsen #10 —"
     " help and documentation)\n"
 )
 
@@ -128,7 +133,7 @@ def test_swe_state_sh_reports_the_gated_fixture_exactly(tmp_path: Path) -> None:
         {"check": "14_container", "status": "noop"},
         {"check": "21_archetype", "status": "fail"},
     ]
-    assert [a["kind"] for a in as_json["adopt_next"]] == ["gate"] * 2 + ["check"] * 6 + ["feature"]
+    assert [a["kind"] for a in as_json["adopt_next"]] == ["gate"] * 2 + ["check"] * 10 + ["feature"]
 
 
 def test_status_sh_swe_prints_self_status_then_the_report(tmp_path: Path) -> None:
@@ -137,15 +142,12 @@ def test_status_sh_swe_prints_self_status_then_the_report(tmp_path: Path) -> Non
     assert proc.returncode == 0, proc.stderr
     assert "borromeanRings status — proj" in proc.stdout
     assert proc.stdout.index("Last verdict: FAIL") < proc.stdout.index("SWE state — proj")
-    assert (
-        EXPECTED_LACKS.replace(
-            "  matrix rows at a gap: S6 (→ #58)\n"
-            "  matrix rows unmet here: O3 (14_container: noop), D2 (09_commits: not adopted)\n",
-            "  matrix rows at a gap: no matrices on disk\n"
-            "  matrix rows unmet here: no matrices on disk\n",
-        )
-        in proc.stdout
-    )  # status.sh --swe uses the default matrices dir (none on this base)
+    # status.sh --swe reads the DEFAULT matrices dir, i.e. the repo's own docs/matrices,
+    # whose rows change whenever a matrix does. The contract is delegation — the same
+    # report swe-state.sh gives with its defaults — so assert that, not the docs' content.
+    report = _run("swe-state.sh", project).stdout
+    assert report.startswith("SWE state — proj\n\n")
+    assert proc.stdout.endswith(report)
     assert EXPECTED_ADOPT in proc.stdout
 
 

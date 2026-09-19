@@ -93,6 +93,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0082](0082-no-op-skip-state-outside-the-tree.md) | The Stop hook's no-op skip must not rest on anything the project can write | Accepted |
 | [0083](0083-trim-the-injected-directive.md) | Trim what borromeanRings injects, and pin the obligations against the trimming | Accepted |
 | [0084](0084-init-makes-a-repository-so-secrets-can-be-a-default.md) | `init.sh` makes a repository, so `12_secrets` can be a default | Accepted |
+| [0085](0085-checks-record-their-own-duration.md) | A check records its own duration, in its own receipt | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

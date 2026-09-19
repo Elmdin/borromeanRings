@@ -153,6 +153,7 @@ from meta_harness.generator import read_generator
 from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
 from meta_harness.receipts import read_log_text, run_digest, verify_receipt
 from meta_harness.spine import load_config
+from meta_harness.timings import timings_line
 from meta_harness.verdict import (
     Verdict,
     advisory_failures,
@@ -187,6 +188,9 @@ evidence = []
 # Optional per-check one-liners (a receipt's `summary` field, e.g. 60_mutation's
 # "evaluated N, score S"), printed beside the status. Only intact receipts contribute.
 summaries = {}
+# How long each check took, off its own receipt (#253). Reported, never judged: there
+# is no budget here and this never touches `ok`.
+durations = []
 for cid in expected:
     rpath = os.path.join(receipt_dir, f"{cid}.json")
     if not os.path.exists(rpath):
@@ -220,6 +224,7 @@ for cid in expected:
         ok = False
     rows.append((cid, status.upper()))
     summaries[cid] = receipt.get("summary")
+    durations.append((cid, receipt.get("duration_ms")))
 
 # Archetype clause (ADR-0062): a check the declared [project].archetypes require to be
 # non-noop but whose receipt is `noop` — or which is not in the expected set at all — turns
@@ -241,6 +246,11 @@ for cid, status in rows:
     # status_label validates + bounds the summary (untrusted JSON a check wrote).
     print(f"  {cid.ljust(width)}   {status_label(status, summaries.get(cid))}")
 print("  " + "-" * (width + 14))
+# Where this run's time went. A bound raised against no measurement is headroom, not a
+# fix: 40_test hit the 900s check bound on dev and nothing said which check spent it.
+slow = timings_line(durations)
+if slow:
+    print(f"  {slow}")
 # A declared archetype names features the project must actually have. A check that
 # noops where the archetype demands a real result is a violation, not an absence:
 # "this project claims to be a CLI" and "no CLI entry point was inspected" cannot

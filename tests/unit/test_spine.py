@@ -579,3 +579,29 @@ def test_legacy_notice_reaches_stderr_under_default_filters(tmp_path: Path) -> N
 
 def test_config_name_constants_are_the_two_spellings() -> None:
     assert (CONFIG_NAME, LEGACY_CONFIG_NAME) == ("borromeanrings.toml", "borromeo.toml")
+
+
+@pytest.mark.parametrize(
+    ("toml", "section"),
+    [
+        ('charter = "high"\n', "charter"),  # a plausible typo for [charter] stakes = "high"
+        ("checks = 1\n", "checks"),
+        ('verification = ["x"]\n', "verification"),
+        ('[project]\nlanguage = "python"\n[changelog]\n[critic]\n', None),  # tables: fine
+    ],
+)
+def test_a_section_that_is_not_a_table_is_a_config_error(
+    tmp_path: Path, toml: str, section: str | None
+) -> None:
+    """Every section is read as a table. A scalar in its place used to raise a bare
+    AttributeError from deep inside load_config — a traceback, not the ValueError every
+    caller handles as "invalid config" — so the gate and the tools around it crashed
+    instead of refusing. Fail closed, and name the section."""
+    cfg = tmp_path / "borromeanrings.toml"
+    valid_checks = "" if section == "checks" else '[checks]\nrequired = ["05_hygiene"]\n'
+    cfg.write_text(toml + valid_checks, encoding="utf-8")
+    if section is None:
+        load_config(cfg)
+        return
+    with pytest.raises(ValueError, match=rf"\[{section}\] must be a table"):
+        load_config(cfg)

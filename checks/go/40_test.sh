@@ -33,7 +33,7 @@ baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
 # The parser's stdout is the heredoc body; `read` splits it into these variables. An
 # empty body (parser crash) leaves them empty — the guard below fails closed on that.
 read -r current regressed tested <<EOF
-$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$log" "$funclog" "$baseline" <<'PY'
+$(borromeanrings_py - "$log" "$funclog" "$baseline" <<'PY'
 import sys
 
 from meta_harness.lang_coverage import go_func_total_percent, parse_go_test_summary

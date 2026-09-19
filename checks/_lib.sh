@@ -125,7 +125,7 @@ borromeanrings_run_bounded() {
 # vendored trees (node_modules, vendor, dist, ...) never count as the project's own code.
 borromeanrings_source_count() {
   local src_dir="$1"; shift
-  PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT/$src_dir" "$@" <<'PY'
+  borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$@" <<'PY'
 import sys
 from pathlib import Path
 

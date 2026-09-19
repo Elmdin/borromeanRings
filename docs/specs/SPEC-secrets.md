@@ -52,7 +52,14 @@ assurance, over a credential it had never been taught to see.
   enumerate tracked files"). Inside one, a failed `git ls-files` (a corrupt index):
   `fail`, with git's error in the log. A repository that tracks nothing yet: `noop`
   ("no tracked files: nothing to scan yet"), counted among the checks that inspected
-  nothing. Otherwise: a real scan.
+  nothing. A tracked file that exists and cannot be read (a permission): `fail`, named.
+  Tracked paths absent from the working tree, binary files and submodule directories
+  cannot hold a text secret there; they are listed in the log, and if nothing at all
+  was readable the result is `noop`. Otherwise: a real scan of every tracked text file.
+- **The project, not the environment, decides what is read.** `verify.sh` unsets
+  `GIT_DIR`, `GIT_WORK_TREE` and the other repository-redirecting variables before any
+  check runs: they override `git -C`, and a pair pointing at a clean decoy made the scan
+  read the decoy (found in review of #250).
 - **Escape hatch:** a line carrying `borromeanrings: allow-secret` is skipped
   (documented examples/fixtures). The marker is **line-scoped**, and `ruff format`
   can wrap a long statement and carry the comment off the literal's line, silently

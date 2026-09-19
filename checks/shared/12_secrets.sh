@@ -42,25 +42,44 @@ if [ ! -s "$list_file" ]; then
   exit 0
 fi
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$list_file" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$list_file" "$BORROMEANRINGS_NOOP_EXIT" >"$log" 2>&1 <<'PY'
 import sys
 from pathlib import Path
 
-from meta_harness.secrets import scan_files
+from meta_harness.secrets import scan_paths
 
 root = Path(sys.argv[1])
 names = [n for n in Path(sys.argv[2]).read_bytes().decode("utf-8", "replace").split("\0") if n]
-findings = scan_files([root / n for n in names])
-if findings:
-    print(f"SECRETS DETECTED — {len(findings)} high-confidence match(es):")
-    for f in findings:
+report = scan_paths([root / n for n in names])
+if report.unreadable:
+    # A tracked file that exists and cannot be read cannot be declared clean (#250 review).
+    print(f"could not read {len(report.unreadable)} tracked file(s), so they cannot be scanned:")
+    for path in report.unreadable:
+        print(f"  - {path}")
+    sys.exit(1)
+if report.findings:
+    print(f"SECRETS DETECTED — {len(report.findings)} high-confidence match(es):")
+    for f in report.findings:
         print(f"  - [{f.kind}] {f.path}:{f.line} ({f.snippet})")
     print("Remove the secret and rotate it. False positive? add "
           "'borromeanrings: allow-secret' on the line.")
     sys.exit(1)
-print("no high-confidence secrets in tracked files")
+for label, paths in (("not in the working tree", report.absent),
+                     ("binary or a directory (submodule), not scanned as text", report.skipped)):
+    if paths:
+        print(f"{len(paths)} tracked path(s) {label}:")
+        for path in paths:
+            print(f"  - {path}")
+if report.scanned == 0:
+    print("no tracked text file was readable to scan: nothing was inspected")
+    sys.exit(int(sys.argv[3]))
+print(f"no high-confidence secrets in {report.scanned} tracked file(s)")
 PY
 code=$?
+if [ "$code" -eq "$BORROMEANRINGS_NOOP_EXIT" ]; then
+  emit_noop "$id" "$cmd" "$log"
+  exit 0
+fi
 status="fail"
 [ "$code" -eq 0 ] && status="pass"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status"

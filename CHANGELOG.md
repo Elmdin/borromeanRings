@@ -564,7 +564,9 @@ queue is merged.
   says so), and `12_secrets` is a default (ADR-0084). The check also lost its last two
   ways to pass without looking: a failed `git ls-files` (a corrupt index) scanned an
   empty list and reported `pass`, and now fails closed; a repository that tracks
-  nothing yet is `noop`, not `pass`. The demo, its transcript and the README's quoted
+  nothing yet is `noop`, not `pass`; a tracked file that exists but cannot be read fails
+  closed instead of being skipped; and `verify.sh` unsets `GIT_DIR`/`GIT_WORK_TREE`, which
+  had let an inherited pair point every git-reading check at a decoy repository. The demo, its transcript and the README's quoted
   blocks are regenerated from a real run, and the README's secret-scanning paragraph no
   longer says the AWS secret access key is missed (#230 closed that).
 - The test suite wrote the developer's real out-of-tree state: every test that ran the gate

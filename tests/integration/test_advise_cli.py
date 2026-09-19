@@ -24,7 +24,7 @@ GATE_TIMEOUT_S = 180
 # own opt-in sub-rule, so the end-to-end run proves those rules key on what is really in
 # force here — not on the mere shape of the diff.
 CONFIG = (
-    '[project]\nlanguage = "c"\nsrc_dir = "src"\narchetypes = ["web-api"]\n\n'
+    '[project]\nlanguage = "none"\nsrc_dir = "src"\narchetypes = ["web-api"]\n\n'
     "[checks]\nrequired = "
     '["08_branch", "11_changelog", "13_adr", "14_container", "21_archetype"]\n\n'
     '[collaboration]\nbranch_patterns = ["feat/*", "fix/*"]\n\n'
@@ -148,7 +148,7 @@ EXPECTED_APPROACHES = (
     " 04_self_description are not required here ⇒ adopt.sh adds them and seeds their"
     " baselines; propose it, do not apply it silently  [ADR-0041]\n"
 )
-# 40_test is not required by this C fixture, so nothing claims it ratchets anything here —
+# 40_test is not required by this language-"none" fixture, so nothing claims it ratchets here —
 # the adoption gate the review found missing, observed end to end.
 UNADOPTED_CLAIMS = ("40_test ratchets coverage", "08_branch fails closed")
 EXPECTED_FACTS = (
@@ -280,7 +280,7 @@ def test_charter_when_present_asks_for_a_reviewer_and_prefers_the_heavy_lane(
 
 
 ARCHETYPE_NOT_REQUIRED = (
-    '[project]\nlanguage = "c"\nsrc_dir = "src"\narchetypes = ["web-api"]\n\n'
+    '[project]\nlanguage = "none"\nsrc_dir = "src"\narchetypes = ["web-api"]\n\n'
     '[checks]\nrequired = ["00_build"]\n\n[hygiene]\nrequires = []\n'
 )
 

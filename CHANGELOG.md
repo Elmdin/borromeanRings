@@ -31,6 +31,46 @@ queue is merged.
   Pure core `meta_harness.advisor` (fan-out at the coupling baseline, the same two seams
   as the SWE-state report). The `borromeanrings-status` skill now says to run it when
   starting a task. Spec: `docs/specs/SPEC-approach-advisor.md`.
+- Branch policy enforcement (ADR-0058, #75) — nothing lands on a declared
+  `[collaboration].protected_branches` branch except via PR + gate, at two layers. The
+  PreToolUse guard now hands every git command to `meta_harness.trunk_policy` (pure,
+  one exact-value test per matrix row) and denies, with a fix hint, a commit/merge/
+  rebase/cherry-pick/reset while ON a protected branch, a push to a protected ref in
+  any spelling (`origin main`, `HEAD:main`, `+main`, `refs/heads/main`, `--delete`,
+  `--all`, `--force-with-lease`), and a local delete/force-move of one (`branch -D`,
+  `checkout -B`, `update-ref`). It is never narrower than the substring guard it
+  replaces (the floor is kept). `08_branch` gains the backstop: it fails when a protected
+  branch carries commits its remote ref lacks. `docs/specs/SPEC-branch-policy.md` holds
+  the full command matrix and the `gh api` command for server-side protection (#60,
+  documented, not run).
+  After adversarial review (PR #169): git aliases are resolved through the repo's
+  config and judged by their expansion (opaque `!` aliases refused conservatively),
+  planting a branch-writing alias is refused in every scope (`git config`, `-c`,
+  `GIT_CONFIG_*`, plus a floor on config/alias mentions with a verb), and each
+  invocation is judged in its effective directory (`cd …`, `-C`, `--git-dir`), reading
+  HEAD there — an unresolvable directory is judged as the protected branch checked out
+  in any worktree. Re-review: a `!` shell alias is judged as the command git runs (its
+  text plus the trailing words, e.g. `git sp origin main` ⇒ `git push origin main`) with
+  a verb-plus-protected-argument floor, and the policy applies only inside the governed
+  repo (same `--git-common-dir`, worktrees included) — an unrelated sibling repo on
+  `main` is no longer refused.
+- Verdict evidence, intent and risk band (ADR-0056, #134) — the verdict now records what
+  was **shown** to happen, not just pass/fail. New `meta_harness.evidence` module: per-check
+  `Evidence` (the receipt's `command`, `exit_code`, `log` path + `log_bytes`,
+  `content_sha256`, and `lane` fast/heavy) lifted from every intact required receipt, and
+  `Intent` (branch, head SHA — read from git with a fixed argv — and the gated-input
+  digest from `change_detect`). `verdict.risk_band` derives a **categorical** band from the
+  recorded statuses alone — `red` if anything failed (unknown statuses included, by the
+  ADR-0049 allowlist), else `hollow` if any check inspected nothing or there were no
+  checks, else `green`; red beats hollow, and no band ever relaxes the gate. Persisted as
+  three new keys (`risk`, `intent`, `evidence`) on `last_verdict.json` and each history
+  line; old records parse with empty defaults and self-status reports their band as *not
+  recorded* rather than inventing one. Surfaced on the gate output (`risk-band: … ·
+  evidence: N receipt(s)`), in self-status (`Risk band:` / `Intent:` lines) and in the
+  ledger (new `EVIDENCE` column + tally). Unit-tested with exact values and every
+  malformed-input shape; the textkit integration test asserts evidence matches each
+  receipt hash-for-hash. Touched-area bands from `CODEOWNERS` and a `merge.sh` evidence
+  requirement are deferred (see the ADR).
 - SWE-state report (ADR-0067, #139): `swe-state.sh` (and `status.sh --swe`) says what ONE
   governed project **practises** (required checks that last passed, archetype features
   present, matrix rows therefore enforced), **lacks** (checks that last reported `noop`/fail,

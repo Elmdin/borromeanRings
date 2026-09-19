@@ -606,6 +606,12 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- `requires-python` claimed `>=3.10`, but seven modules, the spine among them, import
+  `tomllib`, which exists only from 3.11: on 3.10 the harness could not load a config
+  at all, and CI (3.12 only) never noticed (#223). The floor is now `>=3.11`, which
+  matches the code and keeps it stdlib-only; 3.10 reaches end of life in October 2026.
+  A second CI job, `floor-python`, imports every module and runs the unit suite on
+  3.11, so a construct the floor lacks fails CI instead of a user.
 - **The worktree executor imported its own Python from the caller's directory** (found in
   review of PR #212). The config read and the import-shadow check ran as `python3 -`
   from wherever the executor was invoked, so a `meta_harness/` there was imported instead

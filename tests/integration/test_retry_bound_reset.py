@@ -312,10 +312,10 @@ def test_every_hook_python_runs_through_the_neutral_cwd_helper() -> None:
     interpreter. It changes to ``/`` first, which keeps the project off
     ``sys.path`` on every supported Python and leaves ``PYTHONPATH`` alone.
 
-    ``python3 -P`` (3.11+) and ``-I`` are banned outright: ``requires-python``
-    is 3.10, ``-P`` is an unknown option there, and CI (3.12 only) would never
-    see the break. ``-I`` also discards ``PYTHONPATH``, which is how the hooks
-    find ``meta_harness``.
+    ``python3 -P`` and ``-I`` are banned outright: ``-P`` keeps the cwd off
+    ``sys.path`` but still runs a user-site startup hook, and was an unknown option
+    on the floor this was written against (3.10; 3.11 since #223). ``-I`` discards
+    ``PYTHONPATH``, which is how the hooks find ``meta_harness``.
     """
     offenders = []
     for script in sorted(HOOKS.glob("*.sh")):

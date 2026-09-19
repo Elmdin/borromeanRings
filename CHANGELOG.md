@@ -556,6 +556,12 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- `requires-python` claimed `>=3.10`, but seven modules, the spine among them, import
+  `tomllib`, which exists only from 3.11: on 3.10 the harness could not load a config
+  at all, and CI (3.12 only) never noticed (#223). The floor is now `>=3.11`, which
+  matches the code and keeps it stdlib-only; 3.10 reaches end of life in October 2026.
+  A second CI job, `floor-python`, imports every module and runs the unit suite on
+  3.11, so a construct the floor lacks fails CI instead of a user.
 - The test suite wrote the developer's real out-of-tree state: every test that ran the gate
   or the Stop hook left a last-green record or retry count under `~/.local/state/borromeanrings`
   (ADR-0079/0082), mixed in with the records of projects actually governed. Hundreds had

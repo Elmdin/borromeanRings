@@ -119,3 +119,21 @@ jobs:
               print(tail(str(log), log))
               print("::endgroup::")
           PY
+
+  floor-python:
+    # requires-python is the FLOOR this project promises. The gate job above runs the
+    # newest interpreter; this one runs the oldest declared one, so a construct the floor
+    # lacks (a 3.12-only API, an interpreter flag) fails CI instead of a user (#223).
+    # When the floor moves, move this with it — the two must say the same thing.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the check toolchain
+        run: pip install -e ".[dev]"
+      - name: Every module imports on the floor
+        run: python -c "import importlib, pkgutil, meta_harness; [importlib.import_module(m.name) for m in pkgutil.walk_packages(meta_harness.__path__, 'meta_harness.')]"
+      - name: Unit tests on the floor
+        run: python -m pytest -q -p no:cacheprovider tests/unit

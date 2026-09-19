@@ -145,10 +145,11 @@ from meta_harness.change_detect import compute_state_hash, record_green
 from meta_harness.evidence import LANE_FAST, LANE_HEAVY, evidence_from_receipt, read_intent
 from meta_harness.generator import read_generator
 from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
-from meta_harness.receipts import run_digest, verify_receipt
+from meta_harness.receipts import read_log_text, run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.verdict import (
     Verdict,
+    advisory_failures,
     append_history,
     is_failing,
     risk_band,
@@ -192,11 +193,11 @@ for cid in expected:
     # Tamper-evidence: a required receipt must match its own content hash (fields +
     # log). A fresh run always does; a mismatch means the evidence was edited after
     # the fact — fail closed, never trust a forged/corrupt pass. See ADR-0026.
-    log_path = receipt.get("log", "")
-    log_text = ""
-    if log_path and os.path.exists(log_path):
-        with open(log_path, encoding="utf-8", errors="replace") as fh:
-            log_text = fh.read()
+    # The log is read at its recorded path, or — when that path is gone because the
+    # bundle was produced elsewhere and copied here (run-in-worktree.sh) — beside its
+    # receipt. Reader-side resolution only: the hash still covers the log's content
+    # and the recorded path string, so an edited log still fails. See ADR-0076.
+    log_text = read_log_text(receipt, receipt_dir)
     if not verify_receipt(receipt, log_text):
         ok = False
         rows.append((cid, f"{status.upper()} !TAMPERED"))
@@ -258,6 +259,11 @@ if lane == FAST:
 hollow = [cid for cid, status in rows if status == "NOOP"]
 if hollow:
     print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} — {', '.join(hollow)}")
+# A failing check outside the expected set is reported, never hidden, and never decides
+# the verdict (#229; verdict.advisory_failures).
+advisory = advisory_failures(receipt_dir, expected)
+if advisory:
+    print(f"  advisory — not required, did not decide the verdict: {', '.join(advisory)}")
 digest = run_digest(intact_hashes) if intact_hashes else ""
 if digest:
     print(f"  run-digest: {digest}")

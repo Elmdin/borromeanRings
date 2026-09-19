@@ -20,6 +20,14 @@ set -- "${args[@]+"${args[@]}"}"
 TARGET="${1:?usage: ./init.sh [--no-gitignore] <target-dir>}"
 TARGET="$(cd "$TARGET" && pwd)"
 
+# Nearly every check assumes version control, and 12_secrets fails closed without it (it
+# cannot enumerate tracked files). A NEW project gets a repository rather than a gate that
+# starts red; an existing one is left exactly as it is (ADR-0084, #236).
+if ! git -C "$TARGET" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git init -q "$TARGET" || { echo "init.sh: could not run 'git init' in $TARGET" >&2; exit 1; }
+  echo "initialised a git repository at $TARGET (every check here assumes version control)"
+fi
+
 if [ ! -f "$TARGET/borromeanrings.toml" ]; then
   cat >"$TARGET/borromeanrings.toml" <<'EOF'
 [project]
@@ -28,7 +36,7 @@ src_dir = "src"
 tests_dir = "tests"
 
 [checks]
-required = ["00_build", "05_hygiene", "10_format", "20_lint", "30_typecheck", "40_test", "50_security"]
+required = ["00_build", "05_hygiene", "10_format", "12_secrets", "20_lint", "30_typecheck", "40_test", "50_security"]
 
 [context]
 account = ""

@@ -561,14 +561,18 @@ queue is merged.
 - A new project did not gate secrets at all (#236): `12_secrets` fails closed outside a
   git repository, so it was left out of `init.sh`'s defaults to keep a fresh project
   green. `init.sh` now runs `git init` in a target that is not yet a repository (and
-  says so), and `12_secrets` is a default (ADR-0084). The check also lost its last two
-  ways to pass without looking: a failed `git ls-files` (a corrupt index) scanned an
-  empty list and reported `pass`, and now fails closed; a repository that tracks
-  nothing yet is `noop`, not `pass`; a tracked file that exists but cannot be read fails
-  closed instead of being skipped; and `verify.sh` unsets `GIT_DIR`/`GIT_WORK_TREE`, which
-  had let an inherited pair point every git-reading check at a decoy repository. The demo, its transcript and the README's quoted
-  blocks are regenerated from a real run, and the README's secret-scanning paragraph no
-  longer says the AWS secret access key is missed (#230 closed that).
+  says so), and `12_secrets` is a default (ADR-0084). The check also lost every route
+  to a pass without looking that the build and its security review found: a failed
+  `git ls-files` (a corrupt index) scanned an empty list and reported `pass`, and now
+  fails closed; a repository that tracks nothing yet is `noop`, not `pass`; a tracked
+  file that exists but cannot be read fails closed instead of being skipped; `verify.sh`
+  unsets `GIT_DIR`/`GIT_WORK_TREE` (and the `GIT_CONFIG*` injection variables), which had
+  let an inherited pair point every git-reading check at a decoy repository; and a `.git`
+  file pointing at another project's repository (a copy, a rename, a stale worktree) is
+  refused by `meta_harness.repo_identity` before anything is listed. The demo, its
+  transcript and the README's quoted blocks are regenerated from a real run, and the
+  README's secret-scanning paragraph no longer says the AWS secret access key is
+  missed (#230 closed that).
 - The test suite wrote the developer's real out-of-tree state: every test that ran the gate
   or the Stop hook left a last-green record or retry count under `~/.local/state/borromeanrings`
   (ADR-0079/0082), mixed in with the records of projects actually governed. Hundreds had

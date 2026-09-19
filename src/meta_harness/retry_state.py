@@ -216,6 +216,48 @@ def _write_counter(path: Path, value: int) -> None:
         raise StateUnavailable(f"cannot write {path}: {exc.strerror or exc}") from exc
 
 
+def _located(project: str, key: str, env: Mapping[str, str], resolve: Resolver) -> Path:
+    """The counter for ``key`` in ``project``; refused when the state root is inside it."""
+    resolved = resolve(project)
+    root = resolve(str(state_root(env)))
+    if is_inside(root, resolved):
+        raise StateUnavailable(f"state root {root} is inside the project")
+    return counter_path(env, resolved, key)
+
+
+def read_attempts(
+    project: str, key: str, env: Mapping[str, str], resolve: Resolver = os.path.realpath
+) -> str:
+    """``count N`` — the attempts recorded for ``key`` — or ``unrecorded <reason>``.
+
+    The headless driver's count (``generate.sh``, ADR-0078), kept where the Stop hook
+    keeps its own and for the same reason: the generator works inside the tree, so a
+    count inside the tree is one it can reset. Never recorded ⇒ ``count 0``; anything
+    unreadable is ``unrecorded``, never zero. Creates nothing.
+    """
+    try:
+        return f"count {_read_counter(_located(project, key, env, resolve))}"
+    except StateUnavailable as exc:
+        return f"unrecorded {exc}"
+
+
+def record_attempt(
+    project: str,
+    key: str,
+    attempt: int,
+    env: Mapping[str, str],
+    resolve: Resolver = os.path.realpath,
+) -> str:
+    """Record that attempt ``attempt`` of ``key`` has begun: ``recorded N`` or ``unrecorded``."""
+    if attempt < 0:
+        raise ValueError(attempt)
+    try:
+        _write_counter(_located(project, key, env, resolve), attempt)
+    except StateUnavailable as exc:
+        return f"unrecorded {exc}"
+    return f"recorded {attempt}"
+
+
 def record_failure(
     project: str,
     session_id: str,
@@ -231,11 +273,7 @@ def record_failure(
     name = legacy_name(session_id)
     fds: list[int] = []
     try:
-        resolved = resolve(project)
-        root = resolve(str(state_root(env)))
-        if is_inside(root, resolved):
-            raise StateUnavailable(f"state root {root} is inside the project")
-        path = counter_path(env, resolved, session_id)
+        path = _located(project, session_id, env, resolve)
         dirs = _open_legacy_dirs(project, fds) if name else None
         attempts = max(_read_counter(path), _read_legacy(dirs, name)) + 1
         verdict = decide(attempts, cap)
@@ -272,7 +310,9 @@ def clear(
 
 
 def main(argv: Sequence[str], env: Mapping[str, str], resolve: Resolver = os.path.realpath) -> int:
-    """Hook entry point. ``fail <project> <session> <cap>`` | ``clear <project> <session>``.
+    """Entry point. ``fail <project> <session> <cap>`` | ``clear <project> <session>``
+    (the Stop hook); ``count <project> <key>`` | ``record <project> <key> <n>`` (the
+    headless driver, ADR-0078).
 
     Prints one verdict line; the hook escalates on anything but ``retry N`` /
     ``escalate N``, so a crash here also fails closed. Always returns 0.
@@ -281,6 +321,10 @@ def main(argv: Sequence[str], env: Mapping[str, str], resolve: Resolver = os.pat
         command, project, session_id, *rest = argv
         if command == "fail" and len(rest) == 1:
             line = record_failure(project, session_id, int(rest[0]), env, resolve)
+        elif command == "count" and not rest:
+            line = read_attempts(project, session_id, env, resolve)
+        elif command == "record" and len(rest) == 1:
+            line = record_attempt(project, session_id, int(rest[0]), env, resolve)
         elif command == "clear" and not rest:
             clear(project, session_id, env, resolve)
             line = "cleared"

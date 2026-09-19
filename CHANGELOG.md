@@ -408,6 +408,7 @@ queue is merged.
     opt-in via `[critic].judge_command` (ADR-0030).
   - Cyclomatic-complexity ratchet: native McCabe, worst-case non-regression, no
     absolute ceiling (ADR-0031).
+
   - Mutation-score ratchet (heavy): `60_mutation` runs mutmut in CI and
     ratchets assertion strength vs `.borromeanrings-mutation-baseline`
     (0.80; current 0.83), fail-closed on 0-evaluated (ADR-0022).

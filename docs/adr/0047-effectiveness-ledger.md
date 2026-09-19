@@ -59,4 +59,4 @@ Threshold-free by construction — counts and a streak, no blended "effectivenes
   (out of scope; the same locality trade-off receipts already make).
 - (−) The file grows one line per gate run. It is compact JSONL and never read on the
   hot gate path (only by `ledger.sh` on demand), so unbounded-but-slow growth is
-  acceptable; a rotation policy can be added if it ever matters.
+  accepted by this decision; a rotation policy can be added if it ever matters.

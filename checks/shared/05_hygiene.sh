@@ -8,7 +8,7 @@ id="05_hygiene"
 log="$RECEIPT_DIR/$id.log"
 cmd="project hygiene (declared engineering-surround paths exist)"
 
-PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import sys
 
 from meta_harness.hygiene import missing_paths

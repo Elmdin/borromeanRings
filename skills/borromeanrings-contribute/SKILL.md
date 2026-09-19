@@ -18,7 +18,7 @@ You PROPOSE; the human DISPOSES. **Never merge, never push to borromeanRings's `
 When the user describes a borromeanRings issue/improvement, do this:
 
 1. **Go to borromeanRings, sync main:**
-   `cd __BORROMEANRINGS_HOME__ && git checkout main && git pull --ff-only`
+   `cd ${CLAUDE_PLUGIN_ROOT} && git checkout main && git pull --ff-only`
 2. **Branch** (never work on main):
    `git checkout -b fix/<short-slug>`   (or `feat/<slug>`)
 3. **Make a small, focused fix.** If it's a bug: **add a failing test/check FIRST**
@@ -31,7 +31,7 @@ When the user describes a borromeanRings issue/improvement, do this:
 6. **STOP. Hand to the human.** Do NOT run `merge.sh`, do NOT merge, do NOT push to `main`.
    Report: the PR link, a one-line summary of the fix, and how you verified it.
 7. **After the human merges**, the fix goes live by pulling it:
-   `cd __BORROMEANRINGS_HOME__ && git pull`. Then it's live immediately for the gate, checks,
+   `cd ${CLAUDE_PLUGIN_ROOT} && git pull`. Then it's live immediately for the gate, checks,
    config, hook logic, and the research playbook (no session reload). Only hook/skill
    *registration* changes (settings.json / a brand-new skill) need a fresh session.
 

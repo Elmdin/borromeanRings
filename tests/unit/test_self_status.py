@@ -10,8 +10,13 @@ from meta_harness.evidence import Evidence, Intent
 from meta_harness.status_assess import (
     HOOK_EVENTS,
     HOOK_SCRIPTS,
+    Enforcement,
+    RewriteTally,
+    SelfReportTally,
     classify_enforcement,
     hollow_checks,
+    render_rewrite_line,
+    render_self_report_line,
     render_self_status,
 )
 from meta_harness.verdict import Verdict
@@ -87,6 +92,19 @@ def test_self_governing_repo_counts_as_enforced() -> None:
     """
     result = classify_enforcement(_hooks(list(HOOK_EVENTS), "${CLAUDE_PROJECT_DIR}"), HOME)
     assert result.mode == "auto"
+
+
+def test_plugin_path_spelling_counts_as_enforced() -> None:
+    """Hooks wired through the Claude Code plugin (ADR-0057) use the plugin's own variable.
+
+    ``hooks/hooks.json`` spells every command as ``"${CLAUDE_PLUGIN_ROOT}"/.claude/hooks/x``
+    (quoted, per the plugins reference). Classification matches on the script NAME, so
+    the spelling — and the surrounding quotes — must not matter; a project governed
+    through the plugin must read AUTO, not manual.
+    """
+    result = classify_enforcement(_hooks(list(HOOK_EVENTS), '"${CLAUDE_PLUGIN_ROOT}"'), HOME)
+    assert result.mode == "auto"
+    assert result.detail.startswith(f"{len(HOOK_EVENTS)}/{len(HOOK_EVENTS)} hooks wired")
 
 
 def test_empty_hooks_object_is_manual() -> None:
@@ -224,7 +242,7 @@ def test_render_never_gated_project_does_not_claim_a_verdict() -> None:
 # --- risk band + evidence (ADR-0056) --------------------------------------------------
 
 
-def _render(verdict: Verdict) -> str:
+def _render_verdict(verdict: Verdict) -> str:
     return render_self_status(
         project="/p",
         governed=True,
@@ -243,32 +261,115 @@ def test_render_shows_the_recorded_risk_band_and_evidence_count() -> None:
         intent=Intent(branch="feat/x", head_sha="0123456789abcdef0123456789abcdef01234567"),
         evidence=(Evidence("a", lane="fast"), Evidence("b", lane="heavy")),
     )
-    text = _render(v)
+    text = _render_verdict(v)
     assert "  Risk band:    GREEN · evidence: 2 receipt(s) recorded (1 heavy-lane)" in text
     assert "  Intent:       feat/x @ 0123456789ab" in text
 
 
 def test_render_hollow_and_red_bands_are_spelled_out() -> None:
     hollow = Verdict(ok=True, checks=(("a", "noop"),), risk="hollow", evidence=(Evidence("a"),))
-    assert "  Risk band:    HOLLOW · evidence: 1 receipt(s) recorded" in _render(hollow)
+    assert "  Risk band:    HOLLOW · evidence: 1 receipt(s) recorded" in _render_verdict(hollow)
     red = Verdict(ok=False, checks=(("a", "fail"),), risk="red", evidence=(Evidence("a"),))
-    assert "  Risk band:    RED · evidence: 1 receipt(s) recorded" in _render(red)
+    assert "  Risk band:    RED · evidence: 1 receipt(s) recorded" in _render_verdict(red)
 
 
 def test_render_pre_evidence_verdict_says_not_recorded_never_a_band() -> None:
     """An old record made no risk claim; the report must not invent one."""
-    text = _render(Verdict(ok=True, checks=(("a", "pass"),)))
+    text = _render_verdict(Verdict(ok=True, checks=(("a", "pass"),)))
     assert "  Risk band:    not recorded (verdict predates evidence capture)" in text
     assert "GREEN" not in text
     assert "Intent:" not in text  # nothing recorded ⇒ no intent line at all
 
 
 def test_render_intent_without_sha_shows_branch_only() -> None:
-    text = _render(Verdict(ok=True, risk="hollow", intent=Intent(branch="dev")))
+    text = _render_verdict(Verdict(ok=True, risk="hollow", intent=Intent(branch="dev")))
     assert "  Intent:       dev" in text
     assert "@" not in text.split("Intent:")[1].splitlines()[0]
 
 
 def test_render_intent_with_sha_only_shows_the_short_sha() -> None:
     v = Verdict(ok=True, risk="green", intent=Intent(head_sha="abcdef0123456789abcdef"))
-    assert "  Intent:       abcdef012345\n" in _render(v) + "\n"
+    assert "  Intent:       abcdef012345\n" in _render_verdict(v) + "\n"
+
+
+# --- rewrite-contract tally (ADR-0059) -------------------------------------------------
+
+
+def _render(tally: RewriteTally | None) -> str:
+    return render_self_status(
+        project="/p/x",
+        governed=True,
+        required=("40_test",),
+        last_verdict=None,
+        enforcement=Enforcement("auto", "6/6 hooks wired"),
+        harness_home=HOME,
+        rewrite_tally=tally,
+    )
+
+
+def test_render_rewrite_line_states_the_record_exactly() -> None:
+    assert render_rewrite_line(None) == "no record"
+    assert render_rewrite_line(RewriteTally()) == "no record"
+    assert render_rewrite_line(RewriteTally(honoured=3, not_honoured=1)) == (
+        "honoured 3 of 4 in this project"
+    )
+    assert render_rewrite_line(RewriteTally(honoured=0, not_honoured=2, exempt=5)) == (
+        "honoured 0 of 2 in this project (5 exempt)"
+    )
+    assert render_rewrite_line(RewriteTally(exempt=1, unknown=2)) == (
+        "honoured 0 of 0 in this project (1 exempt, 2 unknown)"
+    )
+
+
+def test_self_status_shows_the_rewrite_contract_tally() -> None:
+    assert "  Rewrite:      contract honoured 2 of 3 in this project (1 unknown)\n" in _render(
+        RewriteTally(honoured=2, not_honoured=1, unknown=1)
+    )
+    assert "  Rewrite:      contract no record\n" in _render(None)
+    # the default (no tally passed) is the honest "no record", never a claim
+    default = render_self_status(
+        project="/p/x",
+        governed=True,
+        required=(),
+        last_verdict=None,
+        enforcement=Enforcement("auto", "ok"),
+        harness_home=HOME,
+    )
+    assert "contract no record" in default
+
+
+# --- self-report tally (ADR-0066) --------------------------------------------------------
+
+
+def test_render_self_report_line_states_the_record_exactly() -> None:
+    assert render_self_report_line(None) == "no record"
+    assert render_self_report_line(SelfReportTally()) == "no record"
+    assert render_self_report_line(SelfReportTally(present=3, absent=1)) == "present 3 of 4"
+    assert render_self_report_line(SelfReportTally(present=1, graded=2, unknown=1)) == (
+        "present 1 of 3 (2 graded, 1 unknown)"
+    )
+    assert (
+        render_self_report_line(
+            SelfReportTally(present=0, absent=1, malformed=2, graded=3, exempt=4, unknown=5)
+        )
+        == "present 0 of 6 (2 malformed, 3 graded, 4 exempt, 5 unknown)"
+    )
+    assert render_self_report_line(SelfReportTally(exempt=1)) == "present 0 of 0 (1 exempt)"
+
+
+def test_self_status_shows_the_self_report_tally_under_the_rewrite_line() -> None:
+    report = render_self_status(
+        project="/p/x",
+        governed=True,
+        required=("40_test",),
+        last_verdict=None,
+        enforcement=Enforcement("auto", "6/6 hooks wired"),
+        harness_home=HOME,
+        rewrite_tally=RewriteTally(honoured=1),
+        self_report_tally=SelfReportTally(present=2, absent=1, graded=1),
+    )
+    assert (
+        "  Rewrite:      contract honoured 1 of 1 in this project\n"
+        "  Self-report:  present 2 of 4 (1 graded)\n"
+    ) in report
+    assert "  Self-report:  no record\n" in _render(None)

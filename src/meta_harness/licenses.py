@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+from meta_harness.closure import normalise
+
 
 @dataclass(frozen=True)
 class PackageLicense:
@@ -55,14 +57,25 @@ def license_violations(
     *,
     deny: tuple[str, ...],
     allow_packages: tuple[str, ...] = (),
+    scope: frozenset[str] | None = None,
 ) -> list[LicenseViolation]:
     """Packages whose license matches a ``deny`` pattern (case-insensitive
-    substring) and are not in ``allow_packages``."""
+    substring) and are not in ``allow_packages``.
+
+    ``scope`` is the project's own dependency closure (normalised names, from
+    :mod:`meta_harness.closure`). ``pip-licenses`` reports every installed
+    distribution, so without it the verdict depends on what else the machine has —
+    and the remedy the check prints, vetting the package into
+    ``[licenses].allow_packages``, would write a permanent exception for something
+    the project never depended on. ``None`` means no filtering.
+    """
     allow = {p.lower() for p in allow_packages}
     violations: list[LicenseViolation] = []
     for pkg in packages:
         if pkg.name.lower() in allow:
             continue
+        if scope is not None and normalise(pkg.name) not in scope:
+            continue  # someone else's package, on this machine by coincidence
         lower = pkg.license.lower()
         for pattern in deny:
             if pattern.lower() in lower:

@@ -38,7 +38,7 @@ On success: merge the branch into `base` (prefer `gh pr merge` to keep the PR tr
 - Gate fails → no git mutation happens at all (gate runs before any merge step).
 
 ## 5. Test plan (derived from §2)
-`tests/test_merge_policy.py` — truth table for `decide_merge`:
+`tests/unit/test_merge_policy.py` — truth table for `decide_merge`:
 | explicitly_requested | gate_passed | expected |
 |---|---|---|
 | False | True | deny (not requested) |

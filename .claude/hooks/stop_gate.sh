@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 # Stop hook — borromeanRings's generate -> verify -> retry loop, bounded then escalating.
+#
+# This is the `claude-code` GENERATOR ADAPTER (SPEC-generator.md §3.1): the wrapped agent
+# sits in the generator's seat, the Stop event is its "I have written a change", the
+# stderr text is the retry request, and the exit code (2 = retry, 0 = done/escalated) is
+# how the substrate is told which. The loop's rules are NOT this script's: CAP lives in
+# meta_harness.generator, shared with the headless driver (generate.sh); the count and the
+# retry/escalate decision live in meta_harness.retry_state, outside the tree (ADR-0079).
+#
 # A thin ADAPTER over the substrate-neutral gate. Works whether borromeanRings governs
 # itself or is referenced from another project: it runs $BORROMEANRINGS_HOME/verify.sh
 # against the project the agent is working in (CLAUDE_PROJECT_DIR).
@@ -8,10 +16,11 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BORROMEANRINGS_HOME="$(cd "$HERE/../.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
-CAP=3   # max retry attempts before escalating to the human
 . "$HERE/_lib.sh"
 
 # Safe to install globally: do nothing unless this workspace is borromeanRings-governed.
+# This stays the FIRST thing the hook does — an ungoverned workspace must not pay for a
+# python3 start on every Stop.
 # borromeo.toml = pre-rename config name, still governed (issue #62, docs/RENAME.md).
 { [ -f "$PROJECT_DIR/borromeanrings.toml" ] || [ -f "$PROJECT_DIR/borromeo.toml" ]; } || exit 0
 
@@ -89,6 +98,27 @@ then
   exit 0
 fi
 
+# The retry bound is declared in ONE place (meta_harness.generator.CAP) and read by both
+# generator adapters, so neither can drift from the other or quietly grant itself a fourth
+# attempt. Read here, below the re-entry guard and the dedupe claim, so a Stop that exits
+# early pays for no python3 start. Unreadable ⇒ fail closed to a single attempt — the
+# smallest bound still escalates to the human, where guessing an unbounded one never
+# would — and say so, because "attempt 1/1" with no explanation is not an explanation.
+CAP="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
+  'from meta_harness.generator import CAP; print(CAP)' 2>/dev/null || true)"
+case "$CAP" in
+  '' | *[!0-9]* | 0)
+    echo "borromeanRings: retry cap unreadable ('$CAP') — using 1 attempt." >&2
+    CAP=1
+    ;;
+esac
+
+# This adapter's self-declared provenance, recorded in the verdict as intent.generator —
+# like a git author line, and worth exactly as much. The gate makes no decision on it
+# (ADR-0049: the generator's word is not evidence); it only records who claimed to write
+# the change it judged (ADR-0071 §4, ADR-0078).
+GENERATOR="claude-code:$session_id"
+
 # The retry count lives outside the governed tree, under
 # $XDG_STATE_HOME/borromeanrings/<project-digest>/ (ADR-0079, #218): kept in the
 # tree, one `rm` bought unlimited attempts. The decisions (where, how much, retry
@@ -115,7 +145,8 @@ PY
 # declared [test].fast_paths (none declared ⇒ the whole suite, as before). The full
 # suite still gates on `./verify.sh`, `--heavy`, and in CI — a turn is not a merge.
 # See ADR-0081, issue #226.
-summary="$(BORROMEANRINGS_PROJECT="$PROJECT_DIR" borromeanrings_bounded \
+summary="$(BORROMEANRINGS_PROJECT="$PROJECT_DIR" \
+  BORROMEANRINGS_GENERATOR="$GENERATOR" borromeanrings_bounded \
   "${BORROMEANRINGS_GATE_TIMEOUT:-540}" bash "$BORROMEANRINGS_HOME/verify.sh" --fast 2>&1)"
 gate_code=$?
 if [ "$gate_code" -eq 0 ]; then
@@ -150,7 +181,7 @@ case "$verdict" in
     # Fail closed: without a durable count every Stop would read as attempt 1,
     # which is the unbounded loop this bound exists to stop. Escalate now.
     {
-      echo "ESCALATION: retry count unrecordable (${detail:-no answer from retry_state}) — the bound cannot hold, so over to the human, not an unbounded retry."
+      echo "ESCALATION: retry count unrecordable (${detail:-no answer}) — over to the human."
       echo "$summary"
     } >&2
     exit 0

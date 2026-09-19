@@ -24,6 +24,8 @@ from meta_harness.retry_state import (
     main,
     parse_count,
     project_digest,
+    read_attempts,
+    record_attempt,
     record_failure,
     session_filename,
     state_root,
@@ -533,3 +535,62 @@ def test_main_rejects_malformed_arguments(
     assert main(argv, _env(tmp_path)) == 0
     assert capsys.readouterr().out == "unrecorded bad-arguments\n"
     assert not (tmp_path / "state").exists()
+
+
+# --- read_attempts / record_attempt: the headless driver's count (ADR-0078, ADR-0079) --
+
+
+def test_a_key_never_recorded_counts_zero_and_creates_nothing(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    assert read_attempts(str(project), "headless", _env(tmp_path)) == "count 0"
+    assert not (tmp_path / "state").exists()
+
+
+def test_recorded_attempts_read_back_and_clear_resets_them(tmp_path: Path) -> None:
+    project, env = _project(tmp_path), _env(tmp_path)
+    assert record_attempt(str(project), "headless", 2, env) == "recorded 2"
+    assert read_attempts(str(project), "headless", env) == "count 2"
+    assert _counter(tmp_path, project, "headless").read_text() == "2"
+    assert read_attempts(str(project), "other-key", env) == "count 0"  # keys are separate
+    clear(str(project), "headless", env)
+    assert read_attempts(str(project), "headless", env) == "count 0"
+
+
+def test_the_count_survives_deleting_everything_in_the_tree(tmp_path: Path) -> None:
+    """The point of moving it: the generator works in the tree and cannot reach this."""
+    project, env = _project(tmp_path), _env(tmp_path)
+    record_attempt(str(project), "headless", 3, env)
+    (project / ".meta-harness").mkdir()
+    for path in project.rglob("*"):
+        if path.is_file():
+            path.unlink()
+    assert read_attempts(str(project), "headless", env) == "count 3"
+
+
+def test_state_inside_the_project_is_refused_not_used(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    env = {"XDG_STATE_HOME": str(project / ".state")}
+    assert read_attempts(str(project), "headless", env).startswith("unrecorded ")
+    assert record_attempt(str(project), "headless", 1, env).startswith("unrecorded ")
+    assert not (project / ".state").exists()
+
+
+def test_a_corrupt_count_is_unrecorded_never_zero(tmp_path: Path) -> None:
+    project, env = _project(tmp_path), _env(tmp_path)
+    record_attempt(str(project), "headless", 1, env)
+    _counter(tmp_path, project, "headless").write_text("not a number")
+    assert read_attempts(str(project), "headless", env).startswith("unrecorded ")
+
+
+def test_main_counts_and_records(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    project, env = _project(tmp_path), _env(tmp_path)
+    main(["record", str(project), "headless", "2"], env)
+    main(["count", str(project), "headless"], env)
+    main(["record", str(project), "headless", "-1"], env)
+    main(["record", str(project), "headless", "x"], env)
+    assert capsys.readouterr().out.splitlines() == [
+        "recorded 2",
+        "count 2",
+        "unrecorded bad-arguments",
+        "unrecorded bad-arguments",
+    ]

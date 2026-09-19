@@ -182,13 +182,21 @@ def test_stop_gate_reruns_after_a_fast_retry(tmp_path: Path) -> None:
     winner now releases its claim on exit, so back-to-back Stops each run the
     gate; only the concurrent duplicate registration is shadowed.
     """
-    (tmp_path / "borromeanrings.toml").write_text(
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "borromeanrings.toml").write_text(
         '[project]\nlanguage = "none"\npackage = "x"\n\n'
         '[checks]\nrequired = ["05_hygiene"]\n\n'
         '[hygiene]\nrequires = ["does-not-exist.md"]\n'  # gate fails, fast
     )
     env = dict(os.environ)
-    env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+    env["CLAUDE_PROJECT_DIR"] = str(project)
+    # The retry count lives outside the tree (ADR-0079), never in the real home,
+    # and never inside the project either (the hook refuses that).
+    state = tmp_path / "state"
+    env["XDG_STATE_HOME"] = str(state)
+    env["HOME"] = str(tmp_path / "home")
+    env["CLAUDE_CONFIG_DIR"] = str(tmp_path / "claude-config")
     payload = json.dumps({"session_id": "fast-retry", "stop_hook_active": False})
 
     for expected_attempts in ("1", "2"):
@@ -201,5 +209,28 @@ def test_stop_gate_reruns_after_a_fast_retry(tmp_path: Path) -> None:
             env=env,
         )
         assert result.returncode == 2, f"gate should have run and blocked: {result.stderr}"
-        counter = tmp_path / ".meta-harness" / "stop_attempts" / "fast-retry"
+        (counter,) = state.glob("borromeanrings/*/stop_attempts/fast-retry")
         assert counter.read_text() == expected_attempts
+
+
+def test_a_future_dated_marker_is_not_a_claim(tmp_path: Path) -> None:
+    """#222 route 2: a marker dated in the future must not shadow every occurrence.
+
+    ``claim`` compared ``now - mtime`` against the window. A marker stamped
+    tomorrow makes that difference negative, so it compared as "fresh" forever —
+    one ``touch -d tomorrow`` and the Stop hook yields on every Stop, silently,
+    for good. First prove the forgery is live under the old rule, then prove the
+    claim is granted anyway.
+    """
+    markers = tmp_path / "markers"
+    markers.mkdir()
+    assert claim(markers, "stop", "s1") is True  # first claimant creates the marker
+    marker = next(markers.iterdir())
+
+    tomorrow = time.time() + 86_400
+    os.utime(marker, (tomorrow, tomorrow))
+    assert marker.stat().st_mtime > time.time()  # the forgery is live
+    assert time.time() - marker.stat().st_mtime < 0  # ...and would read as "fresh"
+
+    assert claim(markers, "stop", "s1") is True  # granted anyway: not a claim
+    assert marker.stat().st_mtime <= time.time()  # and the forged date is gone

@@ -38,7 +38,7 @@ Config `[container]`: `dockerfile` (default `Dockerfile`), `require` (default
   service keeps the full set. borromeanRings's own gate-runner uses
   `["non_root", "pinned_base"]`.
 - **Right floor** — presence, not quality (it doesn't judge whether a HEALTHCHECK
-  command is meaningful — that's a T2-critic concern). Unit-tested (13 cases) +
+  command actually probes the service — that's a T2-critic concern). Unit-tested (13 cases) +
   adversarially verified (bad Dockerfile fails all three; absent Dockerfile passes).
 
 ## Dogfood

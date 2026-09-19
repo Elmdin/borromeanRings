@@ -1,0 +1,64 @@
+name: Research / spike
+description: An investigation that ends in a written decision, not code.
+title: "[research] "
+labels: ["research", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Research here produces a **file**, not a chat: a survey under `docs/research/`
+        (prior art, tooling) or a decision that becomes an ADR. The deliverable is named
+        up front so "done" is unambiguous. Building on the result is a separate issue,
+        opened only on an explicit go (`docs/HANDOFF.md` §5, stage 5).
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: The single question this spike answers. If it is two questions, open two issues.
+      placeholder: Can API-usage contracts be enforced deterministically for languages other than Python, and with which tool?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters now
+      description: What decision is blocked, or what would be built wrongly, without the answer?
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources to survey
+      description: Tools, papers, repos, videos, prior ADRs. Citations in the deliverable must be verified (fail-closed on unverifiable claims).
+      value: |
+        - 
+        - 
+    validations:
+      required: true
+  - type: input
+    id: deliverable
+    attributes:
+      label: Deliverable
+      description: The file this spike produces. Must live under `docs/research/` (or `docs/surveys/`), or be an ADR under `docs/adr/`.
+      placeholder: docs/research/SOMETHING-SURVEY.md
+    validations:
+      required: true
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: The decision the deliverable must state. "Gate or advisory?" is usually one of them.
+      value: |
+        - [ ] The deliverable states a recommendation and what was rejected, with reasons
+        - [ ] It says whether the result can be a fail-closed gate or must stay advisory, and why
+        - [ ] Follow-up build work (if any) is filed as its own issue, not started here
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Timebox
+      description: When to stop and write up what is known, even if the question is not fully settled.
+      placeholder: one session / 2 hours
+    validations:
+      required: false

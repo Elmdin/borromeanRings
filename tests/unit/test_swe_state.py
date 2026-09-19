@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from meta_harness.adopt import RATCHET_BASELINES
+from meta_harness.adopt import RATCHET_BASELINES, RECOMMENDED
 from meta_harness.swe_state import (
     Adoption,
     CheckState,
@@ -138,6 +138,10 @@ def test_lacks_section_exact() -> None:
         CheckState("14_container", "noop"),
         CheckState("50_security", "fail"),
     )
+    # Mirrors adopt.RECOMMENDED, which has grown since this test was written —
+    # 19_context_budget, 18_api_contracts, 17_prior_art and 04_self_description all
+    # landed during the PR queue. The list is the point of the assertion, so it is
+    # updated rather than loosened to a subset check.
     assert state.lacks.recommended == (
         "12_secrets",
         "11_changelog",
@@ -145,6 +149,10 @@ def test_lacks_section_exact() -> None:
         "45_docstrings",
         "01_source_coherence",
         "21_archetype",
+        "19_context_budget",
+        "18_api_contracts",
+        "17_prior_art",
+        "04_self_description",
     )
     assert state.lacks.ratchets_without_baseline == ("32_complexity",)
     assert state.lacks.features == (FEATURES[1],)
@@ -191,6 +199,13 @@ def test_adopt_next_is_the_fixed_order_and_nothing_else() -> None:
         Adoption("check", "01_source_coherence",
                  "recommended by adopt.sh; add to [checks].required"),
         Adoption("check", "21_archetype", "recommended by adopt.sh; add to [checks].required"),
+        Adoption("check", "19_context_budget",
+                 "recommended by adopt.sh; add to [checks].required"),
+        Adoption("check", "18_api_contracts",
+                 "recommended by adopt.sh; add to [checks].required"),
+        Adoption("check", "17_prior_art", "recommended by adopt.sh; add to [checks].required"),
+        Adoption("check", "04_self_description",
+                 "recommended by adopt.sh; add to [checks].required"),
         Adoption("feature", "usage_documented", "usage is documented in the README (Nielsen #10)"),
     )  # fmt: skip
 
@@ -220,7 +235,8 @@ def test_render_full_report_exact() -> None:
             "  checks required but last reported noop/fail: 14_container (noop),"
             " 50_security (fail)",
             "  recommended by adopt.sh, not required: 12_secrets, 11_changelog, 33_coupling,"
-            " 45_docstrings, 01_source_coherence, 21_archetype",
+            " 45_docstrings, 01_source_coherence, 21_archetype, 19_context_budget,"
+            " 18_api_contracts, 17_prior_art, 04_self_description",
             "  ratchets without a baseline: 32_complexity",
             "  archetype features absent: usage_documented — usage is documented in the README",
             "  matrix rows at a gap: S6 (→ #58)",
@@ -240,7 +256,13 @@ def test_render_full_report_exact() -> None:
             "  8. [check]    01_source_coherence — recommended by adopt.sh; add to"
             " [checks].required",
             "  9. [check]    21_archetype — recommended by adopt.sh; add to [checks].required",
-            "  10. [feature]  usage_documented — usage is documented in the README (Nielsen #10)",
+            "  10. [check]    19_context_budget — recommended by adopt.sh; add to"
+            " [checks].required",
+            "  11. [check]    18_api_contracts — recommended by adopt.sh; add to [checks].required",
+            "  12. [check]    17_prior_art — recommended by adopt.sh; add to [checks].required",
+            "  13. [check]    04_self_description — recommended by adopt.sh; add to"
+            " [checks].required",
+            "  14. [feature]  usage_documented — usage is documented in the README (Nielsen #10)",
             "",
             "Sources",
             "  config:     borromeanrings.toml — 6 check(s) required",
@@ -373,14 +395,14 @@ def test_everything_practised_renders_none_for_empty_lacks() -> None:
     verdict = Verdict(ok=True, checks=(("00_build", "pass"), ("40_test", "pass")), run_id="r2")
     rows = parse_matrices({"m.md": "| T1 | x | ✅ `00_build` + `40_test` | now | y |\n"})
     state = _assess(
-        required=("00_build", "40_test") + tuple(RATCHET_BASELINES) + (
-            "12_secrets", "11_changelog", "01_source_coherence", "21_archetype",
-        ),
+        # Every RECOMMENDED check, so "practises everything" is actually true. Naming
+        # them individually let the fixture fall behind adopt.RECOMMENDED as it grew.
+        required=("00_build", "40_test") + tuple(RATCHET_BASELINES) + tuple(RECOMMENDED),
         verdict=Verdict(
             ok=True,
-            checks=verdict.checks + tuple((c, "pass") for c in RATCHET_BASELINES)
-            + (("12_secrets", "pass"), ("11_changelog", "pass"),
-               ("01_source_coherence", "pass"), ("21_archetype", "pass")),
+            checks=verdict.checks
+            + tuple((c, "pass") for c in RATCHET_BASELINES)
+            + tuple((c, "pass") for c in RECOMMENDED),
             run_id="r2",
         ),
         features=(FEATURES[0],),

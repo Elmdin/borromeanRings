@@ -36,7 +36,7 @@
 > Like the rings, the gates hold only together: remove any one check and the
 > guarantee falls apart.
 
-[![borromeanRings gate](https://github.com/3MagicLabs/borromeanrings/actions/workflows/verify.yml/badge.svg)](https://github.com/3MagicLabs/borromeanrings/actions/workflows/verify.yml)
+[![borromeanRings gate](https://github.com/Elmdin/borromeanrings/actions/workflows/verify.yml/badge.svg)](https://github.com/Elmdin/borromeanrings/actions/workflows/verify.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 borromeanRings is a **meta-harness**: a governing quality layer that wraps any AI coding
@@ -55,7 +55,7 @@ You need Python ≥ 3.11 and the check toolchain on `PATH`
 (`pip install -e ".[dev]"` from this checkout installs `ruff mypy pytest pytest-cov bandit`).
 
 ```bash
-git clone https://github.com/3MagicLabs/borromeanRings.git && cd borromeanRings
+git clone https://github.com/Elmdin/borromeanRings.git && cd borromeanRings
 ./init.sh  /path/to/project     # NEW project: writes borromeanrings.toml + .claude/settings.json there
 ./adopt.sh /path/to/project     # EXISTING governed project: adds the recommended checks, seeds ratchet baselines
 cd /path/to/project && /path/to/borromeanRings/verify.sh   # the gate: exit 0 only if every required check is non-failing
@@ -156,7 +156,7 @@ deviation. The full annotated walk-through, with what each step proves, is in
 ## Install as a Claude Code plugin (one line)
 
 ```bash
-claude plugin marketplace add 3MagicLabs/borromeanRings && claude plugin install borromeanrings@borromeanrings
+claude plugin marketplace add Elmdin/borromeanRings && claude plugin install borromeanrings@borromeanrings
 ```
 
 Wires the six hooks and the skills into every session; a project is governed only once it

@@ -15,6 +15,19 @@ from typing import Any
 
 import tomllib
 
+#: The closed vocabulary of application archetypes a project may declare in
+#: ``[project].archetypes``. Lives here (not in meta_harness.archetypes) because the spine
+#: is an architecture leaf and must import no domain module; the catalog is keyed by
+#: exactly these names and a unit test binds the two. See SPEC-archetypes.md, ADR-0062.
+ARCHETYPES: tuple[str, ...] = (
+    "library",
+    "cli",
+    "web-api",
+    "web-app",
+    "ml",
+    "embedded",
+    "data-pipeline",
+)
 #: Every key `[verification]` understands. An unknown key there is a hard error
 #: (see :func:`load_config`): a typo'd verification claim must never read as
 #: "nothing declared", which would silently switch the rule off. ADR-0074.
@@ -36,6 +49,10 @@ class Config:
     # [checks].heavy — CI-tier checks required only under `verify.sh --heavy` (ADR-0033).
     heavy_checks: tuple[str, ...] = ()
     prompt_rewriting_enabled: bool = False
+    # [self_report].enabled — record the reply's VERIFICATION STATUS block at Stop
+    # (ADR-0066). Defaults to prompt_rewriting_enabled: the reply-shape contracts
+    # travel together unless a project says otherwise.
+    self_report_enabled: bool = False
     hygiene_requires: tuple[str, ...] = ()
     # [project] — what borromeanRings targets in the GOVERNED project (portability).
     package: str = ""  # importable package name (optional; "" → skip import check)
@@ -46,6 +63,10 @@ class Config:
     # exactly as before. See meta_harness.lane and ADR-0081.
     test_fast_paths: tuple[str, ...] = ()
     language: str = "python"  # selects checks/<language>/ — the per-language check set
+    # [project].archetypes — what KIND of application this is (ADR-0062). Selects the
+    # required-feature set 21_archetype gates and which checks must be non-noop. Empty ⇒
+    # the archetype dimension is off. Validated against ARCHETYPES (fail-closed).
+    archetypes: tuple[str, ...] = ()
     # [git] — declared commit identity; empty ⇒ identity enforcement is off.
     git_name: str = ""
     git_email: str = ""
@@ -105,10 +126,28 @@ class Config:
     # rules apply is per-project (a run-and-exit gate-runner omits `healthcheck`).
     container_dockerfile: str = "Dockerfile"
     container_require: tuple[str, ...] = ("non_root", "pinned_base", "healthcheck")
+    # [citations] — citation-resolution gate (ADR-0073); off unless enabled. paths are
+    # the repo-relative prefixes whose changed *.md files are scanned.
+    citations_enabled: bool = False
+    citations_paths: tuple[str, ...] = ("docs/", "README.md", "CHANGELOG.md", "skills/")
     # [a11y] — static accessibility invariants for HTML (ADR-0045); the Product/UX
     # slice. require selects rules; exclude drops build-output/vendored dirs.
     a11y_require: tuple[str, ...] = ("html_lang", "img_alt", "page_title")
     a11y_exclude: tuple[str, ...] = ("node_modules", "dist", "build", "vendor")
+    # [charter] — session-charter gate (ADR-0063): a committed CHARTER.toml naming goal,
+    # stakes (low|high), done_when, stop_when, may_not, owner. Opt-in; off by default.
+    charter_enabled: bool = False
+    charter_path: str = "CHARTER.toml"
+    charter_high_stakes_fields: tuple[str, ...] = ("rollback", "reviewer", "blast_radius")
+    # [quotes] — quote fidelity (ADR-0065): marked quotations in the Markdown under
+    # `paths` must be verbatim against their saved source. Off unless enabled.
+    quotes_enabled: bool = False
+    quotes_paths: tuple[str, ...] = ("docs",)
+    # [supply_chain] — lockfile integrity + pinned dependencies (ADR-0061). No lockfile
+    # declared ⇒ 76_lockfile is a noop; pin_optional extends 78_pins to optional groups.
+    supply_chain_lockfile: str = ""
+    supply_chain_manifests: tuple[str, ...] = ("pyproject.toml", "package.json")
+    supply_chain_pin_optional: bool = False
     # [verification] — the mathematical-verification ladder (ADR-0074). Tier 1 only:
     # the project-relative directory holding its property suite. NO default — writing
     # the key is an affirmative claim, so "" means the rule is off, and a declared
@@ -136,6 +175,18 @@ class Config:
     # blanket-suppressed; `exclude` is a per-code escape hatch that should stay empty.
     shell_source_paths: tuple[str, ...] = ("SCRIPTDIR", "SCRIPTDIR/..")
     shell_exclude: tuple[str, ...] = ()
+
+
+def _archetypes(project: Mapping[str, Any]) -> tuple[str, ...]:
+    """``[project].archetypes`` validated against :data:`ARCHETYPES`; unknown ⇒ raise."""
+    declared = tuple(str(name) for name in project.get("archetypes", []))
+    unknown = [name for name in declared if name not in ARCHETYPES]
+    if unknown:
+        raise ValueError(
+            f"borromeanrings.toml [project].archetypes has unknown archetype(s) "
+            f"{', '.join(unknown)} — known: {', '.join(ARCHETYPES)} (fail-closed)."
+        )
+    return declared
 
 
 def resolve_config_path(path: str | Path) -> Path:
@@ -214,6 +265,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         The validated :class:`Config`.
 
     Raises:
+        ValueError: if no required checks are declared, or an archetype is unknown.
         ValueError: if no required checks are declared, or if ``[verification]``
             carries a key borromeanRings does not understand.
         ValueError: if no required checks are declared.
@@ -225,6 +277,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     verification: Mapping[str, Any] = raw.get("verification", {})
     context: Mapping[str, Any] = raw.get("context", {})
     prompt_rewriting_enabled = bool(raw.get("prompt_rewriting", {}).get("enabled", False))
+    self_report_enabled = bool(raw.get("self_report", {}).get("enabled", prompt_rewriting_enabled))
     hygiene_requires = tuple(raw.get("hygiene", {}).get("requires", []))
     project = raw.get("project", {})
     git = raw.get("git", {})
@@ -236,6 +289,8 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     critic = raw.get("critic", {})
     audit = raw.get("audit", {})
     licenses = raw.get("licenses", {})
+    charter = raw.get("charter", {})
+    supply_chain = raw.get("supply_chain", {})
     provenance = raw.get("provenance", {})
     predicates = raw.get("predicates", {})
     test = raw.get("test", {})
@@ -244,12 +299,14 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         heavy_checks=tuple(raw.get("checks", {}).get("heavy", [])),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
+        self_report_enabled=self_report_enabled,
         hygiene_requires=hygiene_requires,
         package=str(project.get("package", "")),
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
         test_fast_paths=tuple(str(p) for p in test.get("fast_paths", [])),
         language=str(project.get("language", "python")),
+        archetypes=_archetypes(project),
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),
         specs_dir=str(layout.get("specs_dir", "")),
@@ -292,12 +349,28 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         container_require=tuple(
             raw.get("container", {}).get("require", ["non_root", "pinned_base", "healthcheck"])
         ),
+        citations_enabled=bool(raw.get("citations", {}).get("enabled", False)),
+        citations_paths=tuple(
+            raw.get("citations", {}).get("paths", ["docs/", "README.md", "CHANGELOG.md", "skills/"])
+        ),
         a11y_require=tuple(
             raw.get("a11y", {}).get("require", ["html_lang", "img_alt", "page_title"])
         ),
         a11y_exclude=tuple(
             raw.get("a11y", {}).get("exclude", ["node_modules", "dist", "build", "vendor"])
         ),
+        charter_enabled=bool(charter.get("enabled", False)),
+        charter_path=str(charter.get("path", "CHARTER.toml")),
+        charter_high_stakes_fields=tuple(
+            charter.get("high_stakes_fields", ["rollback", "reviewer", "blast_radius"])
+        ),
+        quotes_enabled=bool(raw.get("quotes", {}).get("enabled", False)),
+        quotes_paths=tuple(raw.get("quotes", {}).get("paths", ["docs"])),
+        supply_chain_lockfile=str(supply_chain.get("lockfile", "")),
+        supply_chain_manifests=tuple(
+            supply_chain.get("manifests", ["pyproject.toml", "package.json"])
+        ),
+        supply_chain_pin_optional=bool(supply_chain.get("pin_optional", False)),
         verification_properties=str(verification.get("properties", "")).strip(),
         provenance_declared="provenance" in raw,
         provenance_sources=tuple(str(p) for p in provenance.get("sources", [])),

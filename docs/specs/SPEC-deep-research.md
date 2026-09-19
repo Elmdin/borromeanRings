@@ -2,9 +2,9 @@
 
 > **Scope note:** this is a **borromeanRings harness feature** — borromeanRings *enhances the deep-research
 > capability the wrapped agent already has* (it does not build a research product from scratch). The
-> features below are the enhancements borromeanRings adds. See [`MANIFESTO.md`](MANIFESTO.md).
+> features below are the enhancements borromeanRings adds. See [`MANIFESTO.md`](../MANIFESTO.md).
 >
-> Status: spec, derived from [`research/deep-research-landscape.md`](research/deep-research-landscape.md).
+> Status: spec, derived from [`research/deep-research-landscape.md`](../research/deep-research-landscape.md).
 > Awaiting sign-off before implementation. The first tool borromeanRings builds *through* the harness and
 > then **adopts** (self-extension). The "best way to find & synthesize information."
 > CS130-structured: requirements → architecture → patterns → phased build.

@@ -259,6 +259,95 @@ def test_collaboration_loaded_and_defaults_off(tmp_path: Path) -> None:
     assert off.collaboration_subject_max_length == 0
 
 
+def test_self_report_defaults_to_prompt_rewriting_and_can_diverge(tmp_path: Path) -> None:
+    config = tmp_path / "borromeanrings.toml"
+    base = '[checks]\nrequired = ["00_build"]\n'
+    config.write_text(base, encoding="utf-8")
+    assert load_config(config).self_report_enabled is False
+    config.write_text(base + "[prompt_rewriting]\nenabled = true\n", encoding="utf-8")
+    assert load_config(config).self_report_enabled is True
+    config.write_text(
+        base + "[prompt_rewriting]\nenabled = true\n[self_report]\nenabled = false\n",
+        encoding="utf-8",
+    )
+    assert load_config(config).self_report_enabled is False
+    config.write_text(base + "[self_report]\nenabled = true\n", encoding="utf-8")
+    loaded = load_config(config)
+    assert (loaded.prompt_rewriting_enabled, loaded.self_report_enabled) == (False, True)
+
+
+def test_archetypes_loaded_and_default_empty(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[project]\narchetypes = ["cli", "library"]\n',
+    )
+    assert load_config(declared).archetypes == ("cli", "library")
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    assert load_config(default).archetypes == ()
+
+
+def test_unknown_archetype_fails_closed_at_config_time(tmp_path: Path) -> None:
+    config = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[project]\narchetypes = ["cli", "firmware"]\n',
+    )
+    with pytest.raises(ValueError, match="firmware"):
+        load_config(config)
+
+
+def test_charter_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["22_charter"]\n[charter]\nenabled = true\n'
+        'path = "docs/charter.toml"\nhigh_stakes_fields = ["approver"]\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.charter_enabled is True
+    assert cfg.charter_path == "docs/charter.toml"
+    assert cfg.charter_high_stakes_fields == ("approver",)
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.charter_enabled is False
+    assert off.charter_path == "CHARTER.toml"
+    assert off.charter_high_stakes_fields == ("rollback", "reviewer", "blast_radius")
+
+    # [charter] present but `enabled` absent ⇒ still off (opt-in).
+    dormant = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n[charter]\npath = "C.toml"\n')
+    assert load_config(dormant).charter_enabled is False
+
+
+def test_quotes_loaded_and_defaults_off(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[quotes]\nenabled = true\npaths = ["docs", "notes"]\n',
+    )
+    config = load_config(declared)
+    assert config.quotes_enabled is True
+    assert config.quotes_paths == ("docs", "notes")
+    default = load_config(_write(tmp_path, '[checks]\nrequired = ["00_build"]\n'))
+    assert default.quotes_enabled is False
+    assert default.quotes_paths == ("docs",)
+
+
+def test_supply_chain_loaded_and_defaults(tmp_path: Path) -> None:
+    declared = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n[supply_chain]\n'
+        'lockfile = "uv.lock"\nmanifests = ["pyproject.toml"]\npin_optional = true\n',
+    )
+    cfg = load_config(declared)
+    assert cfg.supply_chain_lockfile == "uv.lock"
+    assert cfg.supply_chain_manifests == ("pyproject.toml",)
+    assert cfg.supply_chain_pin_optional is True
+
+    default = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n')
+    off = load_config(default)
+    assert off.supply_chain_lockfile == ""
+    assert off.supply_chain_manifests == ("pyproject.toml", "package.json")
+    assert off.supply_chain_pin_optional is False
+
+
 def test_api_contracts_section_is_parsed_and_defaults_empty(tmp_path: Path) -> None:
     cfg = tmp_path / "borromeanrings.toml"
     cfg.write_text('[checks]\nrequired = ["00_build"]\n', encoding="utf-8")

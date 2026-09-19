@@ -68,6 +68,8 @@ harder to game.
 | Static SAST | T0 | ✅ | bandit (`50_security`) |
 | Dependency / CVE audit | T0 | ✅ | `checks/ci/70_pip_audit.sh` (heavy lane) — pip-audit, `[audit]` ignores (ADR-0034) |
 | Secret scanning | T0 | ✅ | `checks/shared/12_secrets.sh` — native high-confidence scan (tracked files); gitleaks (entropy) is the heavy-lane follow-up (ADR-0032). **Hardening candidate:** fails vacuously on a non-git dir (empty `git ls-files`) — a "can't-scan ≠ nothing-to-find" gap found in rollout (spaceThink) |
+| Git-history secret scan | T0 | ✅ | `74_secret_history` (heavy lane, ADR-0042): no high-confidence secret in any blob reachable from any ref |
+| Pinned deps / lockfile integrity / SBOM | T0 | ✅ | `checks/ci/78_pins.sh` (upper bound / exact pin per requirement), `checks/ci/76_lockfile.sh` (manifest change ⇒ lockfile change; `noop` here — no lockfile), `sbom.sh` (CycloneDX 1.5, stdlib, unsigned) — ADR-0061. Signing/provenance + Dependabot are maintainer decisions (CI-dependent; exact config in the ADR) |
 | Git-history secret scan | T0 | ✅ | `74_secret_history` (heavy/CI) scans every blob reachable from any ref — a committed-then-deleted secret stays compromised. Deduped by one-way fingerprint; `[secrets].history_allow` acknowledges rotated findings (ADR-0042) |
 | Pinned deps / lockfile integrity / SBOM | T0 | ⚠️ | `pyproject.toml`; no lockfile-integrity gate. **SBOM generation + supply-chain provenance** is the next security build (candidate) |
 | License compliance | T0 | ✅ | `checks/ci/72_licenses.sh` (heavy lane) — pip-licenses denylist (ADR-0035) |
@@ -123,7 +125,7 @@ harder to game.
 | AI-code security-review-by-default | T2 | ⚠️ | bandit (`50_security`) + `56_critics` rubric `security` — advisory semantic review (ADR-0036) |
 
 ### K. Meta — is the enforcement itself real? — CS130 §15
-| **Adversarial self-test** (gate must catch known-bad) | T0 | ✅ | `tests/test_gate_adversarial.py` — known-bad corpus, permanent (ADR-0025) |
+| **Adversarial self-test** (gate must catch known-bad) | T0 | ✅ | `tests/integration/test_gate_adversarial.py` — known-bad corpus, permanent (ADR-0025) |
 | Tamper-evident receipts | T0 | ✅ | content-digest receipts + fail-closed verdict + run-digest anchor (ADR-0026) |
 | Mutation-test the gate's own checks | meta | ✅ | the checks' logic lives in `meta_harness/*` which `60_mutation` mutates (ADR-0022) |
 
@@ -171,6 +173,7 @@ no longer used (an archetype-blocked row is a row, not a status).
 | Matrix | Status | First real rows |
 |---|---|---|
 | **AI-agent quality** | partial | agent-enhancement recommender ✅; eval-regression ratchet, citation verification (candidates — **agent-only, no API keys**) |
+| **Security & compliance** | partial | SAST / CVE / secrets / licenses / pins / lockfile / SBOM ✅; git-history secret-scan ✅; provenance signing + Dependabot (maintainer, CI-dependent) |
 | **Security & compliance** | documented | [`matrices/02`](matrices/02-security-compliance.md): SAST / CVE / secrets (+history) / licenses / container ✅; SBOM, lockfile, provenance, CI hardening (gaps → #58, #74, #60) |
 | **Delivery / DORA** | documented | [`matrices/03`](matrices/03-delivery-dora.md): branch / commit / changelog / ADR / CI / merge / API-diff gates ✅; batch-size ratchet (git-derivable, next); four keys (telemetry-gated) |
 | **Operational / SRE** | documented | [`matrices/04`](matrices/04-operational-sre.md): `14_container` (non-root / pinned base / healthcheck) + hygiene + honest-`noop` ✅; health, SLO, canary, postmortem rows archetype-blocked (#79) |

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -143,7 +144,8 @@ EXPECTED_APPROACHES = (
     " (meta_harness.archetypes.CATALOG[name].playbook) before designing the change"
     "  [ADR-0062]\n"
     "  7. RECOMMENDED checks 12_secrets, 32_complexity, 33_coupling, 45_docstrings,"
-    " 01_source_coherence are not required here ⇒ adopt.sh adds them and seeds their"
+    " 01_source_coherence, 19_context_budget, 18_api_contracts, 17_prior_art,"
+    " 04_self_description are not required here ⇒ adopt.sh adds them and seeds their"
     " baselines; propose it, do not apply it silently  [ADR-0041]\n"
 )
 # 40_test is not required by this C fixture, so nothing claims it ratchets anything here —
@@ -293,7 +295,9 @@ def test_a_declared_archetype_without_21_archetype_never_claims_the_gate_will_ca
     (project / "borromeanrings.toml").write_text(ARCHETYPE_NOT_REQUIRED, encoding="utf-8")
     out = _run("advise.sh", project).stdout
     assert "21_archetype fails closed" not in out
-    assert "21_archetype are not required here ⇒ adopt.sh adds them" in out
+    listed = re.search(r"RECOMMENDED checks (.+?) are not required here ⇒ adopt\.sh adds them", out)
+    assert listed, out
+    assert "21_archetype" in listed.group(1).split(", ")
     assert "archetype web-api with no health route" not in out
     as_json = json.loads(_run("advise.sh", project, "--json").stdout)
     assert [a["rule"] for a in as_json["approaches"]] == ["a_playbook", "a_recommended"]

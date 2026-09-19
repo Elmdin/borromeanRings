@@ -13,6 +13,10 @@ queue is merged.
 ## [Unreleased]
 
 ### Fixed
+- A config section written as a scalar (`charter = "high"` for `[charter] stakes = "high"`)
+  crashed `load_config` with a bare `AttributeError`: a traceback, not the `ValueError`
+  every caller treats as an invalid config, so tools crashed instead of refusing. Every
+  section is now read through one helper that fails closed and names the section.
 - `15_a11y` reported `pass` for a project with no HTML at all — a hollow green (#154).
   Under ADR-0049 a check that inspected nothing must say so: it now exits 3 ⇒ `noop`,
   the log names what was searched (git-tracked `*.html/*.htm/*.xhtml`, minus

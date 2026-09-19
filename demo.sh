@@ -96,7 +96,7 @@ step "Run the gate on nothing: a HOLLOW green"
 gate
 expect_rc 0 "an empty project must not fail the gate"
 expect "RESULT: PASS" "greenfield is green"
-expect "inspected NOTHING: 4 of 7" "the gate must say which checks looked at nothing"
+expect "inspected NOTHING: 5 of 8" "the gate must say which checks looked at nothing"
 
 # --- 3. real code, real green ------------------------------------------------------------
 step "Add real code and tests: a REAL green"

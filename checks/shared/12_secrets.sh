@@ -24,7 +24,23 @@ fi
 # Write the NUL-delimited tracked-file list to a file (a bash variable would strip
 # the NULs, and stdin is taken by the heredoc). Paths with spaces/newlines stay safe.
 list_file="$RECEIPT_DIR/$id.files"
-( cd "$PROJECT_ROOT" && git ls-files -z 2>/dev/null || true ) >"$list_file"
+# A FAILED enumeration is not an empty one. Swallowing the error scanned an empty list
+# and reported `pass`: a secret gate green over a tree it never read (#186). Fail closed.
+if ! (cd "$PROJECT_ROOT" && git ls-files -z) >"$list_file" 2>"$list_file.err"; then
+  {
+    echo "could not list tracked files (git ls-files failed), so secrets cannot be scanned:"
+    cat "$list_file.err"
+  } >"$log"
+  emit_receipt "$id" "$cmd" 1 "$log" "fail"
+  exit 1
+fi
+# Nothing tracked yet (a freshly initialised project) is legitimate, and it is `noop`:
+# nothing was inspected, so the verdict must not say `pass` (ADR-0049, ADR-0084).
+if [ ! -s "$list_file" ]; then
+  echo "no tracked files: nothing to scan yet (12_secrets scans what git tracks)" >"$log"
+  emit_noop "$id" "$cmd" "$log"
+  exit 0
+fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$list_file" >"$log" 2>&1 <<'PY'
 import sys

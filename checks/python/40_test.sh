@@ -90,10 +90,40 @@ PY
   exit "$code"
 fi
 
+# The full suite runs in PARALLEL when the project's environment has pytest-xdist
+# (ADR-0086): this suite outgrew the 900s check bound serially, and the bound was raised
+# once already. `--dist loadgroup` keeps a file's tests (and its fixture project) on one
+# worker, and lets two files that share a resource declare one group. Absent xdist the
+# suite runs exactly as before — a governed project is never required to install it.
+# BORROMEANRINGS_TEST_WORKERS overrides the worker count (`auto` = one per CPU).
+workers="${BORROMEANRINGS_TEST_WORKERS:-auto}"
+# Is xdist in the PROJECT's environment? Asked of the project's own interpreter, from the
+# project's directory — the same question, in the same form, that 27_properties asks about
+# its runner. A probe that cannot answer is treated as "absent": the suite then runs
+# serially, which is the behaviour this check has always had.
+xdist_absent="$(
+  cd "$PROJECT_ROOT" && python3 - <<'PY'
+try:
+    __import__("xdist")
+    print("")
+except Exception:  # ImportError, or a broken install that raises on import
+    print("xdist")
+PY
+)"; probe_code=$?
+if [ "$probe_code" -eq 0 ] && [ -z "$xdist_absent" ]; then
+  parallel="-n $workers --dist loadgroup"
+  printf 'running the full suite in parallel: pytest %s\n\n' "$parallel" >"$log"
+else
+  parallel=""
+  printf 'pytest-xdist is not available here — running the full suite serially\n\n' >"$log"
+fi
+
 # `exec` so pytest is the timeout's direct child: on a hang it gets SIGTERM/SIGKILL
 # directly (no orphaned pytest lingering past the gate). See checks/_lib.sh.
-borromeanrings_run_bounded "$log" "exec python3 -m pytest -q --cov --cov-report=json:\"$covjson\""
+borromeanrings_run_bounded "$log.full" "exec python3 -m pytest -q $parallel --cov --cov-report=json:\"$covjson\""
 code=$?
+cat "$log.full" >>"$log"
+rm -f "$log.full"
 
 # pytest exit 5 = "no tests collected". On a GREENFIELD project (no source either) that's not a
 # failure — there's simply nothing to test yet (don't force scaffolding during planning). But if

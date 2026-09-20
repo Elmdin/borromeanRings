@@ -2,7 +2,7 @@
 
 **Status:** Accepted · 2026-09-19 · issue #253 ·
 **Relates to:** ADR-0081 (the fast interactive lane), ADR-0077 (pin the check toolchain),
-ADR-0085 (lands with #254), ADR-0033 (heavy lane)
+ADR-0085, ADR-0033 (heavy lane)
 
 ## Context
 
@@ -61,7 +61,7 @@ directory" out of it — side by side, each read the other's run. They now share
 - **Mark the slow tests and skip them in the fast lane.** Already the case — ADR-0081's
   fast lane runs `tests/unit` only. It does nothing for CI, which must run everything.
 - **Raise the bound again.** What #252 did, as a stopgap. A bound that only ever grows
-  stops meaning anything; ADR-0085 (lands with #254) makes the growth visible, and this makes it
+  stops meaning anything; ADR-0085 makes the growth visible, and this makes it
   unnecessary for now.
 - **`--dist loadfile` instead of `loadgroup`.** Keeps a file together, which is most of
   the benefit, but gives no way for two files to say they share a resource — precisely

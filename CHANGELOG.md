@@ -620,6 +620,15 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- The three ratchets passed when their measurement failed (#186, ADR-0088 amended).
+  `32_complexity`, `33_coupling` and `45_docstrings` took their measurement through a
+  process substitution, which discards the tool's exit status — `$?` afterwards belongs
+  to `read` — so a crashed measurement left the value empty, `[ "" -gt 100000 ]` errored
+  instead of being false, the comparison never fired, and the ratchet reported `pass`
+  over a measurement nobody got. Their baselines had the mirror image:
+  `cat file 2>/dev/null || echo <permissive>` turned a baseline that exists but cannot
+  be read into the most permissive one. A measurement that is not a number now fails
+  naming what the tool printed, and a baseline is defaulted only when it is *absent*.
 - Seven checks decided their verdict from a git query whose failure they discarded
   (#186, ADR-0088): `x="$(git … 2>/dev/null || true)"`, then a verdict computed from
   `$x`. A crashed git, a corrupt index or a deleted object store each yield an empty

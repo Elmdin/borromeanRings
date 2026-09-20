@@ -22,18 +22,31 @@ if [ -z "$package" ] || [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -prin
   exit 0
 fi
 
-current="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
+# A crashed measurement left
+# `current` empty, the comparison below silently did not fire, and the ratchet passed
+# over a measurement nobody got (#186).
+current=""
+if ! current="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
 import sys
 
 from meta_harness.docstrings import measure_package
 
 print(f"{measure_package(sys.argv[1], sys.argv[2]).coverage:.6f}")
 PY
-)"
-baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
+)"; then
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "this project's docstring coverage" "$current"
+fi
+borromeanrings_number_or_fail "$current" "$id" "$cmd" "$log" "this project's docstring coverage"
+baseline=""
+borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$cmd" "$log"
 echo "docstring coverage: $current (baseline $baseline)" >"$log"
 
-regressed="$(borromeanrings_py -c "import sys; print(1 if float(sys.argv[1]) + 1e-9 < float(sys.argv[2]) else 0)" "$current" "$baseline")"
+# The comparison is itself a tool call: if it cannot run, there is no comparison, and
+# an empty answer is not "no regression" (#186).
+regressed=""
+if ! regressed="$(borromeanrings_py -c "import sys; print(1 if float(sys.argv[1]) + 1e-9 < float(sys.argv[2]) else 0)" "$current" "$baseline" 2>&1)"; then
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "the comparison to the baseline" "$regressed"
+fi
 status="pass"
 code=0
 if [ "$regressed" = "1" ]; then

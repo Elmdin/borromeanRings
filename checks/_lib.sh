@@ -251,6 +251,40 @@ borromeanrings_base_ref() {
   return 1
 }
 
+
+# borromeanrings_number_or_fail <value> <id> <cmd> <log> <what>
+# A ratchet compares a measurement to a baseline. If the measurement is not a number,
+# there is nothing to compare: `[ "" -gt 100000 ]` is an ERROR, not a false, so the
+# comparison silently does not fire and the check reports a pass over a measurement it
+# never got (#186). Empty, garbled, or a stack trace — all fail here, named.
+borromeanrings_number_or_fail() {
+  case "$1" in
+    "" | *[!0-9.]* | *.*.*)
+      borromeanrings_cannot_read "$2" "$3" "$4" "$5" "the tool printed: ${1:-(nothing)}"
+      ;;
+  esac
+}
+
+# borromeanrings_baseline <out-var> <file> <default> <id> <cmd> <log>
+# A ratchet's baseline: ABSENT is a legitimate default (an unconfigured project never
+# fails), UNREADABLE is not — `cat file 2>/dev/null || echo <permissive>` turned a
+# baseline that exists but cannot be read into the most permissive one, switching the
+# ratchet off without saying so (#186). A baseline that is not a number fails the same
+# way; 19_context_budget already did this, and this is that rule, shared.
+borromeanrings_baseline() {
+  local __out_var="$1" file="$2" fallback="$3" id="$4" cmd="$5" log="$6"
+  if [ ! -e "$file" ]; then
+    printf -v "$__out_var" '%s' "$fallback"
+    return 0
+  fi
+  local value
+  if ! value="$(tr -d '[:space:]' <"$file" 2>&1)"; then
+    borromeanrings_cannot_read "$id" "$cmd" "$log" "the baseline $file" "$value"
+  fi
+  borromeanrings_number_or_fail "$value" "$id" "$cmd" "$log" "the baseline $file"
+  printf -v "$__out_var" '%s' "$value"
+}
+
 # --- Language-lane helpers (checks/typescript, checks/go; SPEC-multi-language.md, ADR-0068)
 
 # borromeanrings_source_count <src_dir> <suffix>... — how many source files of the lane's

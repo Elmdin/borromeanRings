@@ -38,7 +38,7 @@ PY
   borromeanrings_cannot_read "$id" "$cmd" "$log" "this project's coupling" "$measurement"
 fi
 read -r current worst <<<"$measurement"
-borromeanrings_number_or_fail "$current" "$id" "$cmd" "$log" "this project's coupling"
+borromeanrings_integer_or_fail "$current" "$id" "$cmd" "$log" "this project's coupling"
 baseline=""
 borromeanrings_baseline baseline "$baseline_file" 100000 "$id" "$cmd" "$log"
 echo "worst fan-out (efferent coupling): $current at $worst (baseline $baseline)" >"$log"

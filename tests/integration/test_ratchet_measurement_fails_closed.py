@@ -145,3 +145,50 @@ def test_an_unreadable_baseline_fails_closed(tmp_path: Path, check: str) -> None
 
     assert status == "fail", f"{check} read an unreadable baseline as permissive:\n{log}"
     assert proc.returncode != 0
+
+
+@pytest.mark.parametrize("check", CHECKS)
+def test_a_dangling_symlink_baseline_is_unreadable_not_absent(tmp_path: Path, check: str) -> None:
+    """`[ ! -e "$file" ]` FOLLOWS symlinks, so a baseline that is a dangling symlink
+    answered "does not exist" and took the permissive default — a file that is there
+    and cannot be read, treated as one that was never configured (review of #259)."""
+    project = _project(tmp_path, check)
+    (project / BASELINES[check]).symlink_to(tmp_path / "gone")
+
+    proc = _gate(project)
+    status, log = _receipt(project, check)
+
+    assert status == "fail", f"{check} took a dangling symlink for an absent baseline:\n{log}"
+    assert proc.returncode != 0
+
+
+@pytest.mark.parametrize("check", ["32_complexity", "33_coupling"])
+def test_a_decimal_baseline_fails_for_the_checks_that_compare_integers(
+    tmp_path: Path, check: str
+) -> None:
+    """These two compare with bash's `[ x -gt y ]`, which is integer-only: given "3.5"
+    it does not return false, it ERRORS, and with no `set -e` the comparison silently
+    does not fire and the check passes. A validator that accepts "a number" is wrong
+    here; each caller says which kind it can actually compare (review of #259)."""
+    project = _project(tmp_path, check)
+    (project / BASELINES[check]).write_text("3.5\n", encoding="utf-8")
+
+    proc = _gate(project)
+    status, log = _receipt(project, check)
+
+    assert status == "fail", f"{check} accepted a baseline it cannot compare:\n{log}"
+    assert proc.returncode != 0
+    assert "whole number" in log
+
+
+def test_a_decimal_baseline_is_fine_where_the_comparison_is_a_float(tmp_path: Path) -> None:
+    """The control for the rule above: `45_docstrings` compares in Python, where 0.75
+    is exactly what a coverage baseline looks like."""
+    project = _project(tmp_path, "45_docstrings")
+    (project / BASELINES["45_docstrings"]).write_text("0.5\n", encoding="utf-8")
+
+    proc = _gate(project)
+    status, log = _receipt(project, "45_docstrings")
+
+    assert status == "pass", log
+    assert proc.returncode == 0

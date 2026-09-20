@@ -18,14 +18,15 @@ cmd="public-API breaking-change detection (vs merge-base)"
 src_dir="$(borromeanrings_project_cfg src_dir)"
 
 base=""
-for candidate in origin/dev dev origin/main main; do
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-    base="$candidate"
-    break
-  fi
-done
+borromeanrings_base_ref base "$id" "$cmd" "$log" origin/dev dev origin/main main || true
 merge_base=""
-[ -n "$base" ] && merge_base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base" 2>/dev/null || true)"
+# `merge-base` exits 1 for "no common ancestor", which is an answer; anything above that
+# is a failure, and a failure must not read as "no base" (#186).
+git_error=""
+if [ -n "$base" ]; then
+  borromeanrings_git_capture merge_base git_error merge-base HEAD "$base"
+  [ $? -le 1 ] || borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's base" "$git_error"
+fi
 if [ -z "$merge_base" ]; then
   echo "no base branch to diff against — nothing to check" >"$log"
   emit_noop "$id" "$cmd" "$log"

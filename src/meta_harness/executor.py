@@ -38,9 +38,10 @@ from pathlib import Path
 
 #: Receipt fields that differ between two honest runs of the same snapshot and are
 #: therefore excluded from the comparison: ``log`` is a path in the executor's own
-#: namespace, and ``content_sha256`` covers that path (it stays *verified* against
-#: its own log on each side — excluded here, never unchecked).
-VOLATILE_FIELDS: tuple[str, ...] = ("log", "content_sha256")
+#: namespace, ``content_sha256`` covers that path (it stays *verified* against its own
+#: log on each side — excluded here, never unchecked), and ``duration_ms`` (#253) is how
+#: long THIS machine took, which two honest runs of the same snapshot never share.
+VOLATILE_FIELDS: tuple[str, ...] = ("log", "content_sha256", "duration_ms")
 
 #: Extras an executor is allowed to add about itself; they describe the executor,
 #: not the check's finding, so they are not part of the equivalence.

@@ -33,6 +33,18 @@ Verified by `tests/unit/test_receipts.py` (every row below is a unit case).
 | Missing / unhashed / corrupt receipt | flagged, fail closed |
 | Determined local forger with the algorithm | **not** prevented — evidence, not proof (see below) |
 
+## What a receipt records about the run itself
+
+`duration_ms` — the check's own wall time, measured from the moment it sourced
+`checks/_lib.sh` to the moment it wrote its receipt, and covered by `content_sha256`
+like every other field: a measurement that could be rewritten afterwards is not one
+anybody could rely on. The gate prints the slowest few (`meta_harness.timings`).
+
+It is a **report, never a rule**: there is no budget, no threshold and no effect on the
+verdict. It is excluded from executor conformance (`SPEC-executor.md` §5.2), because how
+long a machine took says nothing about what the check found. Absent ⇒ *not measured*
+(an older harness, a copied bundle), never zero.
+
 ## Threat model (honest)
 
 The digest algorithm is public; a knowledgeable local editor can re-forge

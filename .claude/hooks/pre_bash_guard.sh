@@ -173,9 +173,11 @@ try:
     configured = Identity(
         name=os.environ.get("cfg_name", ""), email=os.environ.get("cfg_email", "")
     )
+    # What to tell the user, stated from the requirement the decision uses — not from
+    # the raw config, which would claim the display name is required when it is not.
+    wanted = f"{declared.name} <{declared.email}>" if declared.name else declared.email
     v = configured_violation(configured, declared)
     if v:
-        wanted = f"{declared.name} <{declared.email}>" if declared.name else declared.email
         fix = f"git config user.email '{declared.email}'"
         if declared.name:
             fix = f"git config user.name '{declared.name}' && {fix}"
@@ -189,7 +191,7 @@ try:
         if o:
             print(
                 f"Git identity override refused: {o}. borromeanRings requires "
-                f"{cfg.git_name} <{cfg.git_email}> for commits in this repo."
+                f"{wanted} for commits in this repo."
             )
 except Exception:
     pass  # never block on guard error — fail open here (the gate is the backstop)

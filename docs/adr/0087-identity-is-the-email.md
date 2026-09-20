@@ -87,3 +87,11 @@ maintainer-only commits. That is the maintainer's call, not this ADR's.
   time and rewritten by the host on merge. A project that controls its commits can
   require it.
 - (−) One more config key, and one more closed vocabulary to keep in step with the docs.
+- (=) **"Not a git repository" also covers "cannot use this one".** The check asks
+  `git rev-parse --is-inside-work-tree`, and git answers every unusable repository the
+  same way — verified, not assumed: a `.git` directory with mode `000`, and one whose
+  object store has been deleted, both exit 128 with *"fatal: not a git repository"*. So
+  there is nothing at that call to distinguish a broken repository from no repository,
+  and both end in `noop` ("nothing to attribute"), never a `pass`. The `git log` failure
+  this ADR does fail closed on is the one where git tells us something went wrong.
+  (Found by the security review of #257.)

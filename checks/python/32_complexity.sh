@@ -22,7 +22,12 @@ if [ -z "$package" ] || [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -prin
   exit 0
 fi
 
-read -r current worst < <(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
+# Process substitution DISCARDS the tool's exit status — `$?` after `read` belongs to
+# `read`, so even checking it is told the wrong thing. A crashed measurement left
+# `current` empty, the comparison below silently did not fire, and the ratchet passed
+# over a measurement nobody got (#186).
+measurement=""
+if ! measurement="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
 import sys
 
 from meta_harness.complexity import worst_complexity
@@ -30,9 +35,14 @@ from meta_harness.complexity import worst_complexity
 value, name = worst_complexity(sys.argv[1], sys.argv[2])
 print(value, name or "-")
 PY
-)
+)"; then
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "this project's complexity" "$measurement"
+fi
+read -r current worst <<<"$measurement"
+borromeanrings_number_or_fail "$current" "$id" "$cmd" "$log" "this project's complexity"
 # Default baseline is effectively "off" (huge) so an unconfigured project never fails.
-baseline="$(cat "$baseline_file" 2>/dev/null || echo 100000)"
+baseline=""
+borromeanrings_baseline baseline "$baseline_file" 100000 "$id" "$cmd" "$log"
 echo "worst cyclomatic complexity: $current at $worst (baseline $baseline)" >"$log"
 
 status="pass"

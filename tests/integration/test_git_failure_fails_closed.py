@@ -101,6 +101,12 @@ def _receipt(project: Path, check: str) -> tuple[str, str]:
 
 CHECKS = ["09_commits", "11_changelog", "13_adr"]
 
+#: Checks that read which branch HEAD is on. `08_branch` has nothing to violate in the
+#: fixture below (feat/x matches the declared pattern), so it is not in CHECKS — but it
+#: reads the branch the same way, so it is covered by the two tests that matter for
+#: that. `17_prior_art` makes the identical call from the python lane.
+HEAD_READERS = [*CHECKS, "08_branch"]
+
 
 @pytest.mark.parametrize("check", CHECKS)
 def test_the_violation_is_found_when_git_works(tmp_path: Path, check: str) -> None:
@@ -130,7 +136,7 @@ def test_a_git_failure_fails_closed_rather_than_reading_as_no_changes(
     assert "git" in log.lower(), log
 
 
-@pytest.mark.parametrize("check", CHECKS)
+@pytest.mark.parametrize("check", HEAD_READERS)
 def test_a_repository_with_no_commits_is_still_legitimate(tmp_path: Path, check: str) -> None:
     """Measured, not assumed: in a repository with no commits `git rev-parse --abbrev-ref
     HEAD` exits 128, because HEAD names a branch that does not exist yet. That is a
@@ -140,7 +146,10 @@ def test_a_repository_with_no_commits_is_still_legitimate(tmp_path: Path, check:
     (project / "src").mkdir(parents=True)
     (project / "borromeanrings.toml").write_text(CONFIG.format(check=check), encoding="utf-8")
     (project / "CHANGELOG.md").write_text("# Changelog\n\n## [Unreleased]\n", encoding="utf-8")
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=project, check=True)
+    # On a conforming branch: the point here is the empty repository, not the name —
+    # and `symbolic-ref` answering "feat/x" on an unborn branch is itself the evidence
+    # that the fallback reads the real name rather than defaulting to "HEAD".
+    subprocess.run(["git", "init", "-q", "-b", "feat/x"], cwd=project, check=True)
 
     proc = _gate(project)
     status, log = _receipt(project, check)
@@ -149,7 +158,7 @@ def test_a_repository_with_no_commits_is_still_legitimate(tmp_path: Path, check:
     assert proc.returncode == 0, proc.stdout
 
 
-@pytest.mark.parametrize("check", CHECKS)
+@pytest.mark.parametrize("check", HEAD_READERS)
 def test_a_repository_whose_head_cannot_be_read_fails_closed(tmp_path: Path, check: str) -> None:
     """Both ways of asking which branch this is now fail, so the check cannot know which
     rule applies to it. It used to default to the literal "HEAD", which matches no

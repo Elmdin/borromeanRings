@@ -213,8 +213,11 @@ borromeanrings_cannot_read() {
 #   * an ordinary branch  -> `rev-parse --abbrev-ref HEAD` prints it, exit 0;
 #   * a DETACHED head     -> prints "HEAD", exit 0 (the name every check has always used);
 #   * a repository with NO COMMITS YET -> exit 128, because HEAD names a branch that does
-#     not exist — a legitimate state, and `symbolic-ref` still knows the name;
-#   * anything else (no HEAD file, an unreadable .git) -> both fail, and so does the check.
+#     not exist — a legitimate state, and `symbolic-ref` still answers with the name;
+#   * a branch whose ref file is gone -> the same pair of answers, and the NAME is still
+#     what HEAD says it is, which is what a name rule judges. A check that needs the
+#     branch's commits fails closed on its own base/diff call, not here;
+#   * no HEAD at all, or an unreadable .git -> both fail, and so does the check.
 # Defaulting a failed read to "HEAD", as three checks did, silently turns a feature branch
 # into one whose rule does not apply — a pass over a branch nobody identified (#186).
 borromeanrings_head_branch() {

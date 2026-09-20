@@ -60,12 +60,21 @@ never fired, and the ratchet passed over a measurement nobody got.
 
 Two more shared pieces, same shape as the first two:
 
-- `borromeanrings_number_or_fail` — a ratchet compares a measurement to a baseline; if
-  the measurement is not a number there is nothing to compare, and that is a failure
-  naming what the tool printed.
+- `borromeanrings_integer_or_fail` / `borromeanrings_number_or_fail` — a ratchet
+  compares a measurement to a baseline, and **how** it compares decides what counts as a
+  number. `32_complexity` and `33_coupling` use bash's `[ x -gt y ]`, which is
+  integer-only: given `3.5`, or twenty digits, it does not return false — it *errors*,
+  and with no `set -e` the comparison silently does not fire. So each caller says which
+  kind it can actually compare, rather than sharing a validator that accepts "a number".
+  (The first version of this amendment shipped the looser validator to all three; found
+  by the security review of #259.)
 - `borromeanrings_baseline` — **absent** is a legitimate default (an unconfigured
-  project never fails); **unreadable** or non-numeric is a failure. `19_context_budget`
-  already did this; now it is the shared rule rather than one script's good behaviour.
+  project never fails); anything that **exists and cannot be read**, or is not a number
+  of the kind that check compares, is a failure. "Absent" is `! -e && ! -L`, because
+  `-e` follows symlinks and a *dangling* symlink would otherwise answer "does not
+  exist" while being a file that is there and unreadable — the same review found that
+  one too. `19_context_budget` already did this; now it is the shared rule rather than
+  one script's good behaviour.
 
 Converted: `32_complexity`, `33_coupling`, `45_docstrings` (measurement, baseline, and
 the docstring comparison, which is itself a tool call).

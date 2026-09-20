@@ -39,7 +39,7 @@ PY
   borromeanrings_cannot_read "$id" "$cmd" "$log" "this project's complexity" "$measurement"
 fi
 read -r current worst <<<"$measurement"
-borromeanrings_number_or_fail "$current" "$id" "$cmd" "$log" "this project's complexity"
+borromeanrings_integer_or_fail "$current" "$id" "$cmd" "$log" "this project's complexity"
 # Default baseline is effectively "off" (huge) so an unconfigured project never fails.
 baseline=""
 borromeanrings_baseline baseline "$baseline_file" 100000 "$id" "$cmd" "$log"

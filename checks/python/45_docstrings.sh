@@ -38,7 +38,7 @@ PY
 fi
 borromeanrings_number_or_fail "$current" "$id" "$cmd" "$log" "this project's docstring coverage"
 baseline=""
-borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$cmd" "$log"
+borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$cmd" "$log" number
 echo "docstring coverage: $current (baseline $baseline)" >"$log"
 
 # The comparison is itself a tool call: if it cannot run, there is no comparison, and

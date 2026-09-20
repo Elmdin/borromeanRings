@@ -58,7 +58,10 @@ Only a declared field is checked (declare email only ⇒ name is unconstrained).
 ## Fail-closed / edges
 - Not declared ⇒ **`noop`** ("nothing to attribute"). Not `pass`: nothing was inspected,
   and the count of checks that inspected nothing must say so (ADR-0049).
-- Not a git repo ⇒ **`noop`**, same reason.
+- Not a git repo ⇒ **`noop`**, same reason. git answers every unusable repository
+  identically here (an unreadable `.git`, a deleted object store: both *"fatal: not a
+  git repository"*), so this case covers "cannot use this one" too — nothing is
+  attributed either way, and neither is ever a `pass`.
 - **`git log` failed ⇒ `fail`**, naming git's error. The verdict is computed entirely
   from the author list, so an empty list from a broken repository would otherwise print
   "identity OK" over commits nobody read (#186).

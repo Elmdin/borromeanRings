@@ -134,3 +134,14 @@ def test_a_command_merely_mentioning_git_is_not_blocked(project: Path) -> None:
     """Writing a file that talks about git identity must not be mistaken for committing."""
     text = "printf '%s' 'docs mention git -c user.email=someone@example.com commit' > /tmp/x"
     assert '"deny"' not in _run_guard(text, project)
+
+
+def test_a_refusal_states_the_requirement_it_was_decided_against(project: Path) -> None:
+    """The message used to be built from the raw config, so under the default rule it
+    told the user to set a display name the project does not require — advice that would
+    not change the outcome (review of #257)."""
+    out = _run_guard("git commit --author='Wrong <bad@example.com>' -m x", project)
+
+    assert '"deny"' in out, out
+    assert DECLARED_EMAIL in out
+    assert DECLARED_NAME not in out, f"claims the display name is required: {out}"

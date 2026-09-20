@@ -23,9 +23,22 @@ from pathlib import Path
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 CHECKS = BORROMEANRINGS_HOME / "checks"
 
-#: A git call inside a capture, spanning however many lines the author wrote it over —
-#: a call split across lines evaded the first version of this scan (review of #258).
-CAPTURE = re.compile(r"\$\((?:[^()]|\n)*?\bgit\b(?:[^()]|\n)*?\)", re.S)
+#: A git call inside a `$( … )` capture, spanning however many lines the author wrote it
+#: over — a call split across lines evaded the first version of this scan (review of
+#: #258). Whether its status is read is decided below. `[^()]` already matches a
+#: newline: spelling it `(?:[^()]|\n)` as well made the pattern ambiguous, and the scan
+#: hung on the first long line it met.
+CAPTURE = re.compile(r"\$\([^()]*?\bgit\b[^()]*?\)", re.S)
+
+#: Captures that LOSE git's status entirely, so there is nothing a caller could read:
+#: backticks (same as `$( … )`, older spelling), process substitution into `read` or
+#: `mapfile` (`$?` there is the READER's status, not git's), and a pipe into either.
+#: These are always flagged — a careful author checking `$?` would still be fooled.
+STATUSLESS = (
+    re.compile(r"`[^`]*\bgit\b[^`]*`"),
+    re.compile(r"<\(\s*[^()]*?\bgit\b[^()]*?\)", re.S),
+    re.compile(r"\bgit\b[^|\n]*\|\s*(read|mapfile)\b"),
+)
 
 #: Forms that DO read the status, and are what a converted site looks like:
 #:   if ! x="$(git …)"; then …            — the status decides the branch
@@ -87,8 +100,48 @@ def test_the_known_list_describes_real_files() -> None:
         assert (CHECKS / rel).is_file(), f"{rel} is on the known list but does not exist"
 
 
-def _swallowed(text: str) -> list[tuple[int, str]]:
-    """(line number, line) for every git capture whose exit status nobody reads."""
+HEREDOC = re.compile(r"<<-?\s*[\'\"]?([A-Za-z_][A-Za-z0-9_]*)[\'\"]?")
+
+
+def _shell_only(text: str) -> str:
+    """``text`` with heredoc bodies blanked, line numbers preserved.
+
+    Every check embeds Python in a heredoc, and that Python is not shell: its own git
+    calls are the Python-side half of #186, which needs a Python helper and a different
+    scan. Reading them here would flag a Python print that merely quotes a git
+    command in its message as a swallowed call (review of #258).
+    """
+    out: list[str] = []
+    terminator: str | None = None
+    for line in text.splitlines():
+        if terminator is None:
+            out.append(line)
+            match = HEREDOC.search(line)
+            if match:
+                terminator = match.group(1)
+        else:
+            out.append("")
+            if line.strip() == terminator:
+                terminator = None
+    return "\n".join(out)
+
+
+def _is_comment(line: str) -> bool:
+    """A shell comment cannot run. These scripts document themselves at length, and
+    backticks are also how prose quotes a command — `git config user.*` in a header is
+    not a call (review of #258)."""
+    return line.lstrip().startswith("#")
+
+
+def _line_at(text: str, position: int) -> tuple[int, str]:
+    start = text.rfind("\n", 0, position) + 1
+    end = text.find("\n", position)
+    return text.count("\n", 0, position) + 1, text[start : end if end != -1 else len(text)]
+
+
+def _swallowed(source: str) -> list[tuple[int, str]]:
+    """(line number, line) for every git call whose exit status nobody reads."""
+    text = _shell_only(source)
     found: list[tuple[int, str]] = []
     for match in CAPTURE.finditer(text):
         line_start = text.rfind("\n", 0, match.start()) + 1
@@ -98,10 +151,15 @@ def _swallowed(text: str) -> list[tuple[int, str]]:
         statement = text[line_start : stmt_end if stmt_end != -1 else len(text)]
         if GUARDED.search(statement) or HANDLED.search(statement[match.end() - line_start :]):
             continue
-        line_end = text.find("\n", match.start())
-        line = text[line_start : line_end if line_end != -1 else len(text)]
-        found.append((text.count("\n", 0, match.start()) + 1, line.strip()))
-    return found
+        number, line = _line_at(text, match.start())
+        if not _is_comment(line):
+            found.append((number, line.strip()))
+    for pattern in STATUSLESS:
+        for match in pattern.finditer(text):
+            number, line = _line_at(text, match.start())
+            if not _is_comment(line):
+                found.append((number, line.strip()))
+    return sorted(set(found))
 
 
 def test_no_new_check_swallows_a_git_failure() -> None:
@@ -140,6 +198,36 @@ def test_every_way_of_not_reading_the_status_is_flagged() -> None:
         'x="$(git rev-parse HEAD 2>/dev/null || echo HEAD)"',
     ):
         assert _swallowed(swallowed), swallowed
+
+
+def test_python_inside_a_heredoc_is_not_shell() -> None:
+    """Every check embeds Python in a heredoc. Its git calls are the Python-side half of
+    #186 — a different helper and a different scan — and its prose is not a call."""
+    embedded = (
+        "borromeanrings_py - <<'PY'\nprint(\"git is present but `git ls-files` failed\")\nPY\n"
+    )
+
+    assert _swallowed(embedded) == []
+
+
+def test_prose_in_a_comment_is_not_a_call() -> None:
+    """These scripts explain themselves at length, and backticks are how prose quotes a
+    command. Flagging a header comment would make the scan noise."""
+    assert _swallowed("# the repo's transient `git config user.*` is the guard's concern") == []
+    assert _swallowed("  # x=`git log` would be wrong") == []
+
+
+def test_a_capture_that_loses_the_status_entirely_is_flagged() -> None:
+    """Worse than the original bug: after these, `$?` is the reader's status, not git's,
+    so even an author who checks it is told the wrong thing (review of #258). None of
+    them is in the tree today; the scan is what keeps it that way."""
+    for statusless in (
+        "x=`git log --format=%s`",
+        "mapfile -t lines < <(git log --format=%s)",
+        "read -r first < <(git log --format=%s)",
+        "git log --format=%s | read -r first",
+    ):
+        assert _swallowed(statusless), statusless
 
 
 def test_a_call_split_across_lines_is_still_seen() -> None:

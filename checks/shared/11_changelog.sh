@@ -13,17 +13,20 @@ cmd="changelog discipline (presence + Unreleased; optional entry-on-source-chang
 
 # Changed files base..HEAD (same base resolution as 09_commits), for the strict rule.
 base=""
-for candidate in origin/dev dev origin/main main; do
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-    base="$candidate"
-    break
-  fi
-done
+borromeanrings_base_ref base "$id" "$cmd" "$log" origin/dev dev origin/main main || true
+# A git query that FAILS must never read as "nothing changed" (#186): the verdict below
+# is computed from what git returns, so an empty answer from a repository nobody could
+# read would report a clean pass. `merge-base` exits 1 for "no common ancestor", which
+# is an answer, not a failure — anything above that is.
 changed=""
+git_error=""
+merge_base=""
 if [ -n "$base" ]; then
-  merge_base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base" 2>/dev/null || true)"
+  borromeanrings_git_capture merge_base git_error merge-base HEAD "$base"
+  [ $? -le 1 ] || borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's base" "$git_error"
   if [ -n "$merge_base" ]; then
-    changed="$(git -C "$PROJECT_ROOT" diff --name-only "$merge_base"..HEAD 2>/dev/null || true)"
+    borromeanrings_git_capture changed git_error diff --name-only "$merge_base..HEAD" ||
+      borromeanrings_cannot_read "$id" "$cmd" "$log" "what this branch changed" "$git_error"
   fi
 fi
 

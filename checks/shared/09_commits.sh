@@ -14,20 +14,24 @@ cmd="conventional commits over base..HEAD (declared [collaboration].commit_types
 
 # Resolve the comparison base: first existing of dev/main (origin- or local-).
 base=""
-for candidate in origin/dev dev origin/main main; do
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-    base="$candidate"
-    break
-  fi
-done
+borromeanrings_base_ref base "$id" "$cmd" "$log" origin/dev dev origin/main main || true
 
 # Commit list: "<sha>\t<subject>" per line, merges excluded. Empty when no base
 # (nothing to compare) — the Python side then validates nothing, by design.
+# A git query that FAILS must never read as "nothing changed" (#186): the verdict below
+# is computed from what git returns, so an empty answer from a repository nobody could
+# read would report a clean pass. `merge-base` exits 1 for "no common ancestor", which
+# is an answer, not a failure — anything above that is.
 commits=""
+git_error=""
+merge_base=""
 if [ -n "$base" ]; then
-  merge_base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base" 2>/dev/null || true)"
+  borromeanrings_git_capture merge_base git_error merge-base HEAD "$base"
+  [ $? -le 1 ] || borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's base" "$git_error"
   if [ -n "$merge_base" ]; then
-    commits="$(git -C "$PROJECT_ROOT" log --no-merges --format='%H%x09%s' "$merge_base"..HEAD 2>/dev/null || true)"
+    borromeanrings_git_capture commits git_error log --no-merges --format='%H%x09%s' \
+      "$merge_base..HEAD" ||
+      borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's commits" "$git_error"
   fi
 fi
 

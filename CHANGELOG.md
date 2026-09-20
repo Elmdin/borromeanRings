@@ -620,6 +620,17 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- Seven checks decided their verdict from a git query whose failure they discarded
+  (#186, ADR-0088): `x="$(git … 2>/dev/null || true)"`, then a verdict computed from
+  `$x`. A crashed git, a corrupt index or a deleted object store each yield an empty
+  `$x`, which reads as "nothing changed" — so a repository nobody could read reported a
+  clean pass. `09_commits`, `11_changelog`, `13_adr`, `06_git_identity`, `17_prior_art`,
+  `34_api_diff` and `76_lockfile` now share `borromeanrings_git_capture` (git's real
+  exit status, never an empty answer with an empty error) and
+  `borromeanrings_cannot_read` (a `fail` naming what could not be read, in git's own
+  words — not a `noop`, which means "there was nothing to inspect"). A scan keeps the
+  shape from coming back, listing the four remaining sites with the reason each is still
+  there.
 - `06_git_identity` required a commit's *display name* to match the declared one, which
   this project's own merge model cannot produce: GitHub stamps a squash merge with the
   account's profile name, so every commit on `dev` failed on a name while carrying the

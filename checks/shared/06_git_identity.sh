@@ -24,25 +24,22 @@ is_repo="$(git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree 2>/dev/null ||
 # repository would print "git identity OK" over commits nobody read.
 authors=""
 git_error=""
-err="$RECEIPT_DIR/$id.git-error"
 if [ "$is_repo" = "true" ]; then
   base=""
   for ref in main origin/main; do
     if git -C "$PROJECT_ROOT" rev-parse --verify -q "$ref" >/dev/null 2>&1; then base="$ref"; break; fi
   done
   if [ -n "$base" ]; then
-    authors="$(git -C "$PROJECT_ROOT" log --no-merges --format='%an%x09%ae' "$base..HEAD" 2>"$err")" ||
-      git_error="$(tail -3 "$err")"
+    borromeanrings_git_capture authors git_error log --no-merges --format='%an%x09%ae' "$base..HEAD" ||
+      borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's commits" "$git_error"
   else
-    authors="$(git -C "$PROJECT_ROOT" log --no-merges --format='%an%x09%ae' -1 HEAD 2>"$err")" ||
-      git_error="$(tail -3 "$err")"
+    borromeanrings_git_capture authors git_error log --no-merges --format='%an%x09%ae' -1 HEAD ||
+      borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's commits" "$git_error"
   fi
-  rm -f "$err"
 fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" \
   BORROMEANRINGS_IS_REPO="$is_repo" BORROMEANRINGS_AUTHORS="$authors" \
-  BORROMEANRINGS_GIT_ERROR="$git_error" \
   BORROMEANRINGS_NOOP_EXIT="$BORROMEANRINGS_NOOP_EXIT" \
   borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
 import os
@@ -71,12 +68,6 @@ if not is_enforced(declared):
 if os.environ.get("BORROMEANRINGS_IS_REPO") != "true":
     print("not a git repository — nothing to attribute")
     sys.exit(NOOP)
-
-git_error = os.environ.get("BORROMEANRINGS_GIT_ERROR", "").strip()
-if git_error:
-    print("could not list this branch's commits, so their authors cannot be checked:")
-    print(f"  {git_error}")
-    sys.exit(1)
 
 authors = []
 for line in os.environ.get("BORROMEANRINGS_AUTHORS", "").splitlines():

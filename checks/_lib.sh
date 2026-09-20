@@ -146,6 +146,111 @@ borromeanrings_run_bounded() {
   return "$code"
 }
 
+# --- Asking a tool a question, without mistaking "it failed" for "it found nothing" ----
+#
+# The fail-OPEN shape this closes (#186): `x="$(git … 2>/dev/null || true)"`, followed by
+# a verdict computed from `$x`. A crashed git, a corrupt index, a missing object store —
+# each yields an empty `$x`, which reads as "no commits", "no files changed", "nothing to
+# review", and the check reports a clean pass over a tree it never read. Twelve sites had
+# it; this is the helper they share.
+
+# borromeanrings_bounded <stdout-file> <stderr-file> <argv...>
+# Run argv under the check's wall-clock bound, capturing the two streams separately.
+# Same bound and same fallback as borromeanrings_run_bounded, which runs a shell COMMAND
+# and merges the streams into one log; this one runs an ARGV and keeps them apart, so the
+# caller can use the output and still report the error.
+borromeanrings_bounded() {
+  local out="$1" err="$2"; shift 2
+  local secs="${BORROMEANRINGS_CHECK_TIMEOUT:-300}" tbin=""
+  if command -v timeout >/dev/null 2>&1; then
+    tbin="timeout"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    tbin="gtimeout"
+  fi
+  if [ -n "$tbin" ] && [ "$secs" != "0" ]; then
+    "$tbin" -k 10 "$secs" "$@" >"$out" 2>"$err"
+  else
+    "$@" >"$out" 2>"$err"
+  fi
+}
+
+# borromeanrings_git_capture <out-var> <err-var> <git-args...>
+# Ask git something about the GOVERNED project. On success <out-var> holds stdout and
+# <err-var> is empty; on failure <out-var> is empty and <err-var> says what happened,
+# with git's own words. Returns git's exit status, so a caller that cares about a
+# particular code (merge-base exits 1 for "no common ancestor", which is an answer, not
+# a failure) can tell them apart. NEVER returns an empty answer with an empty error.
+borromeanrings_git_capture() {
+  local __out_var="$1" __err_var="$2"; shift 2
+  local out_f="$RECEIPT_DIR/.git-capture.$$.out" err_f="$RECEIPT_DIR/.git-capture.$$.err"
+  local code=0
+  borromeanrings_bounded "$out_f" "$err_f" git -C "$PROJECT_ROOT" "$@" || code=$?
+  if [ "$code" -eq 0 ]; then
+    printf -v "$__out_var" '%s' "$(cat "$out_f")"
+    printf -v "$__err_var" '%s' ""
+  else
+    printf -v "$__out_var" '%s' ""
+    printf -v "$__err_var" '%s' "git $* exited $code: $(tr '\n' ' ' <"$err_f" | tail -c 200)"
+  fi
+  rm -f "$out_f" "$err_f"
+  return "$code"
+}
+
+
+# borromeanrings_cannot_read <id> <cmd> <log> <what> <error>
+# The verdict for "I could not read my inputs": name what could not be read, quote the
+# tool's own words, fail, and exit. Never a pass; never a `noop` either — `noop` means
+# "there was nothing to inspect", which is exactly what is NOT known here (#186).
+borromeanrings_cannot_read() {
+  printf 'could not read %s, so it cannot be checked:\n  %s\n' "$4" "$5" >"$3"
+  emit_receipt "$1" "$2" 1 "$3" "fail"
+  exit 1
+}
+
+
+# borromeanrings_head_branch <out-var> <id> <cmd> <log>
+# The branch HEAD is on, or the verdict that it could not be read. Measured, not assumed:
+#   * an ordinary branch  -> `rev-parse --abbrev-ref HEAD` prints it, exit 0;
+#   * a DETACHED head     -> prints "HEAD", exit 0 (the name every check has always used);
+#   * a repository with NO COMMITS YET -> exit 128, because HEAD names a branch that does
+#     not exist — a legitimate state, and `symbolic-ref` still answers with the name;
+#   * a branch whose ref file is gone -> the same pair of answers, and the NAME is still
+#     what HEAD says it is, which is what a name rule judges. A check that needs the
+#     branch's commits fails closed on its own base/diff call, not here;
+#   * no HEAD at all, or an unreadable .git -> both fail, and so does the check.
+# Defaulting a failed read to "HEAD", as three checks did, silently turns a feature branch
+# into one whose rule does not apply — a pass over a branch nobody identified (#186).
+borromeanrings_head_branch() {
+  local __out_var="$1" id="$2" cmd="$3" log="$4"
+  local err=""
+  borromeanrings_git_capture "$__out_var" err rev-parse --abbrev-ref HEAD && return 0
+  borromeanrings_git_capture "$__out_var" err symbolic-ref --short HEAD && return 0
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "which branch HEAD is on" "$err"
+}
+
+# borromeanrings_base_ref <out-var> <id> <cmd> <log> <candidate>...
+# The first candidate ref that exists, or "" when none does. `rev-parse --verify --quiet`
+# exits 1 for a ref that is simply absent, which is an answer; anything above that is a
+# failure and fails the check, so a repository that cannot be read never resolves to
+# "no base branch — nothing to compare" (#186).
+borromeanrings_base_ref() {
+  local __out_var="$1" id="$2" cmd="$3" log="$4"; shift 4
+  local candidate sha="" err="" code
+  printf -v "$__out_var" '%s' ""
+  for candidate in "$@"; do
+    borromeanrings_git_capture sha err rev-parse --verify --quiet "$candidate"
+    code=$?
+    [ "$code" -le 1 ] ||
+      borromeanrings_cannot_read "$id" "$cmd" "$log" "this project's base branch" "$err"
+    # A ref that resolves to nothing is not a base, whatever the status said.
+    if [ "$code" -eq 0 ] && [ -n "$sha" ]; then
+      printf -v "$__out_var" '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # --- Language-lane helpers (checks/typescript, checks/go; SPEC-multi-language.md, ADR-0068)
 
 # borromeanrings_source_count <src_dir> <suffix>... — how many source files of the lane's

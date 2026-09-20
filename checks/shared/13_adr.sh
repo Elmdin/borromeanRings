@@ -15,17 +15,21 @@ id="13_adr"
 log="$RECEIPT_DIR/$id.log"
 cmd="ADR discipline (feature touching src must record a decision)"
 
-branch="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+branch=""  # assigned by the helper (printf -v, which shellcheck cannot see)
+borromeanrings_head_branch branch "$id" "$cmd" "$log"
 
 base=""
-for candidate in origin/dev dev origin/main main; do
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-    base="$candidate"
-    break
-  fi
-done
+borromeanrings_base_ref base "$id" "$cmd" "$log" origin/dev dev origin/main main || true
+# A git query that FAILS must never read as "nothing changed" (#186): the verdict below
+# is computed from what git returns, so an empty answer from a repository nobody could
+# read would report a clean pass. `merge-base` exits 1 for "no common ancestor", which
+# is an answer, not a failure — anything above that is.
 merge_base=""
-[ -n "$base" ] && merge_base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base" 2>/dev/null || true)"
+git_error=""
+if [ -n "$base" ]; then
+  borromeanrings_git_capture merge_base git_error merge-base HEAD "$base"
+  [ $? -le 1 ] || borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's base" "$git_error"
+fi
 if [ -z "$merge_base" ]; then
   echo "no base branch to diff against — nothing to check" >"$log"
   emit_noop "$id" "$cmd" "$log"
@@ -34,7 +38,9 @@ fi
 
 # --relative yields paths relative to PROJECT_ROOT (correct for a git-root OR a
 # subdirectory-governed project), so the src_dir / adr_dir prefixes match either way.
-changed="$(git -C "$PROJECT_ROOT" diff --relative --name-only "$merge_base"...HEAD 2>/dev/null || true)"
+changed=""  # assigned by the capture below
+borromeanrings_git_capture changed git_error diff --relative --name-only "$merge_base...HEAD" ||
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "what this branch changed" "$git_error"
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/borromeanrings.toml" "$branch" "$changed" >"$log" 2>&1 <<'PY'
 import sys

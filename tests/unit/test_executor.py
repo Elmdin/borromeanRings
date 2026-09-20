@@ -17,8 +17,14 @@ from meta_harness.executor import (
 )
 
 
-def test_volatile_fields_are_exactly_log_and_content_hash() -> None:
-    assert VOLATILE_FIELDS == ("log", "content_sha256")
+def test_volatile_fields_are_exactly_log_content_hash_and_duration() -> None:
+    assert VOLATILE_FIELDS == ("log", "content_sha256", "duration_ms")
+
+
+def test_two_runs_that_took_different_times_are_still_conformant() -> None:
+    """How long a check took is a fact about the machine that ran it (#253); an
+    executor is not non-conformant for being on a busier host."""
+    assert receipt_differences(_receipt(duration_ms=44), _receipt(duration_ms=56)) == ()
 
 
 def test_executor_field_prefix_is_executor() -> None:

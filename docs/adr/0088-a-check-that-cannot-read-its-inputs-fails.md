@@ -112,10 +112,16 @@ pattern — same review), `getattr(done, "stdout")`, `os.popen` and
 `check_output`, which raises. Verified against `dev`'s own copies: it flags all three of
 the calls this amendment converts.
 
-The status must be **used**, not merely mentioned: a bare `done.returncode` statement, or
-one tucked into an unused tuple-unpack, silenced an earlier version of the check while
-`.stdout` was still trusted — a one-line decoy defeating the whole detector. What the
-scan still cannot see is stated in its own header rather than implied: a helper that
+A bare `done.returncode` statement, or one tucked into an unused tuple-unpack, silenced
+an earlier version of the check while `.stdout` was still trusted — a one-line decoy
+defeating the whole detector, so both shapes are now recognised as inert. The scan reads
+**syntax, not intent**: `if done.returncode == 0: pass` satisfies it while doing nothing,
+and no regex settles that. What it catches is the status never being looked at, which is
+the accident this issue is about. (The first attempt at this rule went the other way and
+rejected `rc = done.returncode` followed by `if rc != 0: raise` — correct code — which is
+why the rule now asks whether any mention is *not* inert, rather than pattern-matching
+the good shape.) What the scan still cannot see is stated in its own header rather than
+implied: a helper that
 wraps `subprocess.run` and returns the result (`15_a11y`'s `_git()` is the legitimate
 version of that shape, and its callers do read `.returncode`), and a comprehension
 binding several results. The threat model is the one every text scan in this suite

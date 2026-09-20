@@ -34,11 +34,11 @@ if [ -z "$merge_base" ]; then
 fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$src_dir" "$merge_base" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
-import subprocess
 import sys
 from pathlib import Path
 
 from meta_harness.api_diff import breaking_changes, public_api
+from meta_harness.git_read import GitUnavailable, git_show
 from meta_harness.spine import load_config
 
 root, src_dir, base, config_path = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
@@ -49,12 +49,17 @@ for path in sorted((root / src_dir).rglob("*.py")):
     rel = path.relative_to(root).as_posix()
     # The `<rev>:./<rel>` form resolves relative to root, so this works whether the
     # governed project is a git root or a subdirectory of one.
-    old_src = subprocess.run(  # noqa: git read of a prior version, trusted repo
-        ["git", "-C", str(root), "show", f"{base}:./{rel}"],
-        capture_output=True,
-        text=True,
-    ).stdout
-    if not old_src.strip():
+    # "This file is new" is asked, not inferred from a failure: every failure mode —
+    # a bad base, a missing object, git itself — used to read as "new file — no prior
+    # API to break", so a repository nobody could read reported no breaking changes
+    # having compared nothing (#186).
+    try:
+        old_src = git_show(str(root), base, f"./{rel}")
+    except GitUnavailable as exc:
+        print(f"could not read {rel} at {base}, so the API cannot be compared:")
+        print(f"  {exc}")
+        sys.exit(1)
+    if old_src is None or not old_src.strip():
         continue  # new file — no prior API to break
     breaks = breaking_changes(public_api(old_src), public_api(path.read_text(encoding="utf-8")))
     found += [f"{rel}: {b}" for b in breaks]

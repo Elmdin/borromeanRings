@@ -250,3 +250,65 @@ def test_every_known_site_is_still_one() -> None:
         if not any(snippet in line for _, line in found):
             stale.append(f"{rel}: {snippet}")
     assert not stale, f"converted — remove from KNOWN: {stale}"
+
+
+#: The Python half of the same mistake, inside the heredocs the scan above skips:
+#:     out = subprocess.run(["git", …], capture_output=True).stdout
+#: `.stdout` straight off the call is empty when git FAILED, exactly as it is when git
+#: found nothing. The safe form keeps the result and reads `.returncode`, or uses
+#: `meta_harness.git_read`, which raises (#186, ADR-0088).
+PYTHON_GIT_STDOUT = re.compile(
+    r"subprocess\.run\((?:[^()]|\([^()]*\))*\)\s*\.(stdout|stderr)", re.S
+)
+
+
+def _python_in_heredocs(text: str) -> str:
+    """The inverse of :func:`_shell_only`: only the embedded Python, lines preserved."""
+    out: list[str] = []
+    terminator: str | None = None
+    for line in text.splitlines():
+        if terminator is None:
+            out.append("")
+            match = HEREDOC.search(line)
+            if match:
+                terminator = match.group(1)
+        elif line.strip() == terminator:
+            out.append("")
+            terminator = None
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def test_no_check_takes_stdout_straight_off_a_git_subprocess() -> None:
+    """`74_secret_history` printed "empty history — nothing to scan" and exited 0 over a
+    history it could not read, because `.stdout` is empty either way."""
+    offenders: list[str] = []
+    for script in _scripts():
+        python = _python_in_heredocs(script.read_text(encoding="utf-8"))
+        for match in PYTHON_GIT_STDOUT.finditer(python):
+            if '"git"' not in match.group(0) and "'git'" not in match.group(0):
+                continue
+            number, line = _line_at(python, match.start())
+            offenders.append(f"{script.relative_to(CHECKS)}:{number}: {line.strip()}")
+    assert not offenders, (
+        "a git subprocess whose .stdout is taken without reading its status (#186):\n"
+        + "\n".join(offenders)
+        + "\nUse meta_harness.git_read, which raises GitUnavailable."
+    )
+
+
+def test_the_python_scan_sees_the_shape_it_is_about() -> None:
+    """Both halves pinned: the fail-open form is flagged, and the form that keeps the
+    result to read `.returncode` is not."""
+    bad = 'x = subprocess.run(["git", "-C", root, "log"], capture_output=True).stdout\n'
+    good = (
+        'done = subprocess.run(["git", "-C", root, "log"], capture_output=True)\n'
+        "if done.returncode != 0:\n    fail()\n"
+    )
+    wrapped = "cmd <<'PY'\n" + bad + "PY\n"
+
+    assert PYTHON_GIT_STDOUT.search(bad)
+    assert not PYTHON_GIT_STDOUT.search(good)
+    assert PYTHON_GIT_STDOUT.search(_python_in_heredocs(wrapped))
+    assert _swallowed(wrapped) == [], "the shell scan must not double-report it"

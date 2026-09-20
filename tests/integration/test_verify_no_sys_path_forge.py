@@ -168,7 +168,7 @@ _PROJECT_CODE_RUNS = (
     (re.compile(r'python3 -c \\"import \$package\\"'), "00_build imports the package"),
     (
         re.compile(r'^\s*cd "\$PROJECT_ROOT" && python3 - <<'),
-        "27_properties asks whether the PROJECT's env has the runner it is about to use",
+        "a check asks whether the PROJECT's env has the runner it is about to use",
     ),
 )
 

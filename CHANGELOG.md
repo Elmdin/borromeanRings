@@ -528,6 +528,14 @@ queue is merged.
     (ADR-0033).
 
 ### Changed
+- The full test lane runs the suite in parallel when the project has `pytest-xdist`
+  (#253, ADR-0086). This suite took 18m 47s serially and hit the 900s check bound on
+  `dev`, which #252 raised to 1800s to unblock the merge queue; across one worker per
+  CPU the same suite takes 3m 53s with identical results and identical coverage. Without
+  `pytest-xdist` it runs exactly as before — a governed project is never required to
+  install anything — and the check's log says which way it ran. Tests now declare what
+  they share (`XDIST_GROUP`): two files that gate the same in-repo project were reading
+  each other's runs.
 - `borromeanrings-research` skill token audit (ADR-0060, issue #47): the skill's static
   cost is measured at 4176 B → 3692 B (`docs/research/RESEARCH-SKILL-TOKEN-AUDIT.md`,
   per-file and per-section), and the dynamic drivers are traced and ranked — working state

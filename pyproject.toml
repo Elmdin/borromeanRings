@@ -28,6 +28,8 @@ dev = [
   "mypy==1.19.1",
   "pytest==9.0.3",
   "pytest-cov==7.0.0",
+  # The full test lane runs in parallel when this is present (#253, ADR-0086).
+  "pytest-xdist==3.8.0",
   "bandit==1.9.4",
   "pip-audit==2.10.0",
   "mutmut==3.6.0",
@@ -61,7 +63,9 @@ python_version = "3.12"
 strict = true
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+# "tests" too: tests/_scheduling.py is test support (how work is handed to parallel
+# workers, #253) and is imported by tests/conftest.py and its own unit test.
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 addopts = "-q"
 

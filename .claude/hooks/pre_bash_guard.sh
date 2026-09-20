@@ -162,22 +162,26 @@ try:
         Identity,
         command_override_violation,
         configured_violation,
+        required_identity,
     )
     from meta_harness.spine import load_config
 
     cfg = load_config(sys.argv[1])
-    declared = Identity(name=cfg.git_name, email=cfg.git_email)
+    # What the project requires of an author ([git].require, #229). The guard and the
+    # gate must want the same thing, or a commit the guard allows fails the gate.
+    declared = required_identity(cfg.git_name, cfg.git_email, cfg.git_require)
     configured = Identity(
         name=os.environ.get("cfg_name", ""), email=os.environ.get("cfg_email", "")
     )
+    # What to tell the user, stated from the requirement the decision uses — not from
+    # the raw config, which would claim the display name is required when it is not.
+    wanted = f"{declared.name} <{declared.email}>" if declared.name else declared.email
     v = configured_violation(configured, declared)
     if v:
-        print(
-            f"Wrong git identity for this repo: {v}. borromeanRings requires "
-            f"{cfg.git_name} <{cfg.git_email}>. Fix: "
-            f"git config user.name '{cfg.git_name}' && "
-            f"git config user.email '{cfg.git_email}'."
-        )
+        fix = f"git config user.email '{declared.email}'"
+        if declared.name:
+            fix = f"git config user.name '{declared.name}' && {fix}"
+        print(f"Wrong git identity for this repo: {v}. borromeanRings requires {wanted}. Fix: {fix}.")
     else:
         # Correct repo config does not mean a correct COMMIT: --author,
         # -c user.email= and the GIT_AUTHOR_*/GIT_COMMITTER_* variables each
@@ -187,7 +191,7 @@ try:
         if o:
             print(
                 f"Git identity override refused: {o}. borromeanRings requires "
-                f"{cfg.git_name} <{cfg.git_email}> for commits in this repo."
+                f"{wanted} for commits in this repo."
             )
 except Exception:
     pass  # never block on guard error — fail open here (the gate is the backstop)

@@ -25,6 +25,20 @@ class Identity:
     email: str
 
 
+def required_identity(name: str, email: str, require: str) -> Identity:
+    """The identity a commit must match, given what the project requires (#229).
+
+    Every rule below checks only the fields that are *set*, so a requirement is
+    expressed by what the declared identity carries: under ``email`` the display name is
+    dropped, because it is a profile field on whichever host performed the merge —
+    GitHub stamps a squash merge with the account's profile name, and no local
+    ``user.name`` survives that. The address is the durable identity, and the one a
+    project actually specifies. ``email+name`` keeps both, for a project that controls
+    how every one of its commits is made.
+    """
+    return Identity(name=name if require == "email+name" else "", email=email)
+
+
 def is_enforced(declared: Identity) -> bool:
     """True iff the project declared an identity to enforce (any field set)."""
     return bool(declared.email or declared.name)

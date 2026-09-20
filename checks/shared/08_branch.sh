@@ -16,7 +16,8 @@ id="08_branch"
 log="$RECEIPT_DIR/$id.log"
 cmd="branch policy (declared [collaboration].branch_patterns / protected_branches)"
 
-branch="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+branch=""  # assigned by the helper (printf -v, which shellcheck cannot see)
+borromeanrings_head_branch branch "$id" "$cmd" "$log"
 
 # Commits on HEAD that its remote counterpart lacks: the upstream if set, else
 # origin/<branch> if it exists, else unknown (empty ⇒ the rule cannot judge).

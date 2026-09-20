@@ -63,18 +63,30 @@ the same gap on a sibling branch because the fix lived in one script.
 
 ## Consequences
 
-- (+) Seven sites converted in one change, each with a test that fails on the old code:
-  `09_commits`, `11_changelog`, `13_adr` (twice), `06_git_identity`, `17_prior_art`,
-  `34_api_diff`, `76_lockfile`.
-- (+) The next check that asks git something has a helper to use and a test that notices
-  if it does not.
-- (−) Four sites remain on the old shape, listed in the scan with their reasons: two
-  `rev-parse --show-prefix` probes where a failure means "no repository", `08_branch`'s
-  upstream probe (where "no upstream" is the documented answer), and
+- (+) Ten sites converted in one change, each with a test that fails on the old code:
+  `09_commits`, `11_changelog`, `13_adr` (branch, base and diff), `06_git_identity`,
+  `17_prior_art` (branch, base, diff), `34_api_diff`, `76_lockfile`, `08_branch`
+  (branch) — plus the base-branch resolution every one of them shares.
+- (+) Two more helpers where the reasoning was being re-derived per check:
+  `borromeanrings_head_branch` (which branch is this?) and `borromeanrings_base_ref`
+  (what do we diff against?), both fail-closed.
+- (+) **Legitimate states stay legitimate, and are measured rather than assumed.** In a
+  repository with *no commits yet* `git rev-parse --abbrev-ref HEAD` exits 128 — HEAD
+  names a branch that does not exist — so a naive "any failure fails the check" would
+  turn every freshly initialised project red. `symbolic-ref` still knows the name, and a
+  test pins it. A detached HEAD exits 0 with the name "HEAD", as it always has.
+- (+) The scan reads a capture across however many lines it spans, and does not flag the
+  guarded `if ! x="$(git …)"` form, which reads the status and is the shape being
+  converted *to*. Both are pinned by their own tests. (The first version was per-line and
+  keyed by file — it missed a wrapped call and one exemption excused a whole script.
+  Found by the security review of this PR.)
+- (−) Four calls remain on the old shape, listed in the scan **line by line** with the
+  reason each is there: `08_branch`'s upstream probe and its `rev-list --count` (where
+  "cannot judge" is the documented answer), two `rev-parse --show-prefix` probes, and
   `06_git_identity`'s repository probe (ADR-0087 records why git cannot distinguish the
   cases there).
 - (−) The Python-side sites (`74_secret_history`, `34_api_diff`'s `git show`) need the
   same idea in Python — `subprocess.run(...)` without `check=`, whose `.stdout` decides
   the verdict. They are still open under #186 and are not covered by the shell scan.
-- (−) `printf -v` is how the helper returns a value, and shellcheck cannot see that as an
-  assignment; converted sites declare the variable first, with a comment saying why.
+- (−) `printf -v` is how these helpers return a value, and shellcheck cannot see that as
+  an assignment; converted sites declare the variable first, with a comment saying why.

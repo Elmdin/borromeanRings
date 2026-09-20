@@ -20,14 +20,11 @@ id="17_prior_art"
 log="$RECEIPT_DIR/$id.log"
 cmd="prior-art discipline (new public surface needs a recorded survey)"
 
-branch="$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
+branch=""  # assigned by the helper (printf -v, which shellcheck cannot see)
+borromeanrings_head_branch branch "$id" "$cmd" "$log"
 
 base=""
-for candidate in origin/dev dev origin/main main; do
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-    base="$candidate"; break
-  fi
-done
+borromeanrings_base_ref base "$id" "$cmd" "$log" origin/dev dev origin/main main || true
 merge_base=""
 # `merge-base` exits 1 for "no common ancestor", which is an answer; anything above that
 # is a failure, and a failure must not read as "no base" (#186).

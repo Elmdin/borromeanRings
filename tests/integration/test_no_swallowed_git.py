@@ -27,13 +27,15 @@ CHECKS = BORROMEANRINGS_HOME / "checks"
 #: a call split across lines evaded the first version of this scan (review of #258).
 CAPTURE = re.compile(r"\$\((?:[^()]|\n)*?\bgit\b(?:[^()]|\n)*?\)", re.S)
 
-#: Inside such a capture: the status explicitly thrown away, or stderr silenced.
-DISCARDED = re.compile(r"\|\|\s*(true|echo\b)|2>\s*/dev/null")
-
-#: The guarded form — `if ! x="$(git …)"; then` — READS the status, which is the point.
-#: Not an offender, and it must not be flagged or the scan trains people to ignore it.
+#: Forms that DO read the status, and are what a converted site looks like:
+#:   if ! x="$(git …)"; then …            — the status decides the branch
+#:   x="$(git …)" || borromeanrings_…     — the status decides what happens next
+#: `|| true`, `|| :` and `|| echo …` are NOT among them: they discard it by design.
+#: Everything else is flagged. An earlier version only looked for the two literal
+#: suppression idioms, so a plain `x="$(git …)"` whose `$?` nobody reads — the most
+#: ordinary way to regress — passed straight through (review of #258).
 GUARDED = re.compile(r"\b(el)?if\s+!")
-
+HANDLED = re.compile(r"\|\|\s*(?!true\b|:\s|echo\b)\S")
 
 #: Lines not yet converted, each with why it is still there. Keyed by the line's own
 #: text, NOT by file: one legitimate exemption must not excuse every other swallowed git
@@ -86,17 +88,18 @@ def test_the_known_list_describes_real_files() -> None:
 
 
 def _swallowed(text: str) -> list[tuple[int, str]]:
-    """(line number, the offending line) for every git capture that discards its status."""
+    """(line number, line) for every git capture whose exit status nobody reads."""
     found: list[tuple[int, str]] = []
     for match in CAPTURE.finditer(text):
-        body = match.group(0)
-        if not DISCARDED.search(body):
-            continue
         line_start = text.rfind("\n", 0, match.start()) + 1
+        # The whole statement: the capture may end lines below where it started, and the
+        # `|| handler` that reads its status comes after it.
+        stmt_end = text.find("\n", match.end())
+        statement = text[line_start : stmt_end if stmt_end != -1 else len(text)]
+        if GUARDED.search(statement) or HANDLED.search(statement[match.end() - line_start :]):
+            continue
         line_end = text.find("\n", match.start())
         line = text[line_start : line_end if line_end != -1 else len(text)]
-        if GUARDED.search(line):
-            continue
         found.append((text.count("\n", 0, match.start()) + 1, line.strip()))
     return found
 
@@ -115,13 +118,28 @@ def test_no_new_check_swallows_a_git_failure() -> None:
     )
 
 
-def test_the_guarded_form_is_not_flagged() -> None:
-    """`if ! x="$(git …)"; then` reads the status. Flagging it would train the next
-    author to ignore this scan."""
+def test_a_form_that_reads_the_status_is_not_flagged() -> None:
+    """Both shapes a converted site uses. Flagging them would train the next author to
+    ignore this scan."""
     guarded = 'if ! merge_base="$(git -C "$ROOT" merge-base HEAD "$base" 2>/dev/null)"; then'
+    handled = 'changed="$(git -C "$ROOT" diff --name-only HEAD)" || borromeanrings_cannot_read x'
 
     assert _swallowed(guarded) == []
-    assert _swallowed('x="$(git log 2>/dev/null || true)"')
+    assert _swallowed(handled) == []
+
+
+def test_every_way_of_not_reading_the_status_is_flagged() -> None:
+    """The scan used to look only for `|| true` and `2>/dev/null`, so the most ordinary
+    regression — a capture whose `$?` nobody ever reads — went unnoticed, and `|| :`
+    walked past it too (review of #258)."""
+    for swallowed in (
+        'x="$(git log --format=%s 2>/dev/null || true)"',
+        'x="$(git log --format=%s || :)"',
+        'x="$(git log --format=%s)"',  # nothing suppressed, nothing read either
+        'x="$(git log --format=%s 2>"$err")"',
+        'x="$(git rev-parse HEAD 2>/dev/null || echo HEAD)"',
+    ):
+        assert _swallowed(swallowed), swallowed
 
 
 def test_a_call_split_across_lines_is_still_seen() -> None:

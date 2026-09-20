@@ -75,16 +75,19 @@ the same gap on a sibling branch because the fix lived in one script.
   names a branch that does not exist — so a naive "any failure fails the check" would
   turn every freshly initialised project red. `symbolic-ref` still knows the name, and a
   test pins it. A detached HEAD exits 0 with the name "HEAD", as it always has.
-- (+) The scan reads a capture across however many lines it spans, and does not flag the
-  guarded `if ! x="$(git …)"` form, which reads the status and is the shape being
-  converted *to*. Both are pinned by their own tests. (The first version was per-line and
-  keyed by file — it missed a wrapped call and one exemption excused a whole script.
-  Found by the security review of this PR.)
-- (−) Four calls remain on the old shape, listed in the scan **line by line** with the
-  reason each is there: `08_branch`'s upstream probe and its `rev-list --count` (where
-  "cannot judge" is the documented answer), two `rev-parse --show-prefix` probes, and
-  `06_git_identity`'s repository probe (ADR-0087 records why git cannot distinguish the
-  cases there).
+- (+) The scan flags **any** git capture whose exit status nobody reads, not just the two
+  literal suppression idioms: a plain `x="$(git …)"` with no `$?` check is the most
+  ordinary way to regress, and the first two versions of this scan let it through. It
+  reads a capture across however many lines it spans, and exempts the two forms that DO
+  read the status (`if ! x="$(git …)"` and `x="$(git …)" || handler`) — the shapes a
+  converted site has. Each is pinned by its own test. (Per-line keying, the wrapped-call
+  blind spot and the unread-status blind spot were all found by the security review of
+  this PR, over two passes.)
+- (−) **Five** calls remain on the old shape, listed in the scan **line by line** with
+  the reason each is there: `08_branch`'s upstream probe and its `rev-list --count`
+  (where "cannot judge" is the documented answer), two `rev-parse --show-prefix` probes,
+  and `06_git_identity`'s repository probe (ADR-0087 records why git cannot distinguish
+  the cases there).
 - (−) The Python-side sites (`74_secret_history`, `34_api_diff`'s `git show`) need the
   same idea in Python — `subprocess.run(...)` without `check=`, whose `.stdout` decides
   the verdict. They are still open under #186 and are not covered by the shell scan.

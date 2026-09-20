@@ -33,7 +33,10 @@ built). Each check's rationale lives in its ADR (`docs/adr/`).
   narrows to the project's declared `[test].fast_paths` and skips the coverage ratchet, so a
   turn is not held for the whole suite. A fast-lane result is labelled partial everywhere it
   is reported — verdict line, check row, receipt, `last_verdict.json` — and declaring no fast
-  paths means no fast lane at all (ADR-0081).
+  paths means no fast lane at all (ADR-0081). In the full and heavy lanes the suite runs
+  across one worker per CPU when the project has `pytest-xdist`, and serially when it does
+  not; the check's log says which, and `BORROMEANRINGS_TEST_WORKERS` overrides the count
+  (ADR-0086).
 - **Opt-in, per check *and* per project.** Nothing is enabled by default; you choose.
 
 ## Enabling checks in a project

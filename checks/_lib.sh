@@ -146,6 +146,67 @@ borromeanrings_run_bounded() {
   return "$code"
 }
 
+# --- Asking a tool a question, without mistaking "it failed" for "it found nothing" ----
+#
+# The fail-OPEN shape this closes (#186): `x="$(git … 2>/dev/null || true)"`, followed by
+# a verdict computed from `$x`. A crashed git, a corrupt index, a missing object store —
+# each yields an empty `$x`, which reads as "no commits", "no files changed", "nothing to
+# review", and the check reports a clean pass over a tree it never read. Twelve sites had
+# it; this is the helper they share.
+
+# borromeanrings_bounded <stdout-file> <stderr-file> <argv...>
+# Run argv under the check's wall-clock bound, capturing the two streams separately.
+# Same bound and same fallback as borromeanrings_run_bounded, which runs a shell COMMAND
+# and merges the streams into one log; this one runs an ARGV and keeps them apart, so the
+# caller can use the output and still report the error.
+borromeanrings_bounded() {
+  local out="$1" err="$2"; shift 2
+  local secs="${BORROMEANRINGS_CHECK_TIMEOUT:-300}" tbin=""
+  if command -v timeout >/dev/null 2>&1; then
+    tbin="timeout"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    tbin="gtimeout"
+  fi
+  if [ -n "$tbin" ] && [ "$secs" != "0" ]; then
+    "$tbin" -k 10 "$secs" "$@" >"$out" 2>"$err"
+  else
+    "$@" >"$out" 2>"$err"
+  fi
+}
+
+# borromeanrings_git_capture <out-var> <err-var> <git-args...>
+# Ask git something about the GOVERNED project. On success <out-var> holds stdout and
+# <err-var> is empty; on failure <out-var> is empty and <err-var> says what happened,
+# with git's own words. Returns git's exit status, so a caller that cares about a
+# particular code (merge-base exits 1 for "no common ancestor", which is an answer, not
+# a failure) can tell them apart. NEVER returns an empty answer with an empty error.
+borromeanrings_git_capture() {
+  local __out_var="$1" __err_var="$2"; shift 2
+  local out_f="$RECEIPT_DIR/.git-capture.$$.out" err_f="$RECEIPT_DIR/.git-capture.$$.err"
+  local code=0
+  borromeanrings_bounded "$out_f" "$err_f" git -C "$PROJECT_ROOT" "$@" || code=$?
+  if [ "$code" -eq 0 ]; then
+    printf -v "$__out_var" '%s' "$(cat "$out_f")"
+    printf -v "$__err_var" '%s' ""
+  else
+    printf -v "$__out_var" '%s' ""
+    printf -v "$__err_var" '%s' "git $* exited $code: $(tr '\n' ' ' <"$err_f" | tail -c 200)"
+  fi
+  rm -f "$out_f" "$err_f"
+  return "$code"
+}
+
+
+# borromeanrings_cannot_read <id> <cmd> <log> <what> <error>
+# The verdict for "I could not read my inputs": name what could not be read, quote the
+# tool's own words, fail, and exit. Never a pass; never a `noop` either — `noop` means
+# "there was nothing to inspect", which is exactly what is NOT known here (#186).
+borromeanrings_cannot_read() {
+  printf 'could not read %s, so it cannot be checked:\n  %s\n' "$4" "$5" >"$3"
+  emit_receipt "$1" "$2" 1 "$3" "fail"
+  exit 1
+}
+
 # --- Language-lane helpers (checks/typescript, checks/go; SPEC-multi-language.md, ADR-0068)
 
 # borromeanrings_source_count <src_dir> <suffix>... — how many source files of the lane's

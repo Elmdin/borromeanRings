@@ -29,7 +29,13 @@ for candidate in origin/dev dev origin/main main; do
   fi
 done
 merge_base=""
-[ -n "$base" ] && merge_base="$(git -C "$PROJECT_ROOT" merge-base HEAD "$base" 2>/dev/null || true)"
+# `merge-base` exits 1 for "no common ancestor", which is an answer; anything above that
+# is a failure, and a failure must not read as "no base" (#186).
+git_error=""
+if [ -n "$base" ]; then
+  borromeanrings_git_capture merge_base git_error merge-base HEAD "$base"
+  [ $? -le 1 ] || borromeanrings_cannot_read "$id" "$cmd" "$log" "this branch's base" "$git_error"
+fi
 if [ -z "$merge_base" ]; then
   echo "no base branch to diff against — nothing to check" >"$log"
   emit_noop "$id" "$cmd" "$log"
@@ -38,7 +44,9 @@ fi
 
 # --relative keeps paths correct for a git-root OR subdirectory project; the prefix is
 # what `git show <rev>:<path>` needs to reach the same files from the repo root.
-changed="$(git -C "$PROJECT_ROOT" diff --relative --name-only "$merge_base"...HEAD 2>/dev/null || true)"
+changed=""  # assigned by the capture below (printf -v, which shellcheck cannot see)
+borromeanrings_git_capture changed git_error diff --relative --name-only "$merge_base...HEAD" ||
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "what this branch changed" "$git_error"
 git_prefix="$(git -C "$PROJECT_ROOT" rev-parse --show-prefix 2>/dev/null || true)"
 # Fail closed if the config cannot be read: an empty src_dir would make every path fall
 # outside the source prefix and the check would report noop for a broken spine.

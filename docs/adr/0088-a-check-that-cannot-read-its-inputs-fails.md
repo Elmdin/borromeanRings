@@ -112,6 +112,16 @@ pattern — same review), `getattr(done, "stdout")`, `os.popen` and
 `check_output`, which raises. Verified against `dev`'s own copies: it flags all three of
 the calls this amendment converts.
 
+The status must be **used**, not merely mentioned: a bare `done.returncode` statement, or
+one tucked into an unused tuple-unpack, silenced an earlier version of the check while
+`.stdout` was still trusted — a one-line decoy defeating the whole detector. What the
+scan still cannot see is stated in its own header rather than implied: a helper that
+wraps `subprocess.run` and returns the result (`15_a11y`'s `_git()` is the legitimate
+version of that shape, and its callers do read `.returncode`), and a comprehension
+binding several results. The threat model is the one every text scan in this suite
+declares — an *accidental* regression by a harness author, not an author working around
+the scan, which is a code-review problem.
+
 ## Alternatives considered
 
 - **Fix each site by hand, no helper.** How the last three attempts went (#164, #179, and

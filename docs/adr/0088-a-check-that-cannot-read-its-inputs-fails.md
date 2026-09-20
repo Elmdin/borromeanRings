@@ -97,11 +97,20 @@ reported no breaking changes having compared nothing.
 raise `GitUnavailable` carrying git's own words instead of returning an empty answer, and
 `git_show` asks whether a path existed at a revision (`ls-tree`) rather than inferring it
 from a failure. Every call is bounded by `BORROMEANRINGS_CHECK_TIMEOUT`, which also
-closes the Python half of #256.
+closes the Python half of #256 — including when that variable holds something that is
+not a finite number: `nan` and `inf` parse as floats without raising, and `nan <= 0` is
+False, so a naive guard passed them straight to `subprocess.run`, where they wait
+forever. Anything not finite falls back to the default, never to "unbounded" (found by
+the security review of #260).
 
 The scan grew a second half for this, reading exactly the heredoc bodies the first half
-skips: `.stdout` taken straight off a `subprocess.run` that invokes git. Verified against
-`dev`'s own copy of the check — it flags both of the calls this amendment converts.
+skips. It flags a git subprocess whose status nobody reads in any of its spellings:
+`.stdout` chained straight off the call, the two-line `done = subprocess.run(…)` /
+`done.stdout` (the most natural way to reintroduce the bug, and invisible to the chained
+pattern — same review), `getattr(done, "stdout")`, `os.popen` and
+`Popen(…).communicate()`. It does not flag reading `.returncode` first, nor
+`check_output`, which raises. Verified against `dev`'s own copies: it flags all three of
+the calls this amendment converts.
 
 ## Alternatives considered
 

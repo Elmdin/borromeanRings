@@ -17,6 +17,7 @@ rather than holding the gate.
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess  # nosec B404 — fixed argv, no shell; reads the governed repository
 
@@ -34,11 +35,20 @@ class GitUnavailable(RuntimeError):
 
 
 def _timeout() -> float | None:
+    """The bound in seconds, or ``None`` when it is deliberately disabled.
+
+    ``nan`` and ``inf`` parse as floats without raising, and ``nan <= 0`` is False, so a
+    naive guard let both through and ``subprocess.run(timeout=nan)`` waits forever: the
+    bound silently defeated by a value that is not a number (review of #260). Anything
+    that is not a finite number falls back to the default — never to "unbounded".
+    """
     raw = os.environ.get(TIMEOUT_ENV, "")
     try:
-        seconds = float(raw) if raw.strip() else DEFAULT_TIMEOUT_S
+        seconds = float(raw) if raw.strip() else float(DEFAULT_TIMEOUT_S)
     except ValueError:
-        seconds = DEFAULT_TIMEOUT_S
+        seconds = float(DEFAULT_TIMEOUT_S)
+    if not math.isfinite(seconds):
+        seconds = float(DEFAULT_TIMEOUT_S)
     return None if seconds <= 0 else seconds
 
 

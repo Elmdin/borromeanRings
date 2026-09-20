@@ -261,6 +261,20 @@ PYTHON_GIT_STDOUT = re.compile(
     r"subprocess\.run\((?:[^()]|\([^()]*\))*\)\s*\.(stdout|stderr)", re.S
 )
 
+#: The same thing written over two lines — `done = subprocess.run(…)` and `done.stdout`
+#: later — which is the most natural way to reintroduce the bug and which the chained
+#: pattern above does not see (review of #260). Flagged unless that name's
+#: `.returncode` is read somewhere.
+PYTHON_GIT_ASSIGN = re.compile(
+    r"(?P<name>\w+)\s*=\s*subprocess\.run\((?:[^()]|\([^()]*\))*\)", re.S
+)
+
+#: Ways of running a command that DISCARD the status outright: `os.popen` (status only
+#: via `.close()`, which nobody reads) and `Popen(...).communicate()` (status only via
+#: `.returncode` afterwards). `subprocess.check_output` is NOT here: it raises on a
+#: non-zero exit, which is the behaviour this whole issue is about.
+PYTHON_STATUSLESS = re.compile(r"\bos\.popen\(|\.communicate\(")
+
 
 def _python_in_heredocs(text: str) -> str:
     """The inverse of :func:`_shell_only`: only the embedded Python, lines preserved."""
@@ -280,35 +294,74 @@ def _python_in_heredocs(text: str) -> str:
     return "\n".join(out)
 
 
-def test_no_check_takes_stdout_straight_off_a_git_subprocess() -> None:
+def _python_git_offenders(python: str) -> list[tuple[int, str]]:
+    """Git read from Python whose exit status nobody reads."""
+    found: list[tuple[int, str]] = [
+        _line_at(python, match.start())
+        for match in PYTHON_GIT_STDOUT.finditer(python)
+        if '"git"' in match.group(0) or "'git'" in match.group(0)
+    ]
+    for match in PYTHON_GIT_ASSIGN.finditer(python):
+        call = match.group(0)
+        if '"git"' not in call and "'git'" not in call:
+            continue
+        name = match.group("name")
+        if re.search(rf"\b{re.escape(name)}\.returncode\b", python):
+            continue  # the status IS read — the safe form
+        if re.search(rf"\b{re.escape(name)}\.(stdout|stderr)\b", python) or re.search(
+            rf"getattr\(\s*{re.escape(name)}\s*,", python
+        ):
+            found.append(_line_at(python, match.start()))
+    for match in PYTHON_STATUSLESS.finditer(python):
+        number, line = _line_at(python, match.start())
+        if "git" in line:
+            found.append((number, line))
+    return sorted({(number, line.strip()) for number, line in found})
+
+
+def test_no_check_reads_git_from_python_without_reading_its_status() -> None:
     """`74_secret_history` printed "empty history — nothing to scan" and exited 0 over a
     history it could not read, because `.stdout` is empty either way."""
     offenders: list[str] = []
     for script in _scripts():
         python = _python_in_heredocs(script.read_text(encoding="utf-8"))
-        for match in PYTHON_GIT_STDOUT.finditer(python):
-            if '"git"' not in match.group(0) and "'git'" not in match.group(0):
-                continue
-            number, line = _line_at(python, match.start())
-            offenders.append(f"{script.relative_to(CHECKS)}:{number}: {line.strip()}")
+        for number, line in _python_git_offenders(python):
+            offenders.append(f"{script.relative_to(CHECKS)}:{number}: {line}")
     assert not offenders, (
-        "a git subprocess whose .stdout is taken without reading its status (#186):\n"
+        "a git subprocess whose status nobody reads (#186):\n"
         + "\n".join(offenders)
         + "\nUse meta_harness.git_read, which raises GitUnavailable."
     )
 
 
-def test_the_python_scan_sees_the_shape_it_is_about() -> None:
-    """Both halves pinned: the fail-open form is flagged, and the form that keeps the
-    result to read `.returncode` is not."""
+def test_every_way_of_ignoring_a_git_subprocess_status_is_flagged() -> None:
+    """The chained form was all the first version saw; these are the rewrites that
+    reintroduce the same bug (review of #260)."""
+    for swallowed in (
+        'x = subprocess.run(["git", "-C", root, "log"], capture_output=True).stdout',
+        'done = subprocess.run(["git", "log"], capture_output=True)\nout = done.stdout',
+        'done = subprocess.run(["git", "log"])\nout = getattr(done, "stdout")',
+        'out = os.popen("git log").read()',
+        'out, _ = subprocess.Popen(["git", "log"]).communicate()',
+    ):
+        assert _python_git_offenders(swallowed), swallowed
+
+
+def test_reading_the_status_is_not_flagged() -> None:
+    """The form 15_a11y and 16_shellcheck already use, and the one that raises."""
+    for safe in (
+        'done = subprocess.run(["git", "log"], capture_output=True)\n'
+        "if done.returncode != 0:\n    fail()\nout = done.stdout",
+        'out = subprocess.check_output(["git", "log"])  # raises on a non-zero exit',
+        'out = git_text(root, "log")',
+    ):
+        assert _python_git_offenders(safe) == [], safe
+
+
+def test_the_python_scan_reads_only_the_heredocs_the_shell_scan_skips() -> None:
+    """The two halves partition the file between them: neither double-reports."""
     bad = 'x = subprocess.run(["git", "-C", root, "log"], capture_output=True).stdout\n'
-    good = (
-        'done = subprocess.run(["git", "-C", root, "log"], capture_output=True)\n'
-        "if done.returncode != 0:\n    fail()\n"
-    )
     wrapped = "cmd <<'PY'\n" + bad + "PY\n"
 
-    assert PYTHON_GIT_STDOUT.search(bad)
-    assert not PYTHON_GIT_STDOUT.search(good)
-    assert PYTHON_GIT_STDOUT.search(_python_in_heredocs(wrapped))
+    assert _python_git_offenders(_python_in_heredocs(wrapped))
     assert _swallowed(wrapped) == [], "the shell scan must not double-report it"

@@ -101,12 +101,29 @@ def test_the_bound_can_be_lifted_deliberately(monkeypatch: pytest.MonkeyPatch, r
     assert git_text(str(repo), "rev-parse", "HEAD").strip()
 
 
-@pytest.mark.parametrize("raw", ["", "   ", "not-a-number"])
+@pytest.mark.parametrize("raw", ["", "   ", "not-a-number", "nan", "inf", "-inf", "NaN"])
 def test_an_unreadable_bound_falls_back_to_the_default(
     raw: str, monkeypatch: pytest.MonkeyPatch, repo: Path
 ) -> None:
-    """A garbled limit must not mean "unbounded"."""
+    """A garbled limit must not mean "unbounded".
+
+    `nan` and `inf` are the sharp ones: both parse as floats without raising, and
+    `nan <= 0` is False, so a naive guard passes them straight to `subprocess.run`,
+    where they wait forever (review of #260).
+    """
     monkeypatch.setenv(TIMEOUT_ENV, raw)
 
     assert git_text(str(repo), "rev-parse", "HEAD").strip()
     assert DEFAULT_TIMEOUT_S > 0
+
+
+@pytest.mark.parametrize("raw", ["nan", "inf"])
+def test_a_bound_that_is_not_a_number_still_bounds(
+    raw: str, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Not just "falls back": the call it guards is actually still bounded."""
+    from meta_harness.git_read import _timeout
+
+    monkeypatch.setenv(TIMEOUT_ENV, raw)
+
+    assert _timeout() == float(DEFAULT_TIMEOUT_S)

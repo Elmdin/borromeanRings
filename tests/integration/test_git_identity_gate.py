@@ -165,4 +165,4 @@ def test_a_failed_git_log_fails_closed_rather_than_attributing_nothing(tmp_path:
 
     assert status == "fail", log
     assert proc.returncode != 0
-    assert "could not list" in log
+    assert "could not read" in log

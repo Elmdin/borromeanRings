@@ -75,14 +75,16 @@ the same gap on a sibling branch because the fix lived in one script.
   names a branch that does not exist — so a naive "any failure fails the check" would
   turn every freshly initialised project red. `symbolic-ref` still knows the name, and a
   test pins it. A detached HEAD exits 0 with the name "HEAD", as it always has.
-- (+) The scan flags **any** git capture whose exit status nobody reads, not just the two
-  literal suppression idioms: a plain `x="$(git …)"` with no `$?` check is the most
-  ordinary way to regress, and the first two versions of this scan let it through. It
-  reads a capture across however many lines it spans, and exempts the two forms that DO
-  read the status (`if ! x="$(git …)"` and `x="$(git …)" || handler`) — the shapes a
-  converted site has. Each is pinned by its own test. (Per-line keying, the wrapped-call
-  blind spot and the unread-status blind spot were all found by the security review of
-  this PR, over two passes.)
+- (+) The scan flags **any** git call in shell whose exit status nobody reads — not a
+  denylist of suppression idioms. A plain `x="$(git …)"` with no `$?` check is the most
+  ordinary way to regress, and the first two versions let it through. It also flags the
+  forms that lose the status *entirely*, where even a careful author checking `$?` would
+  be told the wrong thing: backticks, `mapfile`/`read` from a process substitution, and a
+  pipe into either. It exempts the two forms that DO read the status (`if ! x="$(git …)"`
+  and `x="$(git …)" || handler`), comments, and heredoc bodies — the Python inside them
+  is the other half of #186 and needs its own helper. Every one of those rules is pinned
+  by a test. (Per-line keying, the wrapped call, the unread status and the statusless
+  captures were each found by the security review of this PR, over three passes.)
 - (−) **Five** calls remain on the old shape, listed in the scan **line by line** with
   the reason each is there: `08_branch`'s upstream probe and its `rev-list --count`
   (where "cannot judge" is the documented answer), two `rev-parse --show-prefix` probes,

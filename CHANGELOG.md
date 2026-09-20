@@ -620,6 +620,16 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- `06_git_identity` required a commit's *display name* to match the declared one, which
+  this project's own merge model cannot produce: GitHub stamps a squash merge with the
+  account's profile name, so every commit on `dev` failed on a name while carrying the
+  right address, and the check was dropped from the required set rather than fixed
+  (#229, ADR-0087). `[git].require` now says what an author must match — `email`
+  (default) or `email+name` — with an unknown value refusing the run. The guard follows
+  the same requirement as the gate, so a commit the guard allows is not one the gate
+  fails. Two smaller fixes in the same check: a failed `git log` fails closed naming
+  git's error instead of attributing nothing (#186), and an undeclared identity is
+  `noop`, not a `pass` for having inspected nothing (ADR-0049).
 - A new project did not gate secrets at all (#236): `12_secrets` fails closed outside a
   git repository, so it was left out of `init.sh`'s defaults to keep a fresh project
   green. `init.sh` now runs `git init` in a target that is not yet a repository (and

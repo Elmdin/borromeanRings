@@ -21,7 +21,12 @@ if [ -z "$package" ] || [ -z "$(find "$PROJECT_ROOT/$src_dir" -name '*.py' -prin
   exit 0
 fi
 
-read -r current worst < <(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
+# Process substitution DISCARDS the tool's exit status — `$?` after `read` belongs to
+# `read`, so even checking it is told the wrong thing. A crashed measurement left
+# `current` empty, the comparison below silently did not fire, and the ratchet passed
+# over a measurement nobody got (#186).
+measurement=""
+if ! measurement="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT/$src_dir" "$package" <<'PY'
 import sys
 
 from meta_harness.coupling import worst_fan_out
@@ -29,8 +34,13 @@ from meta_harness.coupling import worst_fan_out
 value, name = worst_fan_out(sys.argv[1], sys.argv[2])
 print(value, name or "-")
 PY
-)
-baseline="$(cat "$baseline_file" 2>/dev/null || echo 100000)"
+)"; then
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "this project's coupling" "$measurement"
+fi
+read -r current worst <<<"$measurement"
+borromeanrings_integer_or_fail "$current" "$id" "$cmd" "$log" "this project's coupling"
+baseline=""
+borromeanrings_baseline baseline "$baseline_file" 100000 "$id" "$cmd" "$log"
 echo "worst fan-out (efferent coupling): $current at $worst (baseline $baseline)" >"$log"
 
 status="pass"

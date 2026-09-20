@@ -43,6 +43,42 @@ the same gap on a sibling branch because the fix lived in one script.
    each is still there*, so the list shrinks deliberately and a new one cannot be added
    quietly. The list only ever gets shorter.
 
+## Amendment, 2026-09-20 — the same rule for the tools that measure
+
+The first pass covered the checks that ask **git** something. The three ratchets measure
+the project with a **tool**, and had the same shape from both sides:
+
+```sh
+read -r current worst < <(… borromeanrings_py - … <<'PY' … PY)   # status discarded
+baseline="$(cat "$baseline_file" 2>/dev/null || echo 100000)"     # unreadable ⇒ permissive
+```
+
+Process substitution is worse than `|| true`: `$?` after it belongs to `read`, so even
+an author who checks the status is told the wrong thing. A crashed measurement left
+`current` empty, `[ "" -gt 100000 ]` *errored* rather than being false, the comparison
+never fired, and the ratchet passed over a measurement nobody got.
+
+Two more shared pieces, same shape as the first two:
+
+- `borromeanrings_integer_or_fail` / `borromeanrings_number_or_fail` — a ratchet
+  compares a measurement to a baseline, and **how** it compares decides what counts as a
+  number. `32_complexity` and `33_coupling` use bash's `[ x -gt y ]`, which is
+  integer-only: given `3.5`, or twenty digits, it does not return false — it *errors*,
+  and with no `set -e` the comparison silently does not fire. So each caller says which
+  kind it can actually compare, rather than sharing a validator that accepts "a number".
+  (The first version of this amendment shipped the looser validator to all three; found
+  by the security review of #259.)
+- `borromeanrings_baseline` — **absent** is a legitimate default (an unconfigured
+  project never fails); anything that **exists and cannot be read**, or is not a number
+  of the kind that check compares, is a failure. "Absent" is `! -e && ! -L`, because
+  `-e` follows symlinks and a *dangling* symlink would otherwise answer "does not
+  exist" while being a file that is there and unreadable — the same review found that
+  one too. `19_context_budget` already did this; now it is the shared rule rather than
+  one script's good behaviour.
+
+Converted: `32_complexity`, `33_coupling`, `45_docstrings` (measurement, baseline, and
+the docstring comparison, which is itself a tool call).
+
 ## Alternatives considered
 
 - **Fix each site by hand, no helper.** How the last three attempts went (#164, #179, and

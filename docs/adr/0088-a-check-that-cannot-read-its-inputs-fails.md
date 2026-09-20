@@ -79,6 +79,30 @@ Two more shared pieces, same shape as the first two:
 Converted: `32_complexity`, `33_coupling`, `45_docstrings` (measurement, baseline, and
 the docstring comparison, which is itself a tool call).
 
+## Amendment, 2026-09-20 (2) — the same rule inside the embedded Python
+
+Two checks read git from inside their heredocs, where the shell helpers cannot reach:
+
+```python
+out = subprocess.run(["git", "-C", root, *args], capture_output=True).stdout
+```
+
+`.stdout` is empty when git **failed** and when git **found nothing** — the same
+ambiguity as `|| true`, one language down. `74_secret_history` printed "empty history —
+nothing to scan" and exited 0 over a history it could not list; `34_api_diff` read every
+failure as "new file — no prior API to break", so a repository nobody could read
+reported no breaking changes having compared nothing.
+
+`meta_harness.git_read` is the Python side of the same decision: `git_text` / `git_bytes`
+raise `GitUnavailable` carrying git's own words instead of returning an empty answer, and
+`git_show` asks whether a path existed at a revision (`ls-tree`) rather than inferring it
+from a failure. Every call is bounded by `BORROMEANRINGS_CHECK_TIMEOUT`, which also
+closes the Python half of #256.
+
+The scan grew a second half for this, reading exactly the heredoc bodies the first half
+skips: `.stdout` taken straight off a `subprocess.run` that invokes git. Verified against
+`dev`'s own copy of the check — it flags both of the calls this amendment converts.
+
 ## Alternatives considered
 
 - **Fix each site by hand, no helper.** How the last three attempts went (#164, #179, and

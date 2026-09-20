@@ -620,6 +620,14 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- The two checks that read git from inside their embedded Python took `.stdout`
+  straight off `subprocess.run` (#186, ADR-0088 amended), which is empty when git failed
+  and when git found nothing. `74_secret_history` printed "empty history — nothing to
+  scan" and exited 0 over a history it could not list — a secret gate green over blobs
+  nobody read — and `34_api_diff` read every failure as "new file, no prior API to
+  break". `meta_harness.git_read` raises `GitUnavailable` with git's own words instead,
+  asks whether a path existed at a revision rather than inferring it from a failure, and
+  bounds every call by `BORROMEANRINGS_CHECK_TIMEOUT` (the Python half of #256).
 - The three ratchets passed when their measurement failed (#186, ADR-0088 amended).
   `32_complexity`, `33_coupling` and `45_docstrings` took their measurement through a
   process substitution, which discards the tool's exit status — `$?` afterwards belongs

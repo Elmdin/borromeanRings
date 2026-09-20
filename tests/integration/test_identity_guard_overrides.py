@@ -44,16 +44,19 @@ EVASIONS = [
     'git commit --author="Wrong <bad@example.com>" -m x',
     "git -c user.email=bad@example.com commit -m x",
     "GIT_AUTHOR_EMAIL=bad@example.com git commit -m x",
-    "git -C . -c user.name=Wrong commit -m x",
 ]
 
+#: An override of the DISPLAY NAME only. Under the default rule (`[git].require =
+#: "email"`) the name is not what the project requires, so this is not an evasion —
+#: the gate would not fail such a commit either, and a guard that denied it would
+#: disagree with the gate (#229). Under `email+name` it is an evasion.
+NAME_ONLY_OVERRIDE = "git -C . -c user.name=Wrong commit -m x"
 
-@pytest.fixture
-def project(tmp_path: Path) -> Path:
+
+def _project_at(root: Path, spine: str) -> Path:
     """A governed project whose configured identity is the declared one, on a work branch."""
-    root = tmp_path / "project"
     root.mkdir()
-    (root / "borromeanrings.toml").write_text(SPINE, encoding="utf-8")
+    (root / "borromeanrings.toml").write_text(spine, encoding="utf-8")
     for args in (
         ["init", "-q", "-b", "feat/work"],
         ["config", "user.name", DECLARED_NAME],
@@ -61,6 +64,11 @@ def project(tmp_path: Path) -> Path:
     ):
         subprocess.run(["git", *args], cwd=root, check=True, capture_output=True)
     return root
+
+
+@pytest.fixture
+def project(tmp_path: Path) -> Path:
+    return _project_at(tmp_path / "project", SPINE)
 
 
 def _run_guard(command: str, project: Path) -> str:
@@ -88,6 +96,34 @@ def test_every_identity_override_is_denied(project: Path) -> None:
         assert "override refused" in out, f"denied for the wrong reason: {command}: {out}"
 
 
+def test_a_display_name_override_is_allowed_when_only_the_email_is_required(
+    project: Path,
+) -> None:
+    """The guard and the gate must want the same thing. Under the default rule the
+    address is the identity; the display name is a profile field on whichever host
+    performs the merge, and requiring it made the gate unpassable on this project's own
+    trunk (#229)."""
+    out = _run_guard(NAME_ONLY_OVERRIDE, project)
+
+    assert '"deny"' not in out, out
+
+
+def test_a_display_name_override_is_denied_when_the_project_requires_the_name(
+    tmp_path: Path,
+) -> None:
+    strict = _project_at(
+        tmp_path / "strict",
+        SPINE.replace(
+            f'email = "{DECLARED_EMAIL}"', f'email = "{DECLARED_EMAIL}"\nrequire = "email+name"'
+        ),
+    )
+
+    out = _run_guard(NAME_ONLY_OVERRIDE, strict)
+
+    assert '"deny"' in out, out
+    assert "override refused" in out, out
+
+
 def test_a_normal_commit_is_still_allowed(project: Path) -> None:
     """Negative control: a guard that denied everything would pass the test above."""
     out = _run_guard("git commit -m 'a normal commit'", project)
@@ -98,3 +134,14 @@ def test_a_command_merely_mentioning_git_is_not_blocked(project: Path) -> None:
     """Writing a file that talks about git identity must not be mistaken for committing."""
     text = "printf '%s' 'docs mention git -c user.email=someone@example.com commit' > /tmp/x"
     assert '"deny"' not in _run_guard(text, project)
+
+
+def test_a_refusal_states_the_requirement_it_was_decided_against(project: Path) -> None:
+    """The message used to be built from the raw config, so under the default rule it
+    told the user to set a display name the project does not require — advice that would
+    not change the outcome (review of #257)."""
+    out = _run_guard("git commit --author='Wrong <bad@example.com>' -m x", project)
+
+    assert '"deny"' in out, out
+    assert DECLARED_EMAIL in out
+    assert DECLARED_NAME not in out, f"claims the display name is required: {out}"

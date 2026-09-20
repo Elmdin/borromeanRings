@@ -15,6 +15,12 @@ from typing import Any
 
 import tomllib
 
+#: What ``[git].require`` may ask of a commit's author. ``email`` — the address, which is
+#: the durable identity and the one a project actually specifies; ``email+name`` — the
+#: display name too, for a project that controls how its commits are made. Closed
+#: vocabulary: an unknown value is refused, never silently relaxed (#229, ADR-0087).
+IDENTITY_REQUIREMENTS: tuple[str, ...] = ("email", "email+name")
+
 #: Languages with a shipped `checks/<language>/` lane (ADR-0015, ADR-0068), plus ``none``
 #: for a project governed by the shared (language-agnostic) checks only. Closed vocabulary:
 #: an unknown value fails closed in :func:`load_config` rather than falling through to
@@ -75,6 +81,7 @@ class Config:
     # [git] — declared commit identity; empty ⇒ identity enforcement is off.
     git_name: str = ""
     git_email: str = ""
+    git_require: str = "email"  # what a commit's author must match (IDENTITY_REQUIREMENTS)
     # [layout] — file-organization conventions; each rule off when empty/zero.
     specs_dir: str = ""
     root_doc_allowlist: tuple[str, ...] = ()
@@ -209,6 +216,12 @@ class UnknownLanguage(ProjectClaimError):
     kind = "language"
 
 
+class UnknownIdentityRequirement(ProjectClaimError):
+    """``[git].require`` names something other than a shipped rule (#229, ADR-0087)."""
+
+    kind = "identity-requirement"
+
+
 def _archetypes(project: Mapping[str, Any]) -> tuple[str, ...]:
     """``[project].archetypes`` validated against :data:`ARCHETYPES`; unknown ⇒ raise."""
     declared = tuple(str(name) for name in project.get("archetypes", []))
@@ -253,6 +266,21 @@ def resolve_config_path(path: str | Path) -> Path:
         stacklevel=2,
     )
     return legacy
+
+
+def _validated_identity_requirement(git: Mapping[str, Any]) -> str:
+    """``[git].require``, which must name a shipped rule (fail-closed).
+
+    A typo must not fall through to "check nothing": what identity means for this
+    project is exactly what this value says.
+    """
+    require = str(git.get("require", "email"))
+    if require not in IDENTITY_REQUIREMENTS:
+        raise UnknownIdentityRequirement(
+            f"borromeanrings.toml [git].require = '{require}' is not a rule; "
+            f"supported: {', '.join(IDENTITY_REQUIREMENTS)} (fail-closed)."
+        )
+    return require
 
 
 def _validated_language(project: Mapping[str, Any]) -> str:
@@ -376,6 +404,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         archetypes=_archetypes(project),
         git_name=str(git.get("name", "")),
         git_email=str(git.get("email", "")),
+        git_require=_validated_identity_requirement(git),
         specs_dir=str(layout.get("specs_dir", "")),
         root_doc_allowlist=tuple(layout.get("root_doc_allowlist", [])),
         test_grouping_threshold=int(layout.get("test_grouping_threshold", 0)),

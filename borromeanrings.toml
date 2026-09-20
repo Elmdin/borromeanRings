@@ -21,8 +21,15 @@ archetypes = ["cli", "library"]
 # aid for whoever has borromeanRings installed. Empty/absent ⇒ guard off too. Other projects
 # may still require 06_git_identity. See docs/specs/SPEC-git-identity.md and
 # docs/adr/0019-git-identity-local-guard-only-public-repo.md.
+#
+# `require` says what an author must match (ADR-0087). The default, the email, is what
+# this project's merge model can actually produce: GitHub stamps a squash merge with the
+# account's profile name ("Imaan"), which no local user.name survives — so requiring the
+# name made the check permanently red on dev and it was dropped instead of fixed (#229).
+# It now passes on dev and main as they are, and its advisory line means something.
 name = "wimaan3"
 email = "imaansoltan@gmail.com"
+require = "email"
 
 [layout]
 # File-organization conventions, enforced by check 07_layout (fail-closed). Each

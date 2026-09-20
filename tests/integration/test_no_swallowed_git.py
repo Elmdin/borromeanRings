@@ -269,6 +269,10 @@ PYTHON_GIT_ASSIGN = re.compile(
     r"(?P<name>\w+)\s*=\s*subprocess\.run\((?:[^()]|\([^()]*\))*\)", re.S
 )
 
+#: The scan reads SYNTAX, not intent: `if done.returncode == 0: pass` satisfies it while
+#: doing nothing, and no regex settles that. What it does catch is the status never being
+#: looked at, which is the accident this issue is about.
+#:
 #: What this scan does NOT see, stated rather than implied: a helper that wraps
 #: `subprocess.run` and returns the result, and a comprehension that binds several of
 #: them. Both are invisible to a regex over the call site, and the threat model here is
@@ -303,6 +307,20 @@ def _python_in_heredocs(text: str) -> str:
     return "\n".join(out)
 
 
+def _inert(python: str, position: int, name: str) -> bool:
+    """Is this mention of `<name>.returncode` one that cannot affect anything?
+
+    Two shapes, both real decoys that silenced an earlier version of this scan: the
+    status as a bare statement of its own, and the status unpacked into a name beside
+    `.stdout` and then ignored.
+    """
+    _, line = _line_at(python, position)
+    stripped = line.strip()
+    if stripped == f"{name}.returncode":
+        return True
+    return bool(re.match(rf"^\w+\s*,\s*\w+\s*=\s*{re.escape(name)}\.returncode\s*,", stripped))
+
+
 def _python_git_offenders(python: str) -> list[tuple[int, str]]:
     """Git read from Python whose exit status nobody reads."""
     found: list[tuple[int, str]] = [
@@ -315,16 +333,14 @@ def _python_git_offenders(python: str) -> list[tuple[int, str]]:
         if '"git"' not in call and "'git'" not in call:
             continue
         name = match.group("name")
-        # The status must be USED, not merely mentioned: `done.returncode` as a bare
-        # statement, or tucked into an unused tuple-unpack, silenced an earlier version
-        # of this check while `.stdout` was still trusted unconditionally — a one-line
-        # decoy defeating the whole detector (review of #260).
-        if re.search(
-            rf"(?:if|elif|while|assert|return|raise|and|or|not)\b[^\n]*\b"
-            rf"{re.escape(name)}\.returncode\b"
-            rf"|\b{re.escape(name)}\.returncode\s*(?:!=|==|>|<|>=|<=)",
-            python,
-        ):
+        # Does anything actually DO something with the status? Read the other way
+        # round — every mention is taken as a real check unless it is one of the two
+        # inert shapes, a bare statement or an unused tuple-unpack — because the first
+        # attempt (a keyword-or-operator regex) rejected `rc = done.returncode` followed
+        # by `if rc != 0: raise`, which is correct code, while still passing
+        # `if done.returncode == 0: pass`, which does nothing (review of #260).
+        mentions = list(re.finditer(rf"\b{re.escape(name)}\.returncode\b", python))
+        if any(not _inert(python, at.start(), name) for at in mentions):
             continue  # the status IS read — the safe form
         if re.search(rf"\b{re.escape(name)}\.(stdout|stderr)\b", python) or re.search(
             rf"getattr\(\s*{re.escape(name)}\s*,", python
@@ -366,8 +382,7 @@ def test_every_way_of_ignoring_a_git_subprocess_status_is_flagged() -> None:
 
 
 def test_a_decoy_mention_of_the_status_does_not_silence_the_scan() -> None:
-    """The status has to be used, not named. An earlier version checked only that the
-    substring appeared somewhere in the file (review of #260)."""
+    """An earlier version accepted the substring appearing anywhere in the file."""
     for decoy in (
         'done = subprocess.run(["git", "log"], capture_output=True)\n'
         "done.returncode\nout = done.stdout",
@@ -395,3 +410,16 @@ def test_the_python_scan_reads_only_the_heredocs_the_shell_scan_skips() -> None:
 
     assert _python_git_offenders(_python_in_heredocs(wrapped))
     assert _swallowed(wrapped) == [], "the shell scan must not double-report it"
+
+
+def test_the_status_read_through_another_name_is_not_a_false_positive() -> None:
+    """Correct code, and the shape a keyword-anchored regex rejected: the status is
+    taken into a name first and the branch happens on that (review of #260)."""
+    safe = (
+        'done = subprocess.run(["git", "log"], capture_output=True)\n'
+        "rc = done.returncode\n"
+        "if rc != 0:\n    raise RuntimeError(done.stderr)\n"
+        "out = done.stdout"
+    )
+
+    assert _python_git_offenders(safe) == []

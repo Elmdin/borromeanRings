@@ -14,12 +14,7 @@ cmd="conventional commits over base..HEAD (declared [collaboration].commit_types
 
 # Resolve the comparison base: first existing of dev/main (origin- or local-).
 base=""
-for candidate in origin/dev dev origin/main main; do
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-    base="$candidate"
-    break
-  fi
-done
+borromeanrings_base_ref base "$id" "$cmd" "$log" origin/dev dev origin/main main || true
 
 # Commit list: "<sha>\t<subject>" per line, merges excluded. Empty when no base
 # (nothing to compare) — the Python side then validates nothing, by design.

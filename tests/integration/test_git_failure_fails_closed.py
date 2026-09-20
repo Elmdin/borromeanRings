@@ -128,3 +128,37 @@ def test_a_git_failure_fails_closed_rather_than_reading_as_no_changes(
     assert status == "fail", f"{check} passed over a repository it could not read:\n{log}"
     assert proc.returncode != 0
     assert "git" in log.lower(), log
+
+
+@pytest.mark.parametrize("check", CHECKS)
+def test_a_repository_with_no_commits_is_still_legitimate(tmp_path: Path, check: str) -> None:
+    """Measured, not assumed: in a repository with no commits `git rev-parse --abbrev-ref
+    HEAD` exits 128, because HEAD names a branch that does not exist yet. That is a
+    fresh project, not a broken one — failing it would make `init.sh`'s own output red
+    (review of #258). `symbolic-ref` still knows the branch's name."""
+    project = tmp_path / "proj"
+    (project / "src").mkdir(parents=True)
+    (project / "borromeanrings.toml").write_text(CONFIG.format(check=check), encoding="utf-8")
+    (project / "CHANGELOG.md").write_text("# Changelog\n\n## [Unreleased]\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=project, check=True)
+
+    proc = _gate(project)
+    status, log = _receipt(project, check)
+
+    assert status in {"pass", "noop"}, f"a fresh repository is not a broken one:\n{log}"
+    assert proc.returncode == 0, proc.stdout
+
+
+@pytest.mark.parametrize("check", CHECKS)
+def test_a_repository_whose_head_cannot_be_read_fails_closed(tmp_path: Path, check: str) -> None:
+    """Both ways of asking which branch this is now fail, so the check cannot know which
+    rule applies to it. It used to default to the literal "HEAD", which matches no
+    feature-branch prefix — a pass over a branch nobody identified."""
+    project = _project(tmp_path, check)
+    (project / ".git" / "HEAD").unlink()
+
+    proc = _gate(project)
+    status, log = _receipt(project, check)
+
+    assert status == "fail", log
+    assert proc.returncode != 0

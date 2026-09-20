@@ -13,12 +13,7 @@ cmd="changelog discipline (presence + Unreleased; optional entry-on-source-chang
 
 # Changed files base..HEAD (same base resolution as 09_commits), for the strict rule.
 base=""
-for candidate in origin/dev dev origin/main main; do
-  if git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
-    base="$candidate"
-    break
-  fi
-done
+borromeanrings_base_ref base "$id" "$cmd" "$log" origin/dev dev origin/main main || true
 # A git query that FAILS must never read as "nothing changed" (#186): the verdict below
 # is computed from what git returns, so an empty answer from a repository nobody could
 # read would report a clean pass. `merge-base` exits 1 for "no common ancestor", which

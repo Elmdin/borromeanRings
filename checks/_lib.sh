@@ -207,6 +207,47 @@ borromeanrings_cannot_read() {
   exit 1
 }
 
+
+# borromeanrings_head_branch <out-var> <id> <cmd> <log>
+# The branch HEAD is on, or the verdict that it could not be read. Measured, not assumed:
+#   * an ordinary branch  -> `rev-parse --abbrev-ref HEAD` prints it, exit 0;
+#   * a DETACHED head     -> prints "HEAD", exit 0 (the name every check has always used);
+#   * a repository with NO COMMITS YET -> exit 128, because HEAD names a branch that does
+#     not exist — a legitimate state, and `symbolic-ref` still knows the name;
+#   * anything else (no HEAD file, an unreadable .git) -> both fail, and so does the check.
+# Defaulting a failed read to "HEAD", as three checks did, silently turns a feature branch
+# into one whose rule does not apply — a pass over a branch nobody identified (#186).
+borromeanrings_head_branch() {
+  local __out_var="$1" id="$2" cmd="$3" log="$4"
+  local err=""
+  borromeanrings_git_capture "$__out_var" err rev-parse --abbrev-ref HEAD && return 0
+  borromeanrings_git_capture "$__out_var" err symbolic-ref --short HEAD && return 0
+  borromeanrings_cannot_read "$id" "$cmd" "$log" "which branch HEAD is on" "$err"
+}
+
+# borromeanrings_base_ref <out-var> <id> <cmd> <log> <candidate>...
+# The first candidate ref that exists, or "" when none does. `rev-parse --verify --quiet`
+# exits 1 for a ref that is simply absent, which is an answer; anything above that is a
+# failure and fails the check, so a repository that cannot be read never resolves to
+# "no base branch — nothing to compare" (#186).
+borromeanrings_base_ref() {
+  local __out_var="$1" id="$2" cmd="$3" log="$4"; shift 4
+  local candidate sha="" err="" code
+  printf -v "$__out_var" '%s' ""
+  for candidate in "$@"; do
+    borromeanrings_git_capture sha err rev-parse --verify --quiet "$candidate"
+    code=$?
+    [ "$code" -le 1 ] ||
+      borromeanrings_cannot_read "$id" "$cmd" "$log" "this project's base branch" "$err"
+    # A ref that resolves to nothing is not a base, whatever the status said.
+    if [ "$code" -eq 0 ] && [ -n "$sha" ]; then
+      printf -v "$__out_var" '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # --- Language-lane helpers (checks/typescript, checks/go; SPEC-multi-language.md, ADR-0068)
 
 # borromeanrings_source_count <src_dir> <suffix>... — how many source files of the lane's

@@ -8,6 +8,7 @@ from meta_harness.git_identity import (
     git_subcommand,
     git_subcommands,
     is_enforced,
+    required_identity,
 )
 
 DECLARED = Identity(name="wimaan3", email="imaansoltan@gmail.com")
@@ -368,3 +369,38 @@ def test_unparseable_commit_whose_flags_are_only_in_the_body_is_allowed() -> Non
         "MSG"
     )
     assert command_override_violation(payload, OVERRIDE_DECLARED) is None
+
+
+def test_required_identity_keeps_only_what_the_project_requires() -> None:
+    """`author_violations` already checks only the fields that are set, so the
+    requirement is expressed by what the declared identity carries (#229)."""
+    assert required_identity("wimaan3", "me@example.com", "email") == Identity(
+        name="", email="me@example.com"
+    )
+    assert required_identity("wimaan3", "me@example.com", "email+name") == Identity(
+        name="wimaan3", email="me@example.com"
+    )
+
+
+def test_under_the_default_requirement_a_different_display_name_is_not_a_violation() -> None:
+    """GitHub stamps a squash merge with the account's profile name, which no local
+    setting can change. The email is right, so the commit is the declared author's."""
+    declared = required_identity("wimaan3", "me@example.com", "email")
+    commits = [Identity(name="Imaan", email="me@example.com")]
+
+    assert author_violations(commits, declared) == []
+
+
+def test_a_different_email_is_a_violation_under_either_requirement() -> None:
+    commits = [Identity(name="wimaan3", email="someone@else.example")]
+
+    for require in ("email", "email+name"):
+        declared = required_identity("wimaan3", "me@example.com", require)
+        assert author_violations(commits, declared) == ["wimaan3 <someone@else.example>"]
+
+
+def test_a_project_that_requires_the_name_still_catches_a_renamed_author() -> None:
+    declared = required_identity("wimaan3", "me@example.com", "email+name")
+    commits = [Identity(name="Imaan", email="me@example.com")]
+
+    assert author_violations(commits, declared) == ["Imaan <me@example.com>"]

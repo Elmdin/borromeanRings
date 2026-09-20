@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from meta_harness.spine import CONFIG_NAME, LEGACY_CONFIG_NAME, load_config, resolve_config_path
+from meta_harness.spine import (
+    CONFIG_NAME,
+    LEGACY_CONFIG_NAME,
+    UnknownIdentityRequirement,
+    load_config,
+    resolve_config_path,
+)
 
 
 def _write(tmp_path: Path, body: str) -> Path:
@@ -623,3 +629,39 @@ def test_a_section_that_is_not_a_table_is_a_config_error(
         return
     with pytest.raises(ValueError, match=rf"\[{section}\] must be a table"):
         load_config(cfg)
+
+
+def test_the_default_requirement_is_the_email(tmp_path: Path) -> None:
+    """The email is the durable identity and the one actually specified; a display name
+    is a profile field on another website, which a squash merge stamps for you (#229)."""
+    cfg = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n\n[git]\nname = "wimaan3"\nemail = "me@example.com"\n',
+    )
+
+    assert load_config(cfg).git_require == "email"
+
+
+def test_a_project_may_require_the_display_name_too(tmp_path: Path) -> None:
+    cfg = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n\n'
+        '[git]\nemail = "me@example.com"\nrequire = "email+name"\n',
+    )
+
+    assert load_config(cfg).git_require == "email+name"
+
+
+def test_an_unknown_requirement_is_refused_before_any_check_runs(tmp_path: Path) -> None:
+    """Like an unknown language: everything derived from the claim would be wrong, and
+    a typo must never silently relax what is enforced."""
+    cfg = _write(
+        tmp_path,
+        '[checks]\nrequired = ["00_build"]\n\n[git]\nemail = "me@example.com"\nrequire = "name"\n',
+    )
+
+    with pytest.raises(UnknownIdentityRequirement) as caught:
+        load_config(cfg)
+
+    assert caught.value.kind == "identity-requirement"
+    assert "name" in str(caught.value)

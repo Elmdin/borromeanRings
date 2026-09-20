@@ -269,6 +269,15 @@ PYTHON_GIT_ASSIGN = re.compile(
     r"(?P<name>\w+)\s*=\s*subprocess\.run\((?:[^()]|\([^()]*\))*\)", re.S
 )
 
+#: What this scan does NOT see, stated rather than implied: a helper that wraps
+#: `subprocess.run` and returns the result, and a comprehension that binds several of
+#: them. Both are invisible to a regex over the call site, and the threat model here is
+#: the same as the other text scans in this suite — an ACCIDENTAL regression by a
+#: harness author, not an author working around the scan. A check written that way is a
+#: code-review problem, and `15_a11y`'s `_git()` helper is the legitimate version of the
+#: first shape (its callers read `.returncode`). Recorded so the next reader knows the
+#: edge is chosen, not missed (review of #260).
+
 #: Ways of running a command that DISCARD the status outright: `os.popen` (status only
 #: via `.close()`, which nobody reads) and `Popen(...).communicate()` (status only via
 #: `.returncode` afterwards). `subprocess.check_output` is NOT here: it raises on a
@@ -306,7 +315,16 @@ def _python_git_offenders(python: str) -> list[tuple[int, str]]:
         if '"git"' not in call and "'git'" not in call:
             continue
         name = match.group("name")
-        if re.search(rf"\b{re.escape(name)}\.returncode\b", python):
+        # The status must be USED, not merely mentioned: `done.returncode` as a bare
+        # statement, or tucked into an unused tuple-unpack, silenced an earlier version
+        # of this check while `.stdout` was still trusted unconditionally — a one-line
+        # decoy defeating the whole detector (review of #260).
+        if re.search(
+            rf"(?:if|elif|while|assert|return|raise|and|or|not)\b[^\n]*\b"
+            rf"{re.escape(name)}\.returncode\b"
+            rf"|\b{re.escape(name)}\.returncode\s*(?:!=|==|>|<|>=|<=)",
+            python,
+        ):
             continue  # the status IS read — the safe form
         if re.search(rf"\b{re.escape(name)}\.(stdout|stderr)\b", python) or re.search(
             rf"getattr\(\s*{re.escape(name)}\s*,", python
@@ -345,6 +363,18 @@ def test_every_way_of_ignoring_a_git_subprocess_status_is_flagged() -> None:
         'out, _ = subprocess.Popen(["git", "log"]).communicate()',
     ):
         assert _python_git_offenders(swallowed), swallowed
+
+
+def test_a_decoy_mention_of_the_status_does_not_silence_the_scan() -> None:
+    """The status has to be used, not named. An earlier version checked only that the
+    substring appeared somewhere in the file (review of #260)."""
+    for decoy in (
+        'done = subprocess.run(["git", "log"], capture_output=True)\n'
+        "done.returncode\nout = done.stdout",
+        'done = subprocess.run(["git", "log"], capture_output=True)\n'
+        "code, out = done.returncode, done.stdout",
+    ):
+        assert _python_git_offenders(decoy), decoy
 
 
 def test_reading_the_status_is_not_flagged() -> None:

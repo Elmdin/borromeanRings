@@ -251,6 +251,66 @@ borromeanrings_base_ref() {
   return 1
 }
 
+
+# The ratchets compare a measurement to a baseline, and HOW they compare decides what
+# counts as a number. `32_complexity` and `33_coupling` use bash's `[ x -gt y ]`, which
+# is integer-only: given "3.5" — or twenty digits — it does not return false, it ERRORS,
+# and with no `set -e` the `if` is simply not taken and the check reports pass. So a
+# validator that accepts "a number" is wrong for them; each caller says which kind it
+# can actually compare (review of #259).
+
+# borromeanrings_integer_or_fail <value> <id> <cmd> <log> <what>
+# Digits only, at most 18 of them: bash compares with intmax_t, and a longer run of
+# digits is not something it can compare at all (measured: "integer expression
+# expected", exit 2, and the comparison silently does not fire).
+borromeanrings_integer_or_fail() {
+  case "$1" in
+    "" | *[!0-9]* | ???????????????????*)  # 19+ digits: more than intmax_t holds
+      borromeanrings_cannot_read "$2" "$3" "$4" "$5" "expected a whole number, got: ${1:-(nothing)}"
+      ;;
+  esac
+}
+
+# borromeanrings_number_or_fail <value> <id> <cmd> <log> <what>
+# Digits with at most one dot — for a value compared as a float, in Python. Still not
+# "anything": a measurement that is empty, garbled, or a stack trace fails here, named.
+borromeanrings_number_or_fail() {
+  case "$1" in
+    "" | "." | *[!0-9.]* | *.*.*)
+      borromeanrings_cannot_read "$2" "$3" "$4" "$5" "expected a number, got: ${1:-(nothing)}"
+      ;;
+  esac
+}
+
+# borromeanrings_baseline <out-var> <file> <default> <id> <cmd> <log> [integer|number]
+# A ratchet's baseline: ABSENT is a legitimate default (an unconfigured project never
+# fails), anything that EXISTS but cannot be read is not — `cat file 2>/dev/null || echo
+# <permissive>` turned an unreadable baseline into the most permissive one, switching the
+# ratchet off without saying so (#186). A baseline that is not a number of the kind this
+# check compares fails the same way; 19_context_budget already did this, and this is that
+# rule, shared.
+#
+# "Absent" is `! -e && ! -L`: `-e` follows symlinks, so a DANGLING symlink answers "does
+# not exist" while being a file that is there and cannot be read (review of #259).
+borromeanrings_baseline() {
+  local __out_var="$1" file="$2" fallback="$3" id="$4" cmd="$5" log="$6" kind="${7:-integer}"
+  if [ ! -e "$file" ] && [ ! -L "$file" ]; then
+    printf -v "$__out_var" '%s' "$fallback"
+    return 0
+  fi
+  local value
+  if ! value="$(tr -d '[:space:]' <"$file" 2>/dev/null)"; then
+    borromeanrings_cannot_read "$id" "$cmd" "$log" "the baseline $file" \
+      "it exists but could not be read"
+  fi
+  if [ "$kind" = "number" ]; then
+    borromeanrings_number_or_fail "$value" "$id" "$cmd" "$log" "the baseline $file"
+  else
+    borromeanrings_integer_or_fail "$value" "$id" "$cmd" "$log" "the baseline $file"
+  fi
+  printf -v "$__out_var" '%s' "$value"
+}
+
 # --- Language-lane helpers (checks/typescript, checks/go; SPEC-multi-language.md, ADR-0068)
 
 # borromeanrings_source_count <src_dir> <suffix>... — how many source files of the lane's

@@ -107,11 +107,11 @@ The test a rule must pass, applied to **every** entry in the catalog:
 ```python
 @dataclass(frozen=True)
 class Rule:
-    id: str            # stable, unique
-    kind: str          # "question" | "approach"
+    id: str  # stable, unique
+    kind: str  # "question" | "approach"
     when: Callable[[Facts], bool]
-    text: str          # str.format template over the vocabulary below (lists pre-joined)
-    source: str        # a check id, a docs/specs/SPEC-*.md file, or ADR-NNNN
+    text: str  # str.format template over the vocabulary below (lists pre-joined)
+    source: str  # a check id, a docs/specs/SPEC-*.md file, or ADR-NNNN
 ```
 
 A firing rule renders as `Line(rule, text, source)` — `rule` is the `Rule.id` that

@@ -79,6 +79,55 @@ Two more shared pieces, same shape as the first two:
 Converted: `32_complexity`, `33_coupling`, `45_docstrings` (measurement, baseline, and
 the docstring comparison, which is itself a tool call).
 
+## Amendment, 2026-09-20 (2) — the same rule inside the embedded Python
+
+Two checks read git from inside their heredocs, where the shell helpers cannot reach:
+
+```python
+out = subprocess.run(["git", "-C", root, *args], capture_output=True).stdout
+```
+
+`.stdout` is empty when git **failed** and when git **found nothing** — the same
+ambiguity as `|| true`, one language down. `74_secret_history` printed "empty history —
+nothing to scan" and exited 0 over a history it could not list; `34_api_diff` read every
+failure as "new file — no prior API to break", so a repository nobody could read
+reported no breaking changes having compared nothing.
+
+`meta_harness.git_read` is the Python side of the same decision: `git_text` / `git_bytes`
+raise `GitUnavailable` carrying git's own words instead of returning an empty answer, and
+`git_show` asks whether a path existed at a revision (`ls-tree`) rather than inferring it
+from a failure. Every call is bounded by `BORROMEANRINGS_CHECK_TIMEOUT`, which also
+closes the Python half of #256 — including when that variable holds something that is
+not a finite number: `nan` and `inf` parse as floats without raising, and `nan <= 0` is
+False, so a naive guard passed them straight to `subprocess.run`, where they wait
+forever. Anything not finite falls back to the default, never to "unbounded" (found by
+the security review of #260).
+
+The scan grew a second half for this, reading exactly the heredoc bodies the first half
+skips. It flags a git subprocess whose status nobody reads in any of its spellings:
+`.stdout` chained straight off the call, the two-line `done = subprocess.run(…)` /
+`done.stdout` (the most natural way to reintroduce the bug, and invisible to the chained
+pattern — same review), `getattr(done, "stdout")`, `os.popen` and
+`Popen(…).communicate()`. It does not flag reading `.returncode` first, nor
+`check_output`, which raises. Verified against `dev`'s own copies: it flags all three of
+the calls this amendment converts.
+
+A bare `done.returncode` statement, or one tucked into an unused tuple-unpack, silenced
+an earlier version of the check while `.stdout` was still trusted — a one-line decoy
+defeating the whole detector, so both shapes are now recognised as inert. The scan reads
+**syntax, not intent**: `if done.returncode == 0: pass` satisfies it while doing nothing,
+and no regex settles that. What it catches is the status never being looked at, which is
+the accident this issue is about. (The first attempt at this rule went the other way and
+rejected `rc = done.returncode` followed by `if rc != 0: raise` — correct code — which is
+why the rule now asks whether any mention is *not* inert, rather than pattern-matching
+the good shape.) What the scan still cannot see is stated in its own header rather than
+implied: a helper that
+wraps `subprocess.run` and returns the result (`15_a11y`'s `_git()` is the legitimate
+version of that shape, and its callers do read `.returncode`), and a comprehension
+binding several results. The threat model is the one every text scan in this suite
+declares — an *accidental* regression by a harness author, not an author working around
+the scan, which is a code-review problem.
+
 ## Alternatives considered
 
 - **Fix each site by hand, no helper.** How the last three attempts went (#164, #179, and

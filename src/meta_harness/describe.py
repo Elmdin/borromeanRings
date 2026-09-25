@@ -285,22 +285,34 @@ def replace_block(readme_text: str, block: str) -> str:
     """
     if not readme_text:
         return block + "\n"
-    out = readme_text
+    pieces: list[str] = []
     at = 0
     replaced = False
     while True:
-        start = out.find(BLOCK_BEGIN, at)
-        end = out.find(BLOCK_END, start + 1) if start >= 0 else -1
-        if start < 0 or end < 0:
+        start = readme_text.find(BLOCK_BEGIN, at)
+        if start < 0:
             break
-        end += len(BLOCK_END)
-        out = out[:start] + block + out[end:]
-        at = start + len(block)
+        end = readme_text.find(BLOCK_END, start + len(BLOCK_BEGIN))
+        if end < 0:
+            break  # a BEGIN that never closes: not a block, and not ours to touch
+        nxt = readme_text.find(BLOCK_BEGIN, start + len(BLOCK_BEGIN))
+        if 0 <= nxt < end:
+            # Another BEGIN before this one's END, so THIS one is unbalanced. Copy it and
+            # whatever prose follows it verbatim and carry on from the next BEGIN — the
+            # first version swallowed both, deleting the prose between them and the real
+            # block's own marker (review of #264).
+            pieces.append(readme_text[at:nxt])
+            at = nxt
+            continue
+        pieces.append(readme_text[at:start])
+        pieces.append(block)
+        at = end + len(BLOCK_END)
         replaced = True
     if not replaced:
         sep = "" if readme_text.endswith("\n") else "\n"
         return readme_text + sep + "\n" + block + "\n"
-    return out
+    pieces.append(readme_text[at:])
+    return "".join(pieces)
 
 
 def _write_readme_block(project: Path, data: Mapping[str, object]) -> Path:

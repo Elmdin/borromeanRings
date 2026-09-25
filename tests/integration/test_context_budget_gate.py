@@ -105,7 +105,10 @@ def test_unreadable_baseline_fails_closed(tmp_path: Path) -> None:
     code, stdout, status, log = _run_gate(project)
     assert code != 0, f"an unparseable baseline must fail closed:\n{stdout}"
     assert status == "fail"
-    assert "unreadable baseline" in log
+    # The facts, not the wording: this check's inline baseline rule moved to the shared
+    # reader every ratchet now uses (#186), which phrases it its own way.
+    assert BASELINE in log, log
+    assert "lots" in log, log
 
 
 def test_research_skill_static_cost_is_pinned() -> None:

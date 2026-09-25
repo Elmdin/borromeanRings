@@ -190,6 +190,31 @@ def advisory_failures(receipt_dir: Path | str, expected: Iterable[str]) -> tuple
     return tuple(found)
 
 
+def hollow_outside(receipt_dir: Path | str, expected: Iterable[str]) -> tuple[str, ...]:
+    """Check ids OUTSIDE the expected set whose receipt says they inspected nothing.
+
+    The `inspected NOTHING` line counted only the required set, so the run an adopter
+    sees FIRST — before anything has been added to `[checks].required` — reported a clean
+    green while most of what ran had looked at nothing (audit of 2026-09-20: 16 of 36).
+    The information was in the run directory and withheld from the verdict exactly when
+    it mattered most. Same untrusted-JSON rules as :func:`advisory_failures`.
+    """
+    wanted = set(expected)
+    found: list[str] = []
+    for path in sorted(Path(receipt_dir).glob("*.json")):
+        if path.stem in wanted:
+            continue
+        try:
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(receipt, dict) or receipt.get("check") != path.stem:
+            continue
+        if receipt.get("status") == "noop":
+            found.append(path.stem)
+    return tuple(found)
+
+
 def _parse(data: object) -> Verdict | None:
     """Validate a decoded JSON value into a :class:`Verdict`, or ``None`` if malformed."""
     if not isinstance(data, dict):

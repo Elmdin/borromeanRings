@@ -140,7 +140,10 @@ if [ "$code" -eq 5 ]; then
   exit 1
 fi
 
-baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
+# Absent means no ratchet yet; unreadable is a failure, and a value this comparison
+# cannot use is too. The shared reader decides all three (#186).
+baseline=""
+borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$cmd" "$log" number
 current="$(borromeanrings_py -c "import json,sys; print(json.load(open(sys.argv[1]))['totals']['percent_covered'])" "$covjson" 2>/dev/null || echo 0)"
 
 status="fail"
@@ -154,6 +157,10 @@ if [ "$code" -eq 0 ]; then
   fi
 fi
 
-extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'coverage_percent': round(float(sys.argv[1]),2), 'coverage_baseline': float(sys.argv[2])}))" "$current" "$baseline" 2>/dev/null || echo '')"
+# The receipt records the measurement, NOT a rounded rendering of it: adopt.sh seeds the
+# next baseline from this number and the comparison above uses a 1e-9 epsilon, so two
+# decimals here meant a project's own unchanged coverage sat below its own baseline
+# (audit of 2026-09-20). The log still prints 2dp for a human.
+extra="$(borromeanrings_py -c "import json,sys; print(json.dumps({'coverage_percent': float(sys.argv[1]), 'coverage_baseline': float(sys.argv[2])}))" "$current" "$baseline" 2>/dev/null || echo '')"
 emit_receipt "$id" "$cmd" "$code" "$log" "$status" "$extra"
 exit "$code"

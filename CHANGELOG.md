@@ -630,6 +630,16 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- `replace_block` could delete prose. An unbalanced `describe:begin` marker followed by a
+  real block collapsed the two together, taking the text between them and the real
+  block's own marker with it — silent data loss in the function whose contract is
+  "byte-for-byte outside the markers" (review of #264). An unclosed marker is now left
+  exactly as it is, and three tests pin the unbalanced cases.
+- The README's own description of the gate, corrected in the same PR that was supposed to
+  make it honest, overstated it: "exit 0 only if every required check passed, was
+  inspected, and can prove it" — but `noop` is non-failing by design (ADR-0049), so a run
+  can exit 0 while printing "inspected NOTHING: N of M required". It now says what it
+  does: non-failing (passed, or honestly inspected nothing) and the receipt verifies.
 - The README's claim that "a stated number in this README is a checked claim" was only
   two-thirds true, and an audit of every falsifiable claim in it found three more
   overstatements (audit of 2026-09-20). `count_claims` matched with `re.search` — the

@@ -76,3 +76,22 @@ def test_readme_without_counts_is_noop(tmp_path: Path) -> None:
     assert code == 0, stdout
     assert statuses.get("04_self_description") == "noop"
     assert "inspected NOTHING" in stdout
+
+
+def test_two_stated_counts_that_disagree_fail_even_if_one_is_right(tmp_path: Path) -> None:
+    """The original bug, end to end: this README carries the generated block twice, and
+    only the first was compared with the registry. A second copy stating something else
+    was checked by nothing (review of #264)."""
+    project = _project(
+        tmp_path / "two",
+        f"**{REGISTRY_SIZE} checks** on disk (two gates on this repo)\n\n"
+        f"later, in another block: **{REGISTRY_SIZE + 7} checks** (two gates on this repo)\n",
+    )
+
+    code, stdout, statuses = _gate(project)
+
+    assert code != 0, stdout
+    assert statuses.get("04_self_description") == "fail"
+    runs = sorted(q for q in (project / ".meta-harness" / "receipts").glob("*") if q.is_dir())
+    log = (runs[-1] / "04_self_description.log").read_text(encoding="utf-8")
+    assert str(REGISTRY_SIZE + 7) in log, log

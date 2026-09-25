@@ -17,6 +17,12 @@ So there are three lanes, declared in config and never hardcoded:
 ``heavy``
     ``./verify.sh --heavy`` — full, plus the CI-tier checks (ADR-0033). ``--heavy``
     always implies the full lane; a "fast heavy" run would be a contradiction.
+``scheduled``
+    ``./verify.sh --heavy --scheduled`` — heavy, plus the checks too expensive to pay for
+    on every pull request. Mutation testing is 14 minutes of a 25-minute round and its
+    baseline has not moved since July, so it buys almost nothing per PR and a great deal
+    per week; it runs on a schedule instead (ADR-0090). ``--scheduled`` implies heavy for
+    the same reason ``--heavy`` implies full: the expensive tier is not a way to run less.
 
 This module is the one place that knows what "fast" means, so the shell checks only ask
 it a question. It is a leaf: it reads :class:`~meta_harness.spine.Config` and nothing else.
@@ -42,6 +48,14 @@ FAST = "fast"
 #: The default lane — everything, over everything.
 FULL = "full"
 
+#: What a run that did NOT include the scheduled tier leaves unverified. Printed wherever
+#: such a result is reported, for the same reason as :data:`FAST_LANE_NOTE`: a green that
+#: did not run a check must never read as one that did.
+SCHEDULED_TIER_NOTE = (
+    "the scheduled tier did NOT run in this lane (mutation testing). It runs on a "
+    "schedule against the trunk, not on every pull request — see ADR-0090."
+)
+
 #: What a fast-lane run did NOT verify, and where that verification still happens.
 #: Printed wherever a fast-lane result is reported, so the partial verdict says so itself.
 FAST_LANE_NOTE = (
@@ -57,16 +71,19 @@ FAST_LANE_NOTE = (
 _SAFE_PATH = re.compile(r"[A-Za-z0-9._][A-Za-z0-9._-]*(?:/[A-Za-z0-9._][A-Za-z0-9._-]*)*")
 
 
-def resolve_lane(args: Sequence[str], env: Mapping[str, str]) -> tuple[str, bool]:
-    """The ``(lane, heavy)`` one gate invocation runs in, from its argv and environment.
+def resolve_lane(args: Sequence[str], env: Mapping[str, str]) -> tuple[str, bool, bool]:
+    """The ``(lane, heavy, scheduled)`` one gate invocation runs in, from argv and env.
 
     ``--heavy`` (or ``BORROMEANRINGS_HEAVY=1``) always wins: heavy IS the pre-merge lane,
     so ``--fast --heavy`` is a full heavy run, never a narrowed one — otherwise the one
-    lane that blocks a merge could be told to skip most of the suite.
+    lane that blocks a merge could be told to skip most of the suite. ``--scheduled``
+    implies heavy, for the same reason: the tier that costs the most must not become a way
+    to run less than a pre-merge round (ADR-0090).
     """
-    heavy = env.get("BORROMEANRINGS_HEAVY") == "1" or "--heavy" in args
+    scheduled = env.get("BORROMEANRINGS_SCHEDULED") == "1" or "--scheduled" in args
+    heavy = scheduled or env.get("BORROMEANRINGS_HEAVY") == "1" or "--heavy" in args
     lane = FAST if ("--fast" in args and not heavy) else FULL
-    return lane, heavy
+    return lane, heavy, scheduled
 
 
 def effective_lane(config: Config, lane: str) -> str:

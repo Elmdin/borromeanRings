@@ -12,6 +12,7 @@ effects. See docs/specs/SPEC-adopt.md and ADR-0041.
 
 from __future__ import annotations
 
+import keyword
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -132,7 +133,14 @@ def infer_package(src_root: Path | str) -> str:
     packages = sorted(
         child.name
         for child in root.iterdir()
-        if child.is_dir() and (child / "__init__.py").is_file()
+        if child.is_dir()
+        and (child / "__init__.py").is_file()
+        # Only a name that is an importable identifier, because this value is written
+        # into the config and from there into `python3 -c "import <package>"`. A
+        # directory called `pkg"; whoami; #` must never be offered as one (review of
+        # #261); the spine refuses it too, and refusing twice is the point.
+        and child.name.isidentifier()
+        and not keyword.iskeyword(child.name)
     )
     return packages[0] if len(packages) == 1 else ""
 

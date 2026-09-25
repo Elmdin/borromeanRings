@@ -23,9 +23,9 @@ if ! git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; the
 fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$PROJECT_ROOT" "$PROJECT_ROOT/borromeanrings.toml" >"$log" 2>&1 <<'PY'
-import subprocess
 import sys
 
+from meta_harness.git_read import GitUnavailable, git_bytes, git_text
 from meta_harness.secret_history import scan_blobs
 from meta_harness.spine import load_config
 
@@ -34,34 +34,33 @@ allow = load_config(sys.argv[2]).secrets_history_allow
 MAX = 524288  # skip blobs > 512KB — secrets are small; big blobs only waste time
 
 
-def git(*args: str) -> bytes:
-    return subprocess.run(["git", "-C", root, *args], capture_output=True).stdout
+# Every git call below raises rather than returning an empty answer (#186): an
+# unreadable history is not an empty one, and this check's whole verdict is "how many
+# blobs did I read". Caught once, at the bottom, so the receipt says what failed.
+try:
+    revlist = git_text(root, "rev-list", "--all", "--objects")
+    shas = [line.split()[0] for line in revlist.splitlines() if line.strip()]
+    if not shas:
+        print("empty history — nothing to scan")
+        sys.exit(0)
+
+    batch_check = git_text(root, "cat-file", "--batch-check", stdin="\n".join(shas))
+    blob_shas = sorted({ln.split()[0] for ln in batch_check.splitlines() if " blob " in ln})
 
 
-revlist = git("rev-list", "--all", "--objects").decode("utf-8", "replace")
-shas = [line.split()[0] for line in revlist.splitlines() if line.strip()]
-if not shas:
-    print("empty history — nothing to scan")
-    sys.exit(0)
+    def blobs():
+        for sha in blob_shas:
+            content = git_bytes(root, "cat-file", "blob", sha)
+            if len(content) > MAX:
+                continue
+            yield sha, content.decode("utf-8", "replace")
 
-batch_check = subprocess.run(
-    ["git", "-C", root, "cat-file", "--batch-check"],
-    input="\n".join(shas),
-    capture_output=True,
-    text=True,
-).stdout
-blob_shas = sorted({ln.split()[0] for ln in batch_check.splitlines() if " blob " in ln})
+    findings = scan_blobs(blobs(), allow=allow)
+except GitUnavailable as exc:
+    print("could not read this repository's history, so it cannot be scanned:")
+    print(f"  {exc}")
+    sys.exit(1)
 
-
-def blobs():
-    for sha in blob_shas:
-        content = git("cat-file", "blob", sha)
-        if len(content) > MAX:
-            continue
-        yield sha, content.decode("utf-8", "replace")
-
-
-findings = scan_blobs(blobs(), allow=allow)
 if findings:
     print(f"SECRETS IN HISTORY — {len(findings)} unique high-confidence match(es):")
     for f in findings:

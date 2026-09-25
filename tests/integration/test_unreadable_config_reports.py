@@ -81,3 +81,28 @@ def test_a_language_that_cannot_be_read_says_which_lane_ran(tmp_path: Path) -> N
 
     assert "could not read [project].language" in proc.stderr, proc.stderr
     assert "'python' lane" in proc.stderr, proc.stderr
+
+
+def test_an_unreadable_config_records_the_failure_it_reports(tmp_path: Path) -> None:
+    """The run exited before writing its verdict, so `.meta-harness/last_verdict.json`
+    still held the PREVIOUS run and `status.sh` reported a green that did not happen
+    (review of #261). A record with no checks is the honest statement: nothing was
+    graded, and the run failed."""
+    import json
+
+    project = _project(
+        tmp_path,
+        '[project]\nlanguage = "none"\n\n'
+        '[checks]\nrequired = ["05_hygiene"]\n\n[hygiene]\nrequires = []\n',
+    )
+    assert _gate(project).returncode == 0, "the config parses, so this run is green"
+    record = project / ".meta-harness" / "last_verdict.json"
+    assert json.loads(record.read_text(encoding="utf-8"))["ok"] is True
+
+    (project / "borromeanrings.toml").write_text(BROKEN, encoding="utf-8")
+    proc = _gate(project)
+
+    assert proc.returncode != 0
+    assert json.loads(record.read_text(encoding="utf-8"))["ok"] is False, (
+        "the stale green survived a run that could not read the config"
+    )

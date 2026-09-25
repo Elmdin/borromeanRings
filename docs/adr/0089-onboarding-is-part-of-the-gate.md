@@ -62,6 +62,32 @@ Two more, from the same audit, about what a run *says*:
    language cannot be read, the fallback to the Python lane **announces itself**, because
    which lane runs is the one thing that fallback silently decides.
 
+## Amendment from this PR's review — an inferred name is an input
+
+The review found the fix worse than the default it replaced. `[project].package` is
+interpolated into a command string the shell expands (`00_build` runs
+`python3 -c "import $package"` through `bash -c`), and `init.sh`/`adopt.sh` now write that
+value **from a directory name read off disk**. A directory called `pkg$(whoami)` is a
+valid TOML string, so it would have reached that command. (A double quote cannot: TOML
+ends the string first. Command substitution was the live vector.)
+
+So the name is validated where every consumer benefits — the spine refuses a
+`[project].package` that is not an importable dotted path (`UnusablePackageName`, kind
+`package`), before any check runs — and `infer_package` refuses to *offer* such a name in
+the first place. Two layers on purpose: inference is the new risk, and a hand-written
+config was always able to do the same thing.
+
+The first version of that validator refused the dotted form `fixturepkg.core`, which is a
+real configuration this project's own tests use: a validator tighter than the thing it
+guards, which is the same mistake the review of #259 caught. Each segment is checked now,
+not the whole string.
+
+Two smaller findings from the same review: the "also inspected nothing" denominator
+counted required rows rather than receipts, so a required check that wrote no receipt made
+the count undercount (and it could go negative); and the unreadable-config exit left the
+project's `last_verdict.json` holding the *previous* run, so `status.sh` reported a green
+that had not happened.
+
 ## Alternatives considered
 
 - **Document it instead: tell adopters to set `package` and seed the baselines.** The

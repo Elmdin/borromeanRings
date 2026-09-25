@@ -125,7 +125,7 @@ def test_matrices_absent_section_is_empty_not_fabricated() -> None:
 
 def test_count_claims_reads_both_forms() -> None:
     readme = "blah **30 checks** across lanes ... required (twenty gates on this repo)"
-    assert count_claims(readme) == {"checks": 30, "gates": 20}
+    assert count_claims(readme) == {"checks": [30], "gates": [20]}
 
 
 def test_count_claims_missing_is_none_not_zero() -> None:
@@ -498,8 +498,36 @@ def test_main_readme_regenerates_the_block_in_place(tmp_path: Path, capsys, monk
     assert "stale" not in text
     assert "**2 checks**" in text and "**1 are required on this repo**" in text
     # and the guard agrees with what was written
-    assert count_claims(text) == {"checks": 2}
+    assert count_claims(text) == {"checks": [2]}
     # no README yet ⇒ one is created holding just the block
     readme.unlink()
     assert main(["--readme"]) == 0
     assert readme.read_text(encoding="utf-8").startswith(BLOCK_BEGIN + "\n**2 checks**")
+
+
+# --- every stated number, and every block (audit of 2026-09-20) -----------------------
+
+
+def test_count_claims_reads_every_occurrence_not_just_the_first() -> None:
+    """The README carries the describe block TWICE. `re.search` stops at the first, so a
+    second copy stating a different number was never compared with anything — and the
+    README's own claim is that a stated number here is a checked claim."""
+    readme = "**42 checks** … (thirty-one gates … later: **7 checks** … (two gates …"
+
+    assert count_claims(readme) == {"checks": [42, 7], "gates": [31, 2]}
+
+
+def test_replace_block_regenerates_every_block_not_only_the_first() -> None:
+    """Two blocks, one generator: the second was an unmaintained hand-copy that nothing
+    regenerated and nothing checked. They matched by luck."""
+    readme = (
+        f"intro\n{BLOCK_BEGIN}\nold one\n{BLOCK_END}\nmiddle\n"
+        f"{BLOCK_BEGIN}\nold two\n{BLOCK_END}\nend\n"
+    )
+    block = f"{BLOCK_BEGIN}\nfresh\n{BLOCK_END}"
+
+    result = replace_block(readme, block)
+
+    assert result.count("fresh") == 2
+    assert "old one" not in result and "old two" not in result
+    assert result.startswith("intro\n") and result.endswith("end\n")

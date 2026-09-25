@@ -62,11 +62,28 @@ def test_a_failed_query_raises_with_gits_own_words(repo: Path) -> None:
     assert "no-such-ref" in message
 
 
-def test_git_missing_or_unrunnable_raises_rather_than_returning_empty(tmp_path: Path) -> None:
+def test_a_directory_that_is_not_a_repository_raises_rather_than_returning_empty(
+    tmp_path: Path,
+) -> None:
+    """git runs and exits non-zero here — it is not the same case as git being absent."""
     with pytest.raises(GitUnavailable) as caught:
         git_text(str(tmp_path / "not-a-directory"), "status")
 
-    assert "could not be run" in str(caught.value) or "exited" in str(caught.value)
+    assert "exited" in str(caught.value)
+
+
+def test_git_not_installed_at_all_raises_rather_than_returning_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gate must fail closed on a machine with no git, not read every answer as
+    empty. `subprocess.run` raises `FileNotFoundError` before git ever starts, which is
+    a different path from a non-zero exit — and the one CI found uncovered."""
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
+
+    with pytest.raises(GitUnavailable) as caught:
+        git_text(str(tmp_path), "status")
+
+    assert "could not be run" in str(caught.value)
 
 
 def test_show_returns_none_only_when_the_path_was_absent(repo: Path) -> None:

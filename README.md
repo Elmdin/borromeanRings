@@ -53,7 +53,7 @@ You need Python ≥ 3.11 and the check toolchain on `PATH`
 git clone https://github.com/Elmdin/borromeanRings.git && cd borromeanRings
 ./init.sh  /path/to/project     # NEW project: writes borromeanrings.toml + .claude/settings.json there
 ./adopt.sh /path/to/project     # EXISTING governed project: adds the recommended checks, seeds ratchet baselines
-cd /path/to/project && /path/to/borromeanRings/verify.sh   # the gate: exit 0 only if every required check passed, was inspected, and can prove it
+cd /path/to/project && /path/to/borromeanRings/verify.sh   # the gate: exit 0 only if every required check is non-failing (passed, or honestly inspected nothing) and its receipt verifies
 /path/to/borromeanRings/status.sh                          # how is THIS project governed, and was the last green hollow?
 ```
 

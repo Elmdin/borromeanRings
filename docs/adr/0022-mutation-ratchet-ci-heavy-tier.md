@@ -25,7 +25,8 @@ lane**, not the inner gate.
   checks are required-to-pass only in heavy mode. CI runs `verify.sh --heavy`; the inner
   Stop gate is unchanged and stays fast. This lane generalizes to future heavy checks
   (fuzzing, DAST, perf budgets).
-- **The check** (`checks/ci/60_mutation.sh`) runs `mutmut`, parses its result counts, computes
+- **The check** (`checks/scheduled/60_mutation.sh` — moved out of the heavy tier by
+  ADR-0090) runs `mutmut`, parses its result counts, computes
   a score, and ratchets it against `.borromeanrings-mutation-baseline` via the shared T1
   primitive `meta_harness.ratchet.decide_ratchet` (no arbitrary target — non-regression only).
 - **Score** = caught / evaluated, where caught = killed + timeout, evaluated = caught +

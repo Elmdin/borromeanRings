@@ -528,6 +528,16 @@ queue is merged.
     (ADR-0033).
 
 ### Changed
+- Mutation testing moved to a new **scheduled tier** that pull requests do not pay for
+  (#253, ADR-0090). It was 13m 54s of a ~25-minute round — and because branch protection
+  makes merges serial, every PR in a queue paid it again — against a baseline set once in
+  July that has never moved, scoring a suite whose integration half `setup.cfg` excludes.
+  It now runs against the trunk daily and on demand (`verify.sh --scheduled`,
+  `.github/workflows/scheduled.yml`), which takes a per-PR round to about 11 minutes. The
+  tier is declared like every other set (`[checks].scheduled`, `checks/scheduled/`),
+  `--scheduled` implies `--heavy` so it can never be used to run less, and every verdict
+  now prints which tiers it verified — a green that skipped a tier must not read as one
+  that did not.
 - The full test lane runs the suite in parallel when the project has `pytest-xdist`
   (#253, ADR-0086). This suite took 18m 47s serially and hit the 900s check bound on
   `dev`, which #252 raised to 1800s to unblock the merge queue; across one worker per

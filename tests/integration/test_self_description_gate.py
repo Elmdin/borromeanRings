@@ -10,16 +10,15 @@ import os
 import subprocess
 from pathlib import Path
 
+from meta_harness.describe import discover_checks
+
 BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 TIMEOUT_S = 180
-REGISTRY_SIZE = len(
-    [
-        p
-        for lane in ("shared", "python", "ci")
-        for p in (BORROMEANRINGS_HOME / "checks" / lane).glob("[0-9]*.sh")
-    ]
-)
+# From the registry the CHECK itself reads, not a second hand-kept lane list. This test
+# held its own copy of ("shared", "python", "ci"), so when a tier was added it agreed with
+# the wrong number instead of catching it (review of #263).
+REGISTRY_SIZE = len(discover_checks(BORROMEANRINGS_HOME / "checks"))
 
 CONFIG = (
     '[project]\nlanguage = "python"\nsrc_dir = "src"\n\n'

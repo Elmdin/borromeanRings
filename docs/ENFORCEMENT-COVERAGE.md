@@ -46,7 +46,7 @@ harder to game.
 |---|---|---|---|
 | Tests pass | T0 | ✅ | `checks/…/40_test.sh` |
 | Coverage non-regression | T1 | ✅ | `40_test` ratchets coverage against `.borromeanrings-coverage-baseline` (currently 100) — non-regression, no absolute target. Caught a real 98.24%-vs-100% drop during PR #122 |
-| **Mutation score** (assertion/oracle strength) | T1 | ✅ | `checks/ci/60_mutation.sh` (heavy lane); ratchet 0.83 vs baseline 0.80; fail-closed on 0-evaluated (ADR-0022) |
+| **Mutation score** (assertion/oracle strength) | T1 | ✅ | `checks/scheduled/60_mutation.sh` (scheduled tier, daily; ADR-0090); ratchet 0.83 vs baseline 0.80; fail-closed on 0-evaluated (ADR-0022) |
 | Property-based testing (tier 1 of the verification ladder) | T0 | ✅ | `checks/python/27_properties.sh` — runs the declared suite; binary and **count-free** (never "how many properties"); declared-but-empty ⇒ fail; runner absent ⇒ `noop` naming it (ADR-0074) |
 | SMT / symbolic contracts (tier 2) | T0 | ❌ | **specified, not built** — `docs/specs/SPEC-verification-ladder.md`, #204; z3/CrossHair absent and nothing is installed |
 | Machine-checked proof (tier 3, opt-in per module) | T0 | ❌ | **specified, not built** — gates on "the proof checks" + "the statement is unchanged since a human reviewed it" (a hash); #205 |

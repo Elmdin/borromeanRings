@@ -44,14 +44,13 @@ import sys
 
 from meta_harness.lane import resolve_lane
 
-lane, heavy = resolve_lane(sys.argv[1:], os.environ)
-print(lane, "1" if heavy else "0")
+lane, heavy, scheduled = resolve_lane(sys.argv[1:], os.environ)
+print(lane, "1" if heavy else "0", "1" if scheduled else "0")
 PY
 )" || _lane_line=""
-LANE="${_lane_line%% *}"
-HEAVY="${_lane_line##* }"
-if [ -z "$LANE" ] || [ -z "$HEAVY" ] || [ "$LANE" = "$HEAVY" ]; then
-  echo "borromeanRings: could not resolve the run lane (fast/full/heavy) — refusing to run." >&2
+read -r LANE HEAVY SCHEDULED <<<"$_lane_line"
+if [ -z "${LANE:-}" ] || [ -z "${HEAVY:-}" ] || [ -z "${SCHEDULED:-}" ] || [ "$LANE" = "$HEAVY" ]; then
+  echo "borromeanRings: could not resolve the run lane (fast/full/heavy/scheduled) — refusing to run." >&2
   exit 1
 fi
 export BORROMEANRINGS_LANE="$LANE"
@@ -139,6 +138,10 @@ mkdir -p "$RECEIPT_DIR"
 scan_dirs=("$BORROMEANRINGS_HOME/checks/shared" "$BORROMEANRINGS_HOME/checks/$language")
 # CI-tier heavy checks run ONLY under --heavy (never on the fast inner Stop gate).
 [ "$HEAVY" = "1" ] && scan_dirs+=("$BORROMEANRINGS_HOME/checks/ci")
+# The scheduled tier costs more than a pull request should pay: 14 of a 25-minute round
+# for mutation testing alone. It runs against the trunk on a schedule (ADR-0090), and a
+# run that skipped it says so in its verdict rather than looking like one that did not.
+[ "$SCHEDULED" = "1" ] && scan_dirs+=("$BORROMEANRINGS_HOME/checks/scheduled")
 for dir in "${scan_dirs[@]}"; do
   [ -d "$dir" ] || continue
   for check in "$dir"/[0-9]*.sh; do
@@ -149,7 +152,7 @@ done
 
 # Fail-closed verdict + summary. Single source of the expected check set is the
 # project's borromeanrings.toml (the policy spine). meta_harness is borromeanRings's own code.
-PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" "$LANE" <<'PY'
+PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py - "$CONFIG" "$RECEIPT_DIR" "$PROJECT_ROOT" "$HEAVY" "$HARNESS_VERSION" "$LANE" "$SCHEDULED" <<'PY'
 
 import json
 import os
@@ -160,7 +163,13 @@ from meta_harness.archetypes import non_noop_violations
 from meta_harness.change_detect import compute_state_hash, record_green
 from meta_harness.evidence import LANE_FAST, LANE_HEAVY, evidence_from_receipt, read_intent
 from meta_harness.generator import read_generator
-from meta_harness.lane import FAST, FAST_LANE_NOTE, FULL, effective_lane
+from meta_harness.lane import (
+    FAST,
+    FAST_LANE_NOTE,
+    FULL,
+    SCHEDULED_TIER_NOTE,
+    effective_lane,
+)
 from meta_harness.receipts import read_log_text, run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.timings import timings_line
@@ -176,7 +185,7 @@ from meta_harness.verdict import (
     write_last_verdict,
 )
 
-config_path, receipt_dir, project_root, heavy, harness_version, lane = sys.argv[1:7]
+config_path, receipt_dir, project_root, heavy, harness_version, lane, scheduled = sys.argv[1:8]
 # Every check has already run and written its own receipt by now — including the
 # fail-closed ones a malformed config produces (ADR-0042). What must not happen is this
 # step dying on the same config and leaving a Python traceback where the verdict goes:
@@ -216,7 +225,11 @@ try:
 except ValueError as exc:
     print(f"\n  borromeanRings: {exc}")
     lane = FULL
-expected = config.required_checks + (config.heavy_checks if heavy == "1" else ())
+expected = (
+    config.required_checks
+    + (config.heavy_checks if heavy == "1" else ())
+    + (config.scheduled_checks if scheduled == "1" else ())
+)
 
 rows = []
 ok = True
@@ -254,7 +267,11 @@ for cid in expected:
     intact_hashes.append(receipt.get("content_sha256", ""))
     # `check_lane`, not `lane`: `lane` is the RUN's lane (fast/full, ADR-0081) and is
     # read after this loop for the verdict line and the record.
-    check_lane = LANE_HEAVY if cid in config.heavy_checks else LANE_FAST
+    # A scheduled check only ever runs in a run that is at least heavy (`--scheduled`
+    # implies `--heavy`), so recording it as fast-lane evidence would misdescribe the run
+    # it came from (ADR-0056; review of #263).
+    expensive = cid in config.heavy_checks or cid in config.scheduled_checks
+    check_lane = LANE_HEAVY if expensive else LANE_FAST
     evidence.append(evidence_from_receipt(receipt, lane=check_lane))
     # Fail-closed by ALLOWLIST, never by negation: only statuses meta_harness.verdict
     # declares non-failing (pass, noop) survive, so an unknown/typo'd/forged status
@@ -309,6 +326,12 @@ print(f"  RESULT: {'PASS' if ok else 'FAIL'}{' (FAST LANE)' if lane == FAST else
 # one. See ADR-0081.
 if lane == FAST:
     print(f"  {FAST_LANE_NOTE}")
+# Which tiers this verdict covers. A green that did not run a tier must not read as one
+# that did — the same rule the fast lane follows (ADR-0081, ADR-0090).
+tiers = ["required"] + (["heavy"] if heavy == "1" else []) + (["scheduled"] if scheduled == "1" else [])
+print(f"  tiers verified: {' + '.join(tiers)}")
+if scheduled != "1" and config.scheduled_checks:
+    print(f"  {SCHEDULED_TIER_NOTE}")
 # A green built partly on checks that inspected NOTHING is not the same green as one
 # where every check did real work. Say so here, or the verdict over-claims (ADR-0049).
 hollow = [cid for cid, status in rows if status == "NOOP"]

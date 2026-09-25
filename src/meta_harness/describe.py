@@ -135,17 +135,27 @@ def number_word(word: str) -> int | None:
     return None
 
 
-def count_claims(readme_text: str) -> dict[str, int]:
-    """Counts the README asserts: ``**N checks**`` and ``(<word> gates``. Absent ⇒ omitted."""
-    claims: dict[str, int] = {}
-    m = re.search(r"\*\*(\d+) checks\*\*", readme_text)
-    if m:
-        claims["checks"] = int(m.group(1))
-    m = re.search(r"\(([a-z]+(?:-[a-z]+)?) gates", readme_text)
-    if m:
-        n = number_word(m.group(1))
-        if n is not None:
-            claims["gates"] = n
+def count_claims(readme_text: str) -> dict[str, list[int]]:
+    """EVERY count the README asserts: ``**N checks**`` and ``(<word> gates``.
+
+    Every occurrence, not the first. The README carries the generated block twice, and
+    `re.search` stopped at the first — so a second copy stating a different number was
+    compared with nothing, while the README claimed that a stated number here is a checked
+    claim (audit of 2026-09-20). A key is absent when the README states no such number;
+    the caller decides what "absent" means, and `04_self_description` treats a
+    disagreement between any occurrence and the registry as a failure.
+    """
+    claims: dict[str, list[int]] = {}
+    checks = [int(m) for m in re.findall(r"\*\*(\d+) checks\*\*", readme_text)]
+    if checks:
+        claims["checks"] = checks
+    gates = [
+        n
+        for word in re.findall(r"\(([a-z]+(?:-[a-z]+)?) gates", readme_text)
+        if (n := number_word(word)) is not None
+    ]
+    if gates:
+        claims["gates"] = gates
     return claims
 
 
@@ -262,19 +272,31 @@ def summary_block(
 
 
 def replace_block(readme_text: str, block: str) -> str:
-    """``readme_text`` with the describe block replaced (or appended if absent).
+    """``readme_text`` with EVERY describe block replaced (or the block appended if none).
 
     Everything outside the markers is preserved byte-for-byte: the generator owns only
-    its own block, never the surrounding prose.
+    its own blocks, never the surrounding prose. Every block, because this README carries
+    two and only the first was regenerated — the second was an unmaintained hand-copy that
+    matched by luck (audit of 2026-09-20).
     """
     if not readme_text:
         return block + "\n"
-    start, end = readme_text.find(BLOCK_BEGIN), readme_text.find(BLOCK_END)
-    if start < 0 or end < 0 or end < start:
+    out = readme_text
+    at = 0
+    replaced = False
+    while True:
+        start = out.find(BLOCK_BEGIN, at)
+        end = out.find(BLOCK_END, start + 1) if start >= 0 else -1
+        if start < 0 or end < 0:
+            break
+        end += len(BLOCK_END)
+        out = out[:start] + block + out[end:]
+        at = start + len(block)
+        replaced = True
+    if not replaced:
         sep = "" if readme_text.endswith("\n") else "\n"
         return readme_text + sep + "\n" + block + "\n"
-    end += len(BLOCK_END)
-    return readme_text[:start] + block + readme_text[end:]
+    return out
 
 
 def _write_readme_block(project: Path, data: Mapping[str, object]) -> Path:

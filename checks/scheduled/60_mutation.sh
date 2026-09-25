@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 60_mutation — HEAVY (CI-tier) mutation-score RATCHET.
+# 60_mutation — mutation-score RATCHET, SCHEDULED tier (ADR-0090): too expensive for
+# every pull request, so it runs against the trunk daily instead.
 #
 # NOT run by the fast inner Stop gate: mutation testing runs the whole suite once
 # per mutant. It lives in checks/ci/ (which verify.sh scans ONLY under --heavy /

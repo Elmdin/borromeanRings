@@ -32,7 +32,7 @@ code=$?
 # comparison cannot use. #186's helper was written for exactly this line and these
 # three lanes were left behind (audit of 2026-09-20).
 baseline=""
-borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$cmd" "$log" number
+borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$label" "$log" number
 
 # The parser's stdout is the heredoc body; `read` splits it into these variables. An
 # empty body (parser crash) leaves them empty — the guard below fails closed on that.

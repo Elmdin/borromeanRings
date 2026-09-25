@@ -531,3 +531,43 @@ def test_replace_block_regenerates_every_block_not_only_the_first() -> None:
     assert result.count("fresh") == 2
     assert "old one" not in result and "old two" not in result
     assert result.startswith("intro\n") and result.endswith("end\n")
+
+
+def test_replace_block_leaves_an_unbalanced_marker_and_its_prose_alone() -> None:
+    """An orphaned BEGIN (no END of its own) followed by a real block collapsed the two
+    together, deleting the prose between them and the real block's own BEGIN — silent data
+    loss, in the function whose contract is "byte-for-byte outside the markers" (review of
+    #264)."""
+    readme = (
+        f"intro\n{BLOCK_BEGIN}\norphan with no end\n\nkeep this prose\n"
+        f"{BLOCK_BEGIN}\nold\n{BLOCK_END}\nend\n"
+    )
+    block = f"{BLOCK_BEGIN}\nfresh\n{BLOCK_END}"
+
+    result = replace_block(readme, block)
+
+    assert "keep this prose" in result
+    assert "orphan with no end" in result
+    assert result.count("fresh") == 1
+    assert "old" not in result
+    assert result.endswith("end\n")
+
+
+def test_replace_block_ignores_a_stray_end_before_any_begin() -> None:
+    readme = f"intro\n{BLOCK_END}\nprose\n{BLOCK_BEGIN}\nold\n{BLOCK_END}\nend\n"
+    block = f"{BLOCK_BEGIN}\nfresh\n{BLOCK_END}"
+
+    result = replace_block(readme, block)
+
+    assert "prose" in result and "fresh" in result and "old" not in result
+
+
+def test_replace_block_handles_a_begin_that_never_closes_at_all() -> None:
+    """Nothing to replace, and nothing may be lost."""
+    readme = f"intro\n{BLOCK_BEGIN}\nnever closed\n"
+    block = f"{BLOCK_BEGIN}\nfresh\n{BLOCK_END}"
+
+    result = replace_block(readme, block)
+
+    assert "never closed" in result
+    assert result.count("fresh") == 1, "an unclosable README gets the block appended"

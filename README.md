@@ -177,7 +177,7 @@ count here is a checked claim rather than a hand-written one. The prose around t
 the per-lane split, the ratchet count, the matrix list — is written by hand and is not:
 
 <!-- describe:begin -->
-**42 checks** across three lanes — 19 shared, 17 Python, 6 heavy/CI — of which **31 are required on this repo** and 6 are threshold-free ratchets.
+**42 checks** across three lanes — 19 shared, 17 Python, 5 heavy/CI — of which **31 are required on this repo** and 6 are threshold-free ratchets.
 
 Governance matrices: AI-agent quality (partial), Security & compliance (partial), Security & compliance (documented), Delivery / DORA (documented), Operational / SRE (documented), Data / ML (documented), Product / UX (documented), Security & compliance (partial), Delivery / DORA (partial), Operational / SRE (partial), Data / ML (archetype), Product / UX (partial).
 

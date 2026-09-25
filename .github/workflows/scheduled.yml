@@ -1,0 +1,54 @@
+name: borromeanRings scheduled tier
+
+# The checks too expensive to pay for on every pull request (ADR-0090). Today that is
+# mutation testing: 14 minutes of what was a 25-minute per-PR round, against a baseline
+# that has not moved since it was set — almost nothing per PR, and worth having per day.
+#
+# This runs the SAME verify.sh, one tier wider, against the trunk. A failure here is a
+# real failure: it means the trunk's tests stopped killing mutants, and it is found within
+# a day rather than at the next release.
+on:
+  schedule:
+    # 04:00 UTC daily — after the day's merges, before the next morning.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  scheduled:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          # Full history: the identity and provenance checks resolve a base ref.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the pinned check toolchain
+        run: pip install -e ".[dev]"
+      - name: Run borromeanRings gate (required + heavy + scheduled)
+        run: bash verify.sh --scheduled
+      - name: Show the log of every check that did not pass
+        if: always()
+        run: |
+          python3 - <<'PY' || true
+          import json
+          import pathlib
+
+          runs = sorted(pathlib.Path(".meta-harness/receipts").glob("*/"))
+          if not runs:
+              print("no receipts were written")
+              raise SystemExit(0)
+          for receipt in sorted(runs[-1].glob("*.json")):
+              try:
+                  status = json.loads(receipt.read_text())["status"]
+              except Exception:
+                  continue
+              if status in {"pass", "noop"}:
+                  continue
+              log = receipt.with_suffix(".log")
+              print(f"=== {receipt.stem}: {status}")
+              if log.is_file():
+                  print(log.read_text(errors="replace"))
+          PY

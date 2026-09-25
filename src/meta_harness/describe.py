@@ -20,7 +20,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-_LANES: tuple[str, ...] = ("shared", "python", "ci")
+# Every tier's directory, or the registry silently loses a check: adding checks/scheduled/
+# without adding it here dropped 60_mutation from the count, and regenerating the README
+# then made the stated number agree with the loss — the omission ADR-0052 exists to catch,
+# hidden by the mechanism meant to catch it (review of #263).
+_LANES: tuple[str, ...] = ("shared", "python", "ci", "scheduled")
 _ID_RE = re.compile(r'^id="([^"]+)"', re.MULTILINE)
 _CMD_RE = re.compile(r'^cmd="([^"]*)"', re.MULTILINE)
 _RUN_CHECK_RE = re.compile(r'run_check\s+"([^"]+)"\s+"([^"]+)"\s+"([^"]*)"')

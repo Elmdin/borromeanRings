@@ -630,6 +630,17 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- The README's claim that "a stated number in this README is a checked claim" was only
+  two-thirds true, and an audit of every falsifiable claim in it found three more
+  overstatements (audit of 2026-09-20). `count_claims` matched with `re.search` — the
+  FIRST occurrence — and `replace_block` regenerated the FIRST block, while this README
+  carries the generated block **twice**: the second was an unmaintained hand-copy that
+  nothing generated and nothing checked, matching by luck. Both now read and write every
+  occurrence, so the claim is true rather than trimmed, and it says plainly which numbers
+  it covers and which surrounding prose it does not. Also corrected: "governs its own
+  repository from commit one" (the first commit is documentation; the gate arrives in the
+  second) and "the Stop hook keeps an agent from declaring a task finished on a red tree"
+  (it runs the fast lane, so a Stop is released on a partial verdict).
 - Adopting this harness on a project that is not this one was broken at every step of
   its own documented path (audit of 2026-09-20, ADR-0089). `init.sh` wrote
   `package = ""`, which silently switched off the three checks that measure a project's

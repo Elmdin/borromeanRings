@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
 import pytest
 
 from meta_harness.adopt import (
@@ -112,3 +115,22 @@ def test_context_budget_is_a_recommended_package_free_ratchet() -> None:
     assert RATCHET_BASELINES["19_context_budget"] == ".borromeanrings-context-baseline"
     assert frozenset({"19_context_budget"}) == PACKAGE_FREE_RATCHETS
     assert set(RATCHET_BASELINES) >= PACKAGE_FREE_RATCHETS
+
+
+def test_inferring_a_package_refuses_a_name_that_is_not_importable(tmp_path: Path) -> None:
+    """The inferred name is written into the config and from there into
+    `python3 -c "import <package>"` inside a string a shell expands, so a directory called
+    `pkg$(whoami)` must never be offered as one: it would be a way to make the gate run
+    something else, strictly worse than the empty default this replaced (review of #261)."""
+    from meta_harness.adopt import infer_package
+
+    src = tmp_path / "src"
+    for name in ("pkg$(whoami)", "pkg`whoami`", "pkg;whoami", "with-dash", "class", "2late"):
+        (src / name).mkdir(parents=True)
+        (src / name / "__init__.py").touch()
+        assert infer_package(src) == "", name
+        shutil.rmtree(src / name)
+
+    (src / "good_pkg").mkdir(parents=True)
+    (src / "good_pkg" / "__init__.py").touch()
+    assert infer_package(src) == "good_pkg"

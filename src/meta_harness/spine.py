@@ -7,6 +7,7 @@ every declared check must produce a pass receipt. The spine governs *outcomes*
 See docs/specs/SPEC-spine.md.
 """
 
+import keyword
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -216,6 +217,18 @@ class UnknownLanguage(ProjectClaimError):
     kind = "language"
 
 
+class UnusablePackageName(ProjectClaimError):
+    """``[project].package`` is not a Python identifier (review of #261).
+
+    The name is interpolated into commands the gate runs — ``python3 -c "import
+    <package>"`` among them — so a name carrying a quote or a semicolon is not a
+    misconfiguration to report, it is a way to make the gate run something else. Every
+    legitimate value is an identifier, so anything else is refused before any check runs.
+    """
+
+    kind = "package"
+
+
 class UnknownIdentityRequirement(ProjectClaimError):
     """``[git].require`` names something other than a shipped rule (#229, ADR-0087)."""
 
@@ -266,6 +279,32 @@ def resolve_config_path(path: str | Path) -> Path:
         stacklevel=2,
     )
     return legacy
+
+
+def _validated_package(project: Mapping[str, Any]) -> str:
+    """``[project].package``, which must be empty or a Python identifier (fail-closed).
+
+    Empty means "no import check" and is legitimate. Anything else must be a name Python
+    could import and a shell could not reinterpret: the value reaches
+    ``python3 -c "import <package>"`` inside a command string (``00_build``), and
+    ``init.sh``/``adopt.sh`` now write it from a directory name they read off disk, so a
+    directory called ``pkg"; whoami; #`` would otherwise become a command (review of
+    #261). Keywords are refused too — ``import class`` is a syntax error, not a check.
+    """
+    package = str(project.get("package", ""))
+    if not package:
+        return ""
+    # Dotted paths are legitimate — `package = "fixturepkg.core"` is a real configuration
+    # this project's own tests use — so each SEGMENT must be an identifier, not the whole
+    # string. (My first version refused the dotted form: a validator tighter than the
+    # thing it guards, which is the mistake the review of #259 caught a week ago.)
+    segments = package.split(".")
+    if not all(part.isidentifier() and not keyword.iskeyword(part) for part in segments):
+        raise UnusablePackageName(
+            f"borromeanrings.toml [project].package = '{package}' is not an importable "
+            "name; it must be a Python identifier (fail-closed)."
+        )
+    return package
 
 
 def _validated_identity_requirement(git: Mapping[str, Any]) -> str:
@@ -396,7 +435,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
         prompt_rewriting_enabled=prompt_rewriting_enabled,
         self_report_enabled=self_report_enabled,
         hygiene_requires=hygiene_requires,
-        package=str(project.get("package", "")),
+        package=_validated_package(project),
         src_dir=str(project.get("src_dir", "src")),
         tests_dir=str(project.get("tests_dir", "tests")),
         language=language,

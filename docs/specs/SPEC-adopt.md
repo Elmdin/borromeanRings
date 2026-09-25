@@ -29,10 +29,20 @@ them at once turns a healthy project red.
    | `33_coupling` | `.borromeanrings-coupling-baseline` | `worst_fan_out(src, pkg)` |
    | `45_docstrings` | `.borromeanrings-docstring-baseline` | `measure_package(src, pkg).coverage` |
    | `19_context_budget` | `.borromeanrings-context-baseline` | `measure_context_budget(project, directive).total_bytes` (seeded even without a package) |
-   Skipped when there is no package to measure (the ratchet is greenfield-pass).
+   With no `[project].package`, adoption first **infers** it from the layout
+   (`infer_package`: exactly one directory under `src_dir` holding `__init__.py`) and
+   writes it back. If it still cannot be told, the package-bound ratchets are **not
+   added** and adoption says why: a required ratchet with no baseline is permissive by
+   default, so it prints `PASS` and can never fail (ADR-0089).
+   The coverage baseline is seeded from the latest `40_test` receipt at **full
+   precision** — a rounded baseline is one the project's own unchanged coverage sits
+   below, which is how adoption used to turn a clean project red.
 3. **Seed changelog** — if `11_changelog` is added and none exists, write a
    Keep-a-Changelog file that contains only the header and an `## [Unreleased]` section.
-4. **Rewrite** — `rewrite_required(toml_text, new_required)` replaces the
+4. **Bring what a promoted check needs** — promoting `17_prior_art` creates
+   `docs/surveys/TEMPLATE.md` in the governed project, because the check's own failure
+   message points the reader at it (ADR-0089).
+5. **Rewrite** — `rewrite_required(toml_text, new_required)` replaces the
    `[checks].required` array in place, scoped to the `[checks]` table, preserving
    all other text/comments. Fail-closed: a missing table or array raises.
 

@@ -55,6 +55,7 @@ def _project(tmp_path: Path, config: str) -> Path:
     project.mkdir()
     (project / "borromeanrings.toml").write_text(config, encoding="utf-8")
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=project, check=True)
+    subprocess.run(["git", "config", "maintenance.auto", "false"], cwd=project, check=True)
     _commit(project, DECLARED_NAME, DECLARED_EMAIL, "chore: base")
     return project
 
@@ -156,9 +157,11 @@ def test_a_failed_git_log_fails_closed_rather_than_attributing_nothing(tmp_path:
     _branch_commit(project, DECLARED_NAME, "someone@else.example")
     # An emptied object store: `git log` fails ("bad object"), while
     # `rev-parse --is-inside-work-tree` still says this is a repository.
+    # `missing_ok`: git's background maintenance writes and removes files under
+    # .git/objects while this walks, which failed one CI run as a race in the test.
     for obj in (project / ".git" / "objects").rglob("*"):
         if obj.is_file():
-            obj.unlink()
+            obj.unlink(missing_ok=True)
 
     proc = _gate(project)
     status, log = _receipt(project)

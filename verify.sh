@@ -77,13 +77,6 @@ if [ ! -f "$CONFIG" ]; then
 fi
 
 # borromeanRings adjusts to the project: run the language-agnostic 'shared' checks plus the
-# per-language set selected by [project].language (default python).
-# An invalid config is NOT refused here. Every check fails closed on its own and writes
-# a receipt saying why, which is better evidence than one message and no receipts — see
-# tests/integration/*::*_fails_closed_not_noop, which assert exactly that.
-language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
-  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
-
 # An UNKNOWN ARCHETYPE or LANGUAGE is the exception, and refuses before any check runs
 # (#79, ADR-0068). The distinction is deliberate: a malformed config is a fact each check
 # can report on, but `archetypes = ["firmware"]` or `language = "rust"` is a claim about
@@ -111,6 +104,23 @@ if [ -n "$archetype_error" ]; then
   esac
   exit 1
 fi
+# per-language set selected by [project].language (default python).
+# An invalid config is NOT refused here. Every check fails closed on its own and writes
+# a receipt saying why, which is better evidence than one message and no receipts — see
+# tests/integration/*::*_fails_closed_not_noop, which assert exactly that.
+language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
+  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null)" ||
+  language=""
+if [ -z "$language" ]; then
+  # The fallback is deliberate (each check still reports its own failure), but which LANE
+  # runs is decided here: silently choosing python means a Go or TypeScript project is
+  # checked by tools that find no source and report "nothing to inspect". Say it, so the
+  # reader knows why nothing from their own language ran (audit of 2026-09-20).
+  language="python"
+  echo "borromeanRings: could not read [project].language from $CONFIG — running the" >&2
+  echo "  '$language' lane; each check still reports its own failure below." >&2
+fi
+
 case "$language" in
   "" | *[!a-z0-9_-]*)
     echo "borromeanRings: invalid [project].language: '$language' (use [a-z0-9_-])." >&2
@@ -155,8 +165,10 @@ from meta_harness.receipts import read_log_text, run_digest, verify_receipt
 from meta_harness.spine import load_config
 from meta_harness.timings import timings_line
 from meta_harness.verdict import (
+    RISK_RED,
     Verdict,
     advisory_failures,
+    hollow_outside,
     append_history,
     is_failing,
     risk_band,
@@ -165,7 +177,34 @@ from meta_harness.verdict import (
 )
 
 config_path, receipt_dir, project_root, heavy, harness_version, lane = sys.argv[1:7]
-config = load_config(config_path)
+# Every check has already run and written its own receipt by now — including the
+# fail-closed ones a malformed config produces (ADR-0042). What must not happen is this
+# step dying on the same config and leaving a Python traceback where the verdict goes:
+# the run then has no verdict at all, which is the one output a gate owes its caller
+# (audit of 2026-09-20).
+try:
+    config = load_config(config_path)
+except Exception as exc:  # noqa: BLE001 — any unreadable config, reported as the verdict
+    print(f"\n  borromeanRings gate  (project: {project_root})")
+    print(f"  cannot read {config_path}: {exc}")
+    print("  RESULT: FAIL (the config the gate is configured by could not be read)")
+    print(f"  Each check's own receipt is in {receipt_dir}.")
+    # Record the failure before leaving, or the project's last_verdict.json still holds
+    # the PREVIOUS run and status.sh reports a green that did not happen (review of
+    # #261). The record carries no checks because none were graded — which is itself the
+    # honest statement of what this run established.
+    _unreadable = Verdict(
+        ok=False,
+        run_id=os.path.basename(receipt_dir),
+        harness_version=harness_version,
+        risk=RISK_RED,
+        lane=lane,
+    )
+    write_last_verdict(Path(project_root), _unreadable)
+    # And the history, for the same reason: a run the ledger never records is a failed
+    # run that hid itself (review of #261, footnote).
+    append_history(Path(project_root), _unreadable)
+    sys.exit(1)
 # Under --heavy the CI-tier heavy checks are also required; otherwise only the
 # fast required set gates (the heavy set never blocks the inner Stop gate).
 # Report the lane that describes the verification that actually happened: `--fast` in a
@@ -274,7 +313,24 @@ if lane == FAST:
 # where every check did real work. Say so here, or the verdict over-claims (ADR-0049).
 hollow = [cid for cid, status in rows if status == "NOOP"]
 if hollow:
-    print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} — {', '.join(hollow)}")
+    print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} required — {', '.join(hollow)}")
+# Every registered check runs, but only the required set is graded — so this line used to
+# be silent on the run an adopter sees FIRST, when nothing is required yet and most of
+# what ran inspected nothing (audit of 2026-09-20). The run dir knew; the verdict did not.
+elsewhere = hollow_outside(receipt_dir, expected)
+if elsewhere:
+    # Receipts that exist and are NOT graded. Subtracting len(rows) was wrong: a
+    # required check that wrote no receipt is still a row, so the count undercounted and
+    # could go negative (review of #261).
+    graded = {cid for cid, _ in rows}
+    ran = len([p for p in Path(receipt_dir).glob("*.json") if p.stem not in graded])
+    # Lowercase on purpose: the line above shouts about the GRADED set, and several tests
+    # read "inspected NOTHING" as "a required check did no work". This line is the same
+    # fact about checks that ran without being graded, and must not be confused with it.
+    print(
+        f"  also inspected nothing (not required, did not decide the verdict):"
+        f" {len(elsewhere)} of {ran} that ran — {', '.join(elsewhere)}"
+    )
 # A failing check outside the expected set is reported, never hidden, and never decides
 # the verdict (#229; verdict.advisory_failures).
 advisory = advisory_failures(receipt_dir, expected)

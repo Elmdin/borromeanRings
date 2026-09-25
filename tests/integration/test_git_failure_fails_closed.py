@@ -65,6 +65,9 @@ def _project(tmp_path: Path, check: str) -> Path:
     (project / "borromeanrings.toml").write_text(CONFIG.format(check=check), encoding="utf-8")
     (project / "CHANGELOG.md").write_text("# Changelog\n\n## [Unreleased]\n", encoding="utf-8")
     _git(project, "init", "-q", "-b", "main")
+    # No background housekeeping: it writes into .git/objects while these tests are
+    # deliberately emptying it.
+    _git(project, "config", "maintenance.auto", "false")
     _git(project, "add", "-A")
     _git(project, "commit", "-qm", "chore: base")
     _git(project, "checkout", "-q", "-b", "feat/x")
@@ -77,9 +80,16 @@ def _project(tmp_path: Path, check: str) -> Path:
 
 
 def _break_the_object_store(project: Path) -> None:
+    """Remove every object, tolerating git's own housekeeping.
+
+    git runs auto-maintenance in the background, which creates and deletes files like
+    `.git/objects/maintenance.lock` while this walks — one CI run failed on exactly that,
+    a race in the test rather than in the gate. The fixture disables maintenance and this
+    tolerates a file that vanishes anyway.
+    """
     for obj in (project / ".git" / "objects").rglob("*"):
         if obj.is_file():
-            obj.unlink()
+            obj.unlink(missing_ok=True)
 
 
 def _gate(project: Path) -> subprocess.CompletedProcess[str]:

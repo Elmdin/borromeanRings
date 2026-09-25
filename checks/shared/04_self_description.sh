@@ -34,11 +34,15 @@ truth = {
     "checks": len(discover_checks(home / "checks")),
     "gates": len(load_config(project / "borromeanrings.toml").required_checks),
 }
-bad = {k: (claims[k], truth[k]) for k in claims if claims[k] != truth[k]}
+# EVERY stated occurrence, not the first: this README carries the generated block twice,
+# and a second copy that disagreed with the registry was compared with nothing (audit of
+# 2026-09-20).
+bad = {k: (sorted(set(values)), truth[k]) for k, values in claims.items() if set(values) != {truth[k]}}
 if bad:
     print("README COUNT DRIFT (stated != registry):")
     for k, (said, real) in bad.items():
-        print(f"  {k}: README says {said}, registry has {real}")
+        stated = said[0] if len(said) == 1 else said
+        print(f"  {k}: README says {stated}, registry has {real}")
     print("Fix the README (or regenerate its block with describe.sh); never the registry.")
     sys.exit(1)
 print("README counts match the registry: " + ", ".join(f"{k}={v}" for k, v in truth.items()))

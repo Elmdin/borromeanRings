@@ -106,3 +106,17 @@ def test_an_unreadable_config_records_the_failure_it_reports(tmp_path: Path) -> 
     assert json.loads(record.read_text(encoding="utf-8"))["ok"] is False, (
         "the stale green survived a run that could not read the config"
     )
+
+
+def test_an_unreadable_config_appears_in_the_history(tmp_path: Path) -> None:
+    """A run the ledger never records is a failed run that hid itself (review of #261)."""
+    import json
+
+    project = _project(tmp_path, BROKEN)
+
+    _gate(project)
+
+    history = project / ".meta-harness" / "verdict_history.jsonl"
+    assert history.is_file(), "the failed run left no history entry"
+    last = json.loads(history.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert last["ok"] is False

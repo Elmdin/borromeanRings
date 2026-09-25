@@ -267,7 +267,11 @@ for cid in expected:
     intact_hashes.append(receipt.get("content_sha256", ""))
     # `check_lane`, not `lane`: `lane` is the RUN's lane (fast/full, ADR-0081) and is
     # read after this loop for the verdict line and the record.
-    check_lane = LANE_HEAVY if cid in config.heavy_checks else LANE_FAST
+    # A scheduled check only ever runs in a run that is at least heavy (`--scheduled`
+    # implies `--heavy`), so recording it as fast-lane evidence would misdescribe the run
+    # it came from (ADR-0056; review of #263).
+    expensive = cid in config.heavy_checks or cid in config.scheduled_checks
+    check_lane = LANE_HEAVY if expensive else LANE_FAST
     evidence.append(evidence_from_receipt(receipt, lane=check_lane))
     # Fail-closed by ALLOWLIST, never by negation: only statuses meta_harness.verdict
     # declares non-failing (pass, noop) survive, so an unknown/typo'd/forged status

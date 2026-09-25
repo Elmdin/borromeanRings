@@ -42,6 +42,24 @@ level — some checks are too expensive for *every pull request*, and belong on 
    words. This is ADR-0081's rule — a partial run must never read as a complete one —
    applied to tiers instead of lanes.
 
+## What this PR's review caught — a tier is not just a directory
+
+Adding `checks/scheduled/` without adding it to `describe._LANES` dropped `60_mutation`
+from the check **registry**. `04_self_description` then compared the README's count with a
+registry that had silently lost a check — and because I regenerated the README, the stated
+number agreed with the loss. The check that exists to catch a silent omission (ADR-0052)
+was made to endorse one, by the regeneration meant to keep it honest.
+
+Two smaller ones from the same review: a scheduled check's evidence recorded
+`lane="fast"`, because the label only consulted `heavy_checks`; and
+`test_self_description_gate.py` kept its **own** copy of the lane list, so it agreed with
+the wrong number instead of catching it. It now derives the count from the same registry
+the check reads.
+
+The general lesson, written down because it cost a CI round: a new tier is a directory, a
+config key, a lane flag, a registry entry, an evidence label, and every list that
+enumerates lanes. Grep for the lane names, not just for the directory.
+
 ## Alternatives considered
 
 - **Leave it and accept 25-minute rounds.** The status quo, and the reason a fifteen-PR

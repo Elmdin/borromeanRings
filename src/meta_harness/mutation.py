@@ -6,7 +6,7 @@ change to it. This is borromeanRings's answer to the coverage-Goodhart trap (a
 100%-coverage suite with vacuous assertions kills no mutants). The score feeds
 the T1 :mod:`meta_harness.ratchet` so it may not regress. Run as a CI-tier heavy
 check (mutation runs the suite once per mutant — too slow for the inner gate);
-see checks/ci/60_mutation.sh and ADR-0022.
+see checks/scheduled/60_mutation.sh and ADR-0022.
 
 Only the parsing + score math live here (deterministic, unit-tested); invoking
 mutmut is the shell check's job (the tool is a module secret).
@@ -65,7 +65,7 @@ def total_evaluated(counts: MutationCounts) -> int:
 
     Zero means mutmut produced no verdicts — a *setup failure* (e.g. the clean
     test run failed), NOT a perfect suite. The check must fail closed on zero
-    rather than trust the vacuous 1.0 score. See checks/ci/60_mutation.sh.
+    rather than trust the vacuous 1.0 score. See checks/scheduled/60_mutation.sh.
     """
     return counts.killed + counts.survived + counts.timeout + counts.suspicious
 

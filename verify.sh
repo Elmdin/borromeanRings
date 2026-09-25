@@ -193,16 +193,17 @@ except Exception as exc:  # noqa: BLE001 — any unreadable config, reported as 
     # the PREVIOUS run and status.sh reports a green that did not happen (review of
     # #261). The record carries no checks because none were graded — which is itself the
     # honest statement of what this run established.
-    write_last_verdict(
-        Path(project_root),
-        Verdict(
-            ok=False,
-            run_id=os.path.basename(receipt_dir),
-            harness_version=harness_version,
-            risk=RISK_RED,
-            lane=lane,
-        ),
+    _unreadable = Verdict(
+        ok=False,
+        run_id=os.path.basename(receipt_dir),
+        harness_version=harness_version,
+        risk=RISK_RED,
+        lane=lane,
     )
+    write_last_verdict(Path(project_root), _unreadable)
+    # And the history, for the same reason: a run the ledger never records is a failed
+    # run that hid itself (review of #261, footnote).
+    append_history(Path(project_root), _unreadable)
     sys.exit(1)
 # Under --heavy the CI-tier heavy checks are also required; otherwise only the
 # fast required set gates (the heavy set never blocks the inner Stop gate).

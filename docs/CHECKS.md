@@ -26,7 +26,7 @@ built). Each check's rationale lives in its ADR (`docs/adr/`).
 - **Two lanes.** The **fast lane** runs on every gate; the **heavy (CI-tier) lane** runs only
   under `./verify.sh --heavy` or in CI — expensive tool-checks that must not slow the inner
   loop (ADR-0033).
-- **Three lanes.** The **full lane** (`./verify.sh`) runs the whole required set over
+- **Three lanes and three tiers.** The **full lane** (`./verify.sh`) runs the whole required set over
   everything. The **heavy (CI-tier) lane** (`./verify.sh --heavy`, and CI) adds expensive
   tool-checks that must not slow the inner loop (ADR-0033). The **fast (interactive) lane**
   (`./verify.sh --fast`) is what the Stop hook runs: the same required set, but `40_test`
@@ -37,6 +37,13 @@ built). Each check's rationale lives in its ADR (`docs/adr/`).
   across one worker per CPU when the project has `pytest-xdist`, and serially when it does
   not; the check's log says which, and `BORROMEANRINGS_TEST_WORKERS` overrides the count
   (ADR-0086).
+  Above the heavy tier sits the **scheduled tier** (`./verify.sh --scheduled`,
+  `[checks].scheduled`, `checks/scheduled/`): checks too expensive to pay for on every
+  pull request. Today that is `60_mutation` — 14 minutes of what was a 25-minute round,
+  against a baseline that has not moved since it was set. It runs against the trunk daily
+  (`.github/workflows/scheduled.yml`) and on demand, `--scheduled` implies `--heavy`, and
+  every run prints which tiers it verified so a green that skipped a tier cannot read as
+  one that did not (ADR-0090).
 - **Opt-in, per check *and* per project.** Nothing is enabled by default; you choose.
 
 ## Enabling checks in a project

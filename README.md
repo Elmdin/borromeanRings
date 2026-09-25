@@ -175,7 +175,7 @@ held to it by `04_self_description` (ADR-0052) — a stated number in this READM
 checked claim, never a hand-written one:
 
 <!-- describe:begin -->
-**42 checks** across three lanes — 19 shared, 17 Python, 6 heavy/CI — of which **31 are required on this repo** and 6 are threshold-free ratchets.
+**41 checks** across three lanes — 19 shared, 17 Python, 5 heavy/CI — of which **31 are required on this repo** and 5 are threshold-free ratchets.
 
 Governance matrices: AI-agent quality (partial), Security & compliance (partial), Security & compliance (documented), Delivery / DORA (documented), Operational / SRE (documented), Data / ML (documented), Product / UX (documented), Security & compliance (partial), Delivery / DORA (partial), Operational / SRE (partial), Data / ML (archetype), Product / UX (partial).
 

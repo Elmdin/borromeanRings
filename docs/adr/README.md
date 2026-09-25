@@ -98,6 +98,7 @@ Format per record: **Status · Context · Decision · Alternatives considered ·
 | [0087](0087-identity-is-the-email.md) | Identity is the email; the display name is not ours to require | Accepted |
 | [0088](0088-a-check-that-cannot-read-its-inputs-fails.md) | A check that cannot read its inputs fails, and shares one way of saying so | Accepted |
 | [0089](0089-onboarding-is-part-of-the-gate.md) | Onboarding is part of the gate: infer, seed or decline, and disclose | Accepted |
+| [0090](0090-a-scheduled-tier-above-heavy.md) | A scheduled tier above heavy: what a pull request should not pay for | Accepted |
 
 Open items live in [`../DELAYED-DECISIONS.md`](../DELAYED-DECISIONS.md); a delayed decision
 graduates to an ADR once the Maintainer resolves it.

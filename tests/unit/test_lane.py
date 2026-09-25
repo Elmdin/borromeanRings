@@ -95,18 +95,18 @@ def test_pytest_arguments_are_shell_quoted() -> None:
 def test_heavy_always_resolves_to_the_full_lane() -> None:
     # --heavy IS the pre-merge lane, so it is never narrowed — otherwise the one lane
     # that blocks a merge could be told to skip most of the suite.
-    assert resolve_lane([], {}) == (FULL, False)
-    assert resolve_lane(["--fast"], {}) == (FAST, False)
-    assert resolve_lane(["--heavy"], {}) == (FULL, True)
-    assert resolve_lane(["--fast", "--heavy"], {}) == (FULL, True)
-    assert resolve_lane(["--heavy", "--fast"], {}) == (FULL, True)
-    assert resolve_lane(["--fast"], {"BORROMEANRINGS_HEAVY": "1"}) == (FULL, True)
+    assert resolve_lane([], {}) == (FULL, False, False)
+    assert resolve_lane(["--fast"], {}) == (FAST, False, False)
+    assert resolve_lane(["--heavy"], {}) == (FULL, True, False)
+    assert resolve_lane(["--fast", "--heavy"], {}) == (FULL, True, False)
+    assert resolve_lane(["--heavy", "--fast"], {}) == (FULL, True, False)
+    assert resolve_lane(["--fast"], {"BORROMEANRINGS_HEAVY": "1"}) == (FULL, True, False)
     # an unknown flag neither narrows nor escalates
-    assert resolve_lane(["--verbose"], {}) == (FULL, False)
+    assert resolve_lane(["--verbose"], {}) == (FULL, False, False)
     # only an exact "1" in the env escalates; an unrelated variable never does
-    assert resolve_lane([], {"BORROMEANRINGS_HEAVY": "0"}) == (FULL, False)
-    assert resolve_lane(["--fast"], {"BORROMEANRINGS_HEAVY": "yes"}) == (FAST, False)
-    assert resolve_lane([], {"BORROMEANRINGS_LANE": "1"}) == (FULL, False)
+    assert resolve_lane([], {"BORROMEANRINGS_HEAVY": "0"}) == (FULL, False, False)
+    assert resolve_lane(["--fast"], {"BORROMEANRINGS_HEAVY": "yes"}) == (FAST, False, False)
+    assert resolve_lane([], {"BORROMEANRINGS_LANE": "1"}) == (FULL, False, False)
 
 
 def test_a_run_is_reported_fast_only_if_it_actually_narrowed_anything() -> None:
@@ -115,3 +115,12 @@ def test_a_run_is_reported_fast_only_if_it_actually_narrowed_anything() -> None:
     assert effective_lane(_config(), FAST) == FULL
     assert effective_lane(_config("tests/unit"), FAST) == FAST
     assert effective_lane(_config("tests/unit"), FULL) == FULL
+
+
+def test_the_scheduled_tier_implies_heavy_and_never_narrows() -> None:
+    """The tier that costs the most must not become a way to run LESS than a pre-merge
+    round: `--scheduled --fast` is a full heavy scheduled run (ADR-0090)."""
+    assert resolve_lane(["--scheduled"], {}) == (FULL, True, True)
+    assert resolve_lane(["--scheduled", "--fast"], {}) == (FULL, True, True)
+    assert resolve_lane([], {"BORROMEANRINGS_SCHEDULED": "1"}) == (FULL, True, True)
+    assert resolve_lane([], {"BORROMEANRINGS_SCHEDULED": "0"}) == (FULL, False, False)

@@ -60,6 +60,9 @@ class Config:
     context: Mapping[str, Any]
     # [checks].heavy — CI-tier checks required only under `verify.sh --heavy` (ADR-0033).
     heavy_checks: tuple[str, ...] = ()
+    #: Checks too expensive for a per-PR round; graded only in a `--scheduled` run
+    #: (ADR-0090). Declared like the others, never hardcoded.
+    scheduled_checks: tuple[str, ...] = ()
     prompt_rewriting_enabled: bool = False
     # [self_report].enabled — record the reply's VERIFICATION STATUS block at Stop
     # (ADR-0066). Defaults to prompt_rewriting_enabled: the reply-shape contracts
@@ -431,6 +434,7 @@ def load_config(path: str | Path = CONFIG_NAME) -> Config:
     return Config(
         required_checks=tuple(required),
         heavy_checks=tuple(_table(raw, "checks").get("heavy", [])),
+        scheduled_checks=tuple(_table(raw, "checks").get("scheduled", [])),
         context=context,
         prompt_rewriting_enabled=prompt_rewriting_enabled,
         self_report_enabled=self_report_enabled,

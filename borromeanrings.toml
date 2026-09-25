@@ -251,13 +251,17 @@ required = [
 # Heavy (CI-tier) checks — required ONLY under `verify.sh --heavy` (CI). Populated as
 # tool-checks land (mutation, pip-audit, gitleaks, licenses). See ADR-0033.
 heavy = [
-  "60_mutation",
   "70_pip_audit",
   "72_licenses",
   "74_secret_history",
   "76_lockfile",
   "78_pins",
 ]
+# Too expensive for a per-PR round: mutation testing is 14 minutes of a 25-minute gate,
+# and its baseline has not moved since it was set. It runs against the trunk on a
+# schedule (.github/workflows/scheduled.yml) with `verify.sh --scheduled`, and a run
+# without it says so in its own verdict. See ADR-0090.
+scheduled = ["60_mutation"]
 
 [hygiene]
 # The engineering surround this project must have (presence-gated; see ADR-0012).

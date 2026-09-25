@@ -54,21 +54,19 @@ printf '%s\n' "${report%$'\n'*}" >"$log"
 
 status="pass"
 code=0
-if [ ! -e "$baseline_file" ]; then
+if [ ! -e "$baseline_file" ] && [ ! -L "$baseline_file" ]; then
   echo "context total: $current bytes (no baseline recorded — seed .borromeanrings-context-baseline to ratchet it)" >>"$log"
 else
-  baseline="$(cat "$baseline_file" 2>/dev/null | tr -d '[:space:]')"
-  if ! printf '%s' "$baseline" | grep -Eq '^[0-9]+$'; then
-    echo "unreadable baseline: $baseline_file must hold one non-negative integer (failing closed)" >>"$log"
+  # This check got the rule right first (absent is a default, unreadable is a failure);
+  # #186 turned it into a shared reader, and this is that reader, so one place decides it
+  # for every ratchet (audit of 2026-09-20 found three lanes still hand-rolling it).
+  baseline=""
+  borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$cmd" "$log" integer
+  echo "context total: $current bytes (baseline $baseline)" >>"$log"
+  if [ "$current" -gt "$baseline" ]; then
+    echo "CONTEXT-BUDGET REGRESSION: $current is above baseline $baseline — trim what borromeanRings injects, or accept the new baseline deliberately" >>"$log"
     status="fail"
     code=1
-  else
-    echo "context total: $current bytes (baseline $baseline)" >>"$log"
-    if [ "$current" -gt "$baseline" ]; then
-      echo "CONTEXT-BUDGET REGRESSION: $current is above baseline $baseline — trim what borromeanRings injects, or accept the new baseline deliberately" >>"$log"
-      status="fail"
-      code=1
-    fi
   fi
 fi
 

@@ -12,9 +12,11 @@ effects. See docs/specs/SPEC-adopt.md and ADR-0041.
 
 from __future__ import annotations
 
+import keyword
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 #: The coverage ratchet's baseline file — one file for every language lane (ADR-0068).
 COVERAGE_BASELINE = ".borromeanrings-coverage-baseline"
@@ -114,6 +116,35 @@ def rewrite_required(toml_text: str, new_required: tuple[str, ...]) -> str:
     return toml_text[:start] + section + toml_text[end:]
 
 
+def infer_package(src_root: Path | str) -> str:
+    """The importable package under ``src_root``, or ``""`` when it cannot be told.
+
+    ``[project].package`` is what every check that measures the project's own code keys
+    on. Left empty — which is what ``init.sh`` used to write — `32_complexity`,
+    `33_coupling` and `45_docstrings` report "no package/source to measure (greenfield)"
+    about a project full of modules, while the gate still says PASS (audit of
+    2026-09-20). It is a value the layout already answers, so it is read rather than
+    asked for: exactly one directory holding an ``__init__.py``. Two candidates, or none,
+    means the project must say which, and the empty string is then honest.
+    """
+    root = Path(src_root)
+    if not root.is_dir():
+        return ""
+    packages = sorted(
+        child.name
+        for child in root.iterdir()
+        if child.is_dir()
+        and (child / "__init__.py").is_file()
+        # Only a name that is an importable identifier, because this value is written
+        # into the config and from there into `python3 -c "import <package>"`. A
+        # directory called `pkg"; whoami; #` must never be offered as one (review of
+        # #261); the spine refuses it too, and refusing twice is the point.
+        and child.name.isidentifier()
+        and not keyword.iskeyword(child.name)
+    )
+    return packages[0] if len(packages) == 1 else ""
+
+
 def coverage_seed(receipts: Sequence[Mapping[str, object]]) -> str | None:
     """The value to seed :data:`COVERAGE_BASELINE` with, from past ``40_test`` receipts.
 
@@ -126,5 +157,11 @@ def coverage_seed(receipts: Sequence[Mapping[str, object]]) -> str | None:
     for receipt in reversed(receipts):
         value = receipt.get("coverage_percent")
         if isinstance(value, int | float) and not isinstance(value, bool):
-            return f"{float(value):g}"
+            # Full precision, deliberately. `:g` rounds to six significant digits, and
+            # 40_test compares the measurement it takes now against this number with a
+            # 1e-9 epsilon — so a rounded baseline is a baseline the project's own
+            # unchanged coverage sits below. That is what produced
+            # "COVERAGE REGRESSION: 97.37% is below baseline 97.37%" on the first run
+            # after adopting (audit of 2026-09-20).
+            return repr(float(value))
     return None

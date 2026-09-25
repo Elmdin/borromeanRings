@@ -620,6 +620,32 @@ queue is merged.
   NOT renamed (receipts, baselines, mutmut config and import paths depend on them).
 
 ### Fixed
+- Adopting this harness on a project that is not this one was broken at every step of
+  its own documented path (audit of 2026-09-20, ADR-0089). `init.sh` wrote
+  `package = ""`, which silently switched off the three checks that measure a project's
+  code — they reported "greenfield — nothing to analyze" about a project with five
+  modules while the gate said PASS — and `adopt.sh` then promoted exactly those three to
+  required. `adopt.sh` seeded the coverage baseline from a receipt rounded to two
+  decimals against a check that compares full precision, so a clean project went red
+  with `COVERAGE REGRESSION: 97.37% is below baseline 97.37%`. It seeded no baseline for
+  the ratchets it promoted, leaving each one permissive, printing `PASS` and unable to
+  fail. And it promoted `17_prior_art`, whose message points at a template that existed
+  only inside the harness. `init.sh` now reads the package from the layout, `adopt.sh`
+  seeds every ratchet it promotes or declines to promote it and says why, a receipt
+  records the measurement rather than a rounded rendering of it, and the whole path is
+  kept as a test that builds a fresh project and injects a real regression.
+- A run now says how much of it inspected nothing *outside* the required set (ADR-0089).
+  The count covered only graded checks, so the first run an adopter sees — before
+  anything is required — reported a clean green while 16 of the 36 checks that ran had
+  looked at nothing.
+- A `borromeanrings.toml` that will not parse ends in a verdict instead of a Python
+  traceback, and each check's config read reports one line rather than a stack trace:
+  one run answered with eighteen tracebacks and no verdict (ADR-0089). When the language
+  cannot be read, the fallback to the Python lane now announces itself — a Go project was
+  silently checked by tools that found no source.
+- Three ratchet lanes still read their baseline by hand (`go`/`typescript` `40_test`,
+  `60_mutation`), as did `40_test` and `19_context_budget` themselves; all five now use
+  #186's shared reader, and a scan keeps new lanes from hand-rolling it again.
 - The two checks that read git from inside their embedded Python took `.stdout`
   straight off `subprocess.run` (#186, ADR-0088 amended), which is empty when git failed
   and when git found nothing. `74_secret_history` printed "empty history — nothing to

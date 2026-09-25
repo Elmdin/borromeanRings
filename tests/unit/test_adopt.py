@@ -134,3 +134,11 @@ def test_inferring_a_package_refuses_a_name_that_is_not_importable(tmp_path: Pat
     (src / "good_pkg").mkdir(parents=True)
     (src / "good_pkg" / "__init__.py").touch()
     assert infer_package(src) == "good_pkg"
+
+
+def test_inferring_a_package_from_a_missing_src_dir_is_not_an_error(tmp_path: Path) -> None:
+    """A project with no `src/` is a legitimate layout, not a failure: the answer is
+    "cannot tell", which is what the empty string means here."""
+    from meta_harness.adopt import infer_package
+
+    assert infer_package(tmp_path / "nothing-here") == ""

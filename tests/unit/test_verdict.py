@@ -22,6 +22,7 @@ from meta_harness.verdict import (
     append_history,
     append_rewrite_record,
     append_self_report_record,
+    hollow_outside,
     is_failing,
     read_history,
     read_last_verdict,
@@ -521,3 +522,35 @@ def test_advisory_failures_survives_hostile_filesystem_shapes(tmp_path: Path) ->
     (tmp_path / "zz_bytes.json").write_bytes(b'{"check": "zz_bytes", "status": "\xff\xfe"}')
     (tmp_path / "zz_null.json").write_text("null", encoding="utf-8")
     assert advisory_failures(tmp_path, ()) == ()
+
+
+# --- hollow_outside: checks that inspected nothing, outside the graded set (ADR-0089) --
+
+
+def test_hollow_outside_names_the_noops_that_were_not_graded(tmp_path: Path) -> None:
+    """The first run an adopter sees grades almost nothing, so the hollowness of what DID
+    run was reported nowhere (audit of 2026-09-20)."""
+    _receipt(tmp_path, "05_hygiene", {"check": "05_hygiene", "status": "noop"})  # graded
+    _receipt(tmp_path, "14_container", {"check": "14_container", "status": "noop"})
+    _receipt(tmp_path, "15_a11y", {"check": "15_a11y", "status": "noop"})
+    _receipt(tmp_path, "16_shellcheck", {"check": "16_shellcheck", "status": "pass"})
+    _receipt(tmp_path, "06_git_identity", {"check": "06_git_identity", "status": "fail"})
+
+    assert hollow_outside(tmp_path, ("05_hygiene",)) == ("14_container", "15_a11y")
+
+
+def test_hollow_outside_skips_anything_that_is_not_a_receipt(tmp_path: Path) -> None:
+    """The run dir's JSON is untrusted: none of these may raise or be reported."""
+    (tmp_path / "zz_list.json").write_text("[1, 2]", encoding="utf-8")
+    (tmp_path / "zz_str.json").write_text('"text"', encoding="utf-8")
+    (tmp_path / "zz_broken.json").write_text("{not json", encoding="utf-8")
+    _receipt(tmp_path, "zz_nocheck", {"status": "noop"})
+    _receipt(tmp_path, "zz_other", {"check": "something_else", "status": "noop"})
+
+    assert hollow_outside(tmp_path, ()) == ()
+
+
+def test_hollow_outside_is_empty_when_everything_did_work(tmp_path: Path) -> None:
+    _receipt(tmp_path, "16_shellcheck", {"check": "16_shellcheck", "status": "pass"})
+
+    assert hollow_outside(tmp_path, ()) == ()

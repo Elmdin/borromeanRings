@@ -50,7 +50,9 @@ fi
 
 PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$PROJECT_DIR" "$BORROMEANRINGS_HOME" <<'PY'
 import json
+import re
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from meta_harness.adopt import (
@@ -58,6 +60,7 @@ from meta_harness.adopt import (
     PACKAGE_FREE_RATCHETS,
     RATCHET_BASELINES,
     coverage_seed,
+    infer_package,
     plan_adoption,
     rewrite_required,
 )
@@ -66,7 +69,7 @@ from meta_harness.context_budget import measure_context_budget
 from meta_harness.coupling import worst_fan_out
 from meta_harness.docstrings import measure_package
 from meta_harness.prompt_rewrite import build_directive
-from meta_harness.spine import load_config
+from meta_harness.spine import CONFIG_NAME, load_config
 
 CHANGELOG_TEMPLATE = """\
 # Changelog
@@ -116,6 +119,19 @@ if not plan.add_checks:
 
 src_root = project / config.src_dir
 package = config.package
+if not package:
+    # A promoted ratchet with no package measures nothing and passes for ever. The
+    # layout already answers this, so read it rather than promote a dark check
+    # (audit of 2026-09-20).
+    package = infer_package(src_root)
+    if package:
+        toml_text = toml_path.read_text(encoding="utf-8")
+        if re.search(r'^\s*package\s*=\s*""', toml_text, re.M):
+            toml_path.write_text(
+                re.sub(r'^(\s*package\s*=\s*)""', rf'\g<1>"{package}"', toml_text, count=1, flags=re.M),
+                encoding="utf-8",
+            )
+            print(f'adopt: set [project].package = "{package}" (read from {config.src_dir}/)')
 
 # Seed each newly-added ratchet's baseline from the project's current value. With
 # no package to measure, a package-bound ratchet is greenfield-pass, so seeding is
@@ -132,12 +148,40 @@ seeders = {
     ),
 }
 seeded: list[str] = []
+unseeded: list[str] = []
 for check in plan.seed_baselines:
     if not package and check not in PACKAGE_FREE_RATCHETS:
+        # Nothing to measure it against, so say so instead of promoting a check whose
+        # default is "off": it would print PASS and could never fail (audit 2026-09-20).
+        unseeded.append(check)
         continue
     value = seeders[check]()
     (project / RATCHET_BASELINES[check]).write_text(value + "\n", encoding="utf-8")
     seeded.append(f"{RATCHET_BASELINES[check]} = {value}")
+
+if unseeded:
+    plan = replace(
+        plan,
+        add_checks=tuple(c for c in plan.add_checks if c not in unseeded),
+        new_required=tuple(c for c in plan.new_required if c not in unseeded),
+        seed_baselines=tuple(c for c in plan.seed_baselines if c not in unseeded),
+    )
+    print(f"adopt: NOT adding {unseeded} — no [project].package, so they would measure")
+    print(f"       nothing and pass for ever. Set [project].package in {CONFIG_NAME}, then re-run.")
+
+# A promoted check must not ask the project for something the project has never had:
+# 17_prior_art's message points the reader at docs/surveys/TEMPLATE.md, which existed
+# only inside the harness (audit of 2026-09-20).
+if "17_prior_art" in plan.add_checks:
+    surveys = project / "docs" / "surveys"
+    template = surveys / "TEMPLATE.md"
+    if not template.exists():
+        surveys.mkdir(parents=True, exist_ok=True)
+        template.write_text(
+            (home / "docs" / "surveys" / "TEMPLATE.md").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        print(f"adopt: created {template.relative_to(project)} (17_prior_art points readers at it)")
 
 if plan.needs_changelog:
     changelog.write_text(CHANGELOG_TEMPLATE, encoding="utf-8")

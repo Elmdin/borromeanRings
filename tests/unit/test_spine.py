@@ -12,6 +12,7 @@ from meta_harness.spine import (
     CONFIG_NAME,
     LEGACY_CONFIG_NAME,
     UnknownIdentityRequirement,
+    UnusablePackageName,
     load_config,
     resolve_config_path,
 )
@@ -665,3 +666,34 @@ def test_an_unknown_requirement_is_refused_before_any_check_runs(tmp_path: Path)
 
     assert caught.value.kind == "identity-requirement"
     assert "name" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "name", ["pkg$(whoami)", "pkg`whoami`", "pkg;whoami", "with-dash", "class", "2late"]
+)
+def test_a_package_name_that_is_not_importable_is_refused(tmp_path: Path, name: str) -> None:
+    """The value reaches `python3 -c "import <package>"` inside a string that a shell
+    expands (`00_build`), so `pkg$(whoami)` is not a misconfiguration to report — it is a
+    way to make the gate run something else. A double quote cannot get this far (TOML
+    ends the string), but command substitution is perfectly valid TOML (review of #261).
+    """
+    cfg = _write(tmp_path, f'[checks]\nrequired = ["00_build"]\n\n[project]\npackage = "{name}"\n')
+
+    with pytest.raises(UnusablePackageName) as caught:
+        load_config(cfg)
+
+    assert caught.value.kind == "package"
+
+
+def test_no_package_is_still_legitimate(tmp_path: Path) -> None:
+    cfg = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n\n[project]\npackage = ""\n')
+
+    assert load_config(cfg).package == ""
+
+
+def test_a_dotted_package_path_is_legitimate(tmp_path: Path) -> None:
+    """`import fixturepkg.core` is valid Python and a real configuration here, so each
+    segment is validated rather than the whole string (review of #261)."""
+    cfg = _write(tmp_path, '[checks]\nrequired = ["00_build"]\n\n[project]\npackage = "pkg.core"\n')
+
+    assert load_config(cfg).package == "pkg.core"

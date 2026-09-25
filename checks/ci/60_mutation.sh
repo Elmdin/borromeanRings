@@ -47,7 +47,11 @@ fi
 BORROMEANRINGS_CHECK_TIMEOUT="${BORROMEANRINGS_MUTATION_TIMEOUT:-1800}" \
   borromeanrings_run_bounded "$log" "mutmut run" || true
 
-baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
+# Absent is a legitimate default; unreadable is not, and neither is a value this
+# comparison cannot use. #186's helper was written for exactly this line and these
+# three lanes were left behind (audit of 2026-09-20).
+baseline=""
+borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$cmd" "$log" number
 
 # Parse the score from the captured output and ratchet it — both in borromeanRings's
 # own tested code (meta_harness.mutation + meta_harness.ratchet), so the shell

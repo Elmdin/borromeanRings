@@ -28,7 +28,11 @@ tool="$(borromeanrings_lane_tool go)" || {
 borromeanrings_run_bounded "$log" "exec \"$tool\" test -coverprofile=\"$profile\" ./..."
 code=$?
 [ "$code" -eq 0 ] && borromeanrings_run_bounded "$funclog" "\"$tool\" tool cover -func=\"$profile\"" || true
-baseline="$(cat "$baseline_file" 2>/dev/null || echo 0)"
+# Absent is a legitimate default; unreadable is not, and neither is a value this
+# comparison cannot use. #186's helper was written for exactly this line and these
+# three lanes were left behind (audit of 2026-09-20).
+baseline=""
+borromeanrings_baseline baseline "$baseline_file" 0 "$id" "$label" "$log" number
 
 # The parser's stdout is the heredoc body; `read` splits it into these variables. An
 # empty body (parser crash) leaves them empty — the guard below fails closed on that.

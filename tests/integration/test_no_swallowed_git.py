@@ -250,3 +250,39 @@ def test_every_known_site_is_still_one() -> None:
         if not any(snippet in line for _, line in found):
             stale.append(f"{rel}: {snippet}")
     assert not stale, f"converted — remove from KNOWN: {stale}"
+
+
+#: Ratchet baselines read with `cat <file> 2>/dev/null || echo <permissive>`: absent and
+#: unreadable collapse into "the most permissive value", so the ratchet switches itself
+#: off without saying so. #186 built `borromeanrings_baseline` for exactly this line and
+#: converted the three python ratchets; go, typescript and the mutation lane were left
+#: behind and found by the audit of 2026-09-20.
+BASELINE_CAT = re.compile(r'baseline="\$\(\s*cat[^)]*\)"')
+
+
+def test_no_check_reads_a_ratchet_baseline_by_hand() -> None:
+    offenders: list[str] = []
+    for script in _scripts():
+        text = _shell_only(script.read_text(encoding="utf-8"))
+        for match in BASELINE_CAT.finditer(text):
+            number, line = _line_at(text, match.start())
+            if not _is_comment(line):
+                offenders.append(f"{script.relative_to(CHECKS)}:{number}: {line.strip()}")
+    assert not offenders, (
+        "a baseline read that cannot tell absent from unreadable (#186):\n"
+        + "\n".join(offenders)
+        + "\nUse borromeanrings_baseline."
+    )
+
+
+def test_every_ratchet_check_uses_the_shared_baseline_reader() -> None:
+    """The positive half: a check that HAS a baseline file must read it through the
+    helper, so a new lane cannot quietly hand-roll the comparison again."""
+    missing: list[str] = []
+    for script in _scripts():
+        text = script.read_text(encoding="utf-8")
+        if "baseline_file=" not in text:
+            continue
+        if "borromeanrings_baseline" not in text:
+            missing.append(str(script.relative_to(CHECKS)))
+    assert not missing, f"declares a baseline file but does not use the shared reader: {missing}"

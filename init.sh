@@ -28,10 +28,24 @@ if ! git -C "$TARGET" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "initialised a git repository at $TARGET (every check here assumes version control)"
 fi
 
+# The importable package, read from the layout rather than left for the reader to fill
+# in. An empty [project].package does not merely "skip the import check": it switches off
+# every check that measures the project's own code, which then reports "greenfield —
+# nothing to analyze" while the gate still says PASS (audit of 2026-09-20).
+PACKAGE="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" python3 - "$TARGET" <<'PACKAGE_PY'
+import sys
+from pathlib import Path
+
+from meta_harness.adopt import infer_package
+
+print(infer_package(Path(sys.argv[1]) / "src"))
+PACKAGE_PY
+)" || PACKAGE=""
+
 if [ ! -f "$TARGET/borromeanrings.toml" ]; then
-  cat >"$TARGET/borromeanrings.toml" <<'EOF'
+  cat >"$TARGET/borromeanrings.toml" <<EOF
 [project]
-package = ""        # importable package name (optional; "" skips the import check)
+package = "$PACKAGE"        # importable package name; "" turns off every check that measures your code
 src_dir = "src"
 tests_dir = "tests"
 
@@ -52,6 +66,12 @@ enabled = true
 requires = []
 EOF
   echo "wrote $TARGET/borromeanrings.toml  (edit it for your project)"
+  if [ -n "$PACKAGE" ]; then
+    echo "  [project].package = \"$PACKAGE\"  (inferred from src/; the code-measuring checks need it)"
+  else
+    echo "  [project].package is EMPTY — set it, or every check that measures your code will"
+    echo "  report \"nothing to analyze\" and pass without looking (src/ has no single package)"
+  fi
 else
   echo "$TARGET/borromeanrings.toml already exists — leaving it"
 fi

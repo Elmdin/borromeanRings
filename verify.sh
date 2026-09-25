@@ -82,7 +82,17 @@ fi
 # a receipt saying why, which is better evidence than one message and no receipts — see
 # tests/integration/*::*_fails_closed_not_noop, which assert exactly that.
 language="$(PYTHONPATH="$BORROMEANRINGS_HOME/src" borromeanrings_py -c \
-  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null || echo python)"
+  "from meta_harness.spine import load_config; print(load_config('$CONFIG').language)" 2>/dev/null)" ||
+  language=""
+if [ -z "$language" ]; then
+  # The fallback is deliberate (each check still reports its own failure), but which LANE
+  # runs is decided here: silently choosing python means a Go or TypeScript project is
+  # checked by tools that find no source and report "nothing to inspect". Say it, so the
+  # reader knows why nothing from their own language ran (audit of 2026-09-20).
+  language="python"
+  echo "borromeanRings: could not read [project].language from $CONFIG — running the" >&2
+  echo "  '$language' lane; each check still reports its own failure below." >&2
+fi
 
 # An UNKNOWN ARCHETYPE or LANGUAGE is the exception, and refuses before any check runs
 # (#79, ADR-0068). The distinction is deliberate: a malformed config is a fact each check
@@ -157,6 +167,7 @@ from meta_harness.timings import timings_line
 from meta_harness.verdict import (
     Verdict,
     advisory_failures,
+    hollow_outside,
     append_history,
     is_failing,
     risk_band,
@@ -165,7 +176,19 @@ from meta_harness.verdict import (
 )
 
 config_path, receipt_dir, project_root, heavy, harness_version, lane = sys.argv[1:7]
-config = load_config(config_path)
+# Every check has already run and written its own receipt by now — including the
+# fail-closed ones a malformed config produces (ADR-0042). What must not happen is this
+# step dying on the same config and leaving a Python traceback where the verdict goes:
+# the run then has no verdict at all, which is the one output a gate owes its caller
+# (audit of 2026-09-20).
+try:
+    config = load_config(config_path)
+except Exception as exc:  # noqa: BLE001 — any unreadable config, reported as the verdict
+    print(f"\n  borromeanRings gate  (project: {project_root})")
+    print(f"  cannot read {config_path}: {exc}")
+    print("  RESULT: FAIL (the config the gate is configured by could not be read)")
+    print(f"  Each check's own receipt is in {receipt_dir}.")
+    sys.exit(1)
 # Under --heavy the CI-tier heavy checks are also required; otherwise only the
 # fast required set gates (the heavy set never blocks the inner Stop gate).
 # Report the lane that describes the verification that actually happened: `--fast` in a
@@ -274,7 +297,20 @@ if lane == FAST:
 # where every check did real work. Say so here, or the verdict over-claims (ADR-0049).
 hollow = [cid for cid, status in rows if status == "NOOP"]
 if hollow:
-    print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} — {', '.join(hollow)}")
+    print(f"  inspected NOTHING: {len(hollow)} of {len(rows)} required — {', '.join(hollow)}")
+# Every registered check runs, but only the required set is graded — so this line used to
+# be silent on the run an adopter sees FIRST, when nothing is required yet and most of
+# what ran inspected nothing (audit of 2026-09-20). The run dir knew; the verdict did not.
+elsewhere = hollow_outside(receipt_dir, expected)
+if elsewhere:
+    ran = len(list(Path(receipt_dir).glob("*.json"))) - len(rows)
+    # Lowercase on purpose: the line above shouts about the GRADED set, and several tests
+    # read "inspected NOTHING" as "a required check did no work". This line is the same
+    # fact about checks that ran without being graded, and must not be confused with it.
+    print(
+        f"  also inspected nothing (not required, did not decide the verdict):"
+        f" {len(elsewhere)} of {ran} that ran — {', '.join(elsewhere)}"
+    )
 # A failing check outside the expected set is reported, never hidden, and never decides
 # the verdict (#229; verdict.advisory_failures).
 advisory = advisory_failures(receipt_dir, expected)

@@ -24,7 +24,15 @@ import sys
 
 from meta_harness.spine import load_config
 
-print(getattr(load_config(sys.argv[1]), sys.argv[2]))
+# One line on stderr and a non-zero exit, not a traceback. A malformed config used to
+# print a full stack trace HERE, once per check, so a gate run answered with eighteen
+# tracebacks and no readable reason (audit of 2026-09-20). The exit code is what callers
+# fail closed on; this only decides what the reader sees.
+try:
+    print(getattr(load_config(sys.argv[1]), sys.argv[2]))
+except Exception as exc:  # noqa: BLE001 - any unreadable config, reported not raised
+    print(f"cannot read {sys.argv[2]} from {sys.argv[1]}: {exc}", file=sys.stderr)
+    sys.exit(1)
 PY
 }
 

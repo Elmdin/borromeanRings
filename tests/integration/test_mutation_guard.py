@@ -6,7 +6,7 @@ that directory as cwd. A unit test that reads any other repo path (``.claude/``,
 ``contracts/``, ...) passes on the fast lane and fails inside the sandbox; mutmut's
 clean-test run then aborts, 0 mutants are evaluated, and the vacuous score is 1.0.
 ADR-0022 says ``60_mutation`` must FAIL there ("MUTATION CHECK DID NOT RUN"), never
-trust that 1.0 — this test proves it against the real ``verify.sh --heavy``.
+trust that 1.0 — this test proves it against the real ``verify.sh --scheduled``.
 
 It also asserts the gate's verdict row carries the evaluated-mutant count
 (``PASS (evaluated N, score S)`` / ``FAIL (evaluated 0)``), so a reader never has to
@@ -38,7 +38,7 @@ CHECK_TIMEOUT_S = "600"
 
 CONFIG = (
     '[project]\nlanguage = "python"\nsrc_dir = "src"\ntests_dir = "tests"\n\n'
-    '[checks]\nrequired = ["01_source_coherence"]\nheavy = ["60_mutation"]\n\n'
+    '[checks]\nrequired = ["01_source_coherence"]\nscheduled = ["60_mutation"]\n\n'
     "[hygiene]\nrequires = []\n"
 )
 # A tiny real package: one function → two mutants (`+ 1` → `- 1`, `+ 2`), both killed.
@@ -76,13 +76,17 @@ def _git_project(root: Path, files: dict[str, str]) -> Path:
 
 
 def _run_heavy_gate(project: Path) -> tuple[int, str, dict[str, object], str]:
-    """Run the real ``verify.sh --heavy``; return (exit, stdout, 60_mutation receipt, log)."""
+    """Run the real ``verify.sh --scheduled``; return (exit, stdout, receipt, log).
+
+    The check moved to the scheduled tier (ADR-0090) — 14 minutes is more than a pull
+    request should pay — so this drives the lane that actually runs it.
+    """
     env = dict(os.environ)
     env["BORROMEANRINGS_PROJECT"] = str(project)
     env["BORROMEANRINGS_CHECK_TIMEOUT"] = CHECK_TIMEOUT_S
     env["BORROMEANRINGS_MUTATION_TIMEOUT"] = CHECK_TIMEOUT_S
     proc = subprocess.run(
-        ["bash", str(VERIFY), "--heavy"],
+        ["bash", str(VERIFY), "--scheduled"],
         env=env,
         capture_output=True,
         text=True,

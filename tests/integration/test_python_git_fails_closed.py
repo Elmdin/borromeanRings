@@ -26,9 +26,13 @@ BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 GATE_TIMEOUT_S = 300
 
+# `none`: 74_secret_history lives in checks/ci/ and is reached by `--heavy`, independent
+# of the fixture's language, so the python lane costs these two tests ~7.7s a call and
+# buys them nothing (review of #266). DIFF_CONFIG below keeps `python` — 34_api_diff only
+# exists in that lane.
 HISTORY_CONFIG = """\
 [project]
-language = "python"
+language = "none"
 package = "thing"
 src_dir = "src"
 

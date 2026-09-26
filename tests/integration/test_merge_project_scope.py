@@ -18,8 +18,11 @@ TIMEOUT_S = 180
 
 # A project gated on one cheap, always-satisfiable check, so the test exercises merge
 # scoping rather than the check suite.
+# `none`: the required set here is 05_hygiene alone (checks/shared/), and this file
+# exercises merge scoping rather than the check suite — the python lane would cost
+# every one of these gate runs ~7.7s for nothing (review of #266).
 CONFIG = (
-    '[project]\nlanguage = "python"\nsrc_dir = "src"\n\n'
+    '[project]\nlanguage = "none"\nsrc_dir = "src"\n\n'
     '[checks]\nrequired = ["05_hygiene"]\n\n[hygiene]\nrequires = []\n'
 )
 
@@ -166,7 +169,7 @@ def test_refuses_when_the_gate_fails(tmp_path: Path) -> None:
     work, _ = _governed_repo_with_origin(tmp_path)
     # Require a check this fixture cannot satisfy: a declared hygiene file that is absent.
     (work / "borromeanrings.toml").write_text(
-        '[project]\nlanguage = "python"\nsrc_dir = "src"\n\n'
+        '[project]\nlanguage = "none"\nsrc_dir = "src"\n\n'
         '[checks]\nrequired = ["05_hygiene"]\n\n'
         '[hygiene]\nrequires = ["NOT-PRESENT.md"]\n',
         encoding="utf-8",

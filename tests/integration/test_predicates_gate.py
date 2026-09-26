@@ -16,8 +16,11 @@ BORROMEANRINGS_HOME = Path(__file__).resolve().parents[2]
 VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 GATE_TIMEOUT_S = 120
 
+# `none`, not `python`: the check under test is lane-agnostic (checks/shared/), and a
+# python-lane fixture also runs pytest, mypy and ruff over it on EVERY gate call —
+# measured at 9.9s a run against 2.2s, for 17 checks this test says nothing about.
 CONFIG_ON = (
-    '[project]\nlanguage = "python"\n\n[checks]\nrequired = ["23_predicates"]\n\n'
+    '[project]\nlanguage = "none"\n\n[checks]\nrequired = ["23_predicates"]\n\n'
     "[hygiene]\nrequires = []\n\n[predicates]\nenabled = true\n"
 )
 CONFIG_OFF = CONFIG_ON.replace("enabled = true", "enabled = false")

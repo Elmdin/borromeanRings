@@ -20,8 +20,11 @@ TIMEOUT_S = 180
 # the wrong number instead of catching it (review of #263).
 REGISTRY_SIZE = len(discover_checks(BORROMEANRINGS_HOME / "checks"))
 
+# `none`, not `python`: the check under test is lane-agnostic (checks/shared/), and a
+# python-lane fixture also runs pytest, mypy and ruff over it on EVERY gate call —
+# measured at 9.9s a run against 2.2s, for 17 checks this test says nothing about.
 CONFIG = (
-    '[project]\nlanguage = "python"\nsrc_dir = "src"\n\n'
+    '[project]\nlanguage = "none"\nsrc_dir = "src"\n\n'
     '[checks]\nrequired = ["04_self_description", "05_hygiene"]\n\n[hygiene]\nrequires = []\n'
 )
 

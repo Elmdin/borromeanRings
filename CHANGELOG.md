@@ -528,6 +528,13 @@ queue is merged.
     (ADR-0033).
 
 ### Changed
+- Six integration test files gated a fixture project as `language = "python"` while
+  testing a check that lives in `checks/shared/` (#253). The gate runs every check in the
+  lane, so each of their ~49 gate calls also ran pytest, mypy and ruff over the fixture —
+  measured at 9.9s a call against 2.2s for the lane the test actually needs. Those six
+  files now declare `none`: **155s to 44s** for the same 43 tests, same worker count,
+  back to back. The convention is recorded in `tests/conftest.py`, where a test author
+  will meet it.
 - Mutation testing moved to a new **scheduled tier** that pull requests do not pay for
   (#253, ADR-0090). It was 13m 54s of a ~25-minute round — and because branch protection
   makes merges serial, every PR in a queue paid it again — against a baseline set once in

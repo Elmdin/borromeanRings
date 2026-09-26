@@ -21,8 +21,11 @@ VERIFY = BORROMEANRINGS_HOME / "verify.sh"
 GATE_TIMEOUT_S = 120
 BASELINE = ".borromeanrings-context-baseline"
 
+# `none`, not `python`: the check under test is lane-agnostic (checks/shared/), and a
+# python-lane fixture also runs pytest, mypy and ruff over it on EVERY gate call —
+# measured at 9.9s a run against 2.2s, for 17 checks this test says nothing about.
 CONFIG = (
-    '[project]\nlanguage = "python"\nsrc_dir = "src"\n\n'
+    '[project]\nlanguage = "none"\nsrc_dir = "src"\n\n'
     '[checks]\nrequired = ["19_context_budget"]\n\n[hygiene]\nrequires = []\n'
 )
 SKILL = "---\nname: demo\ndescription: forty bytes of always-loaded text.\n---\n"

@@ -1,5 +1,12 @@
 """Suite-wide setup shared by every test.
 
+A fixture project's `[project].language` decides how much work every gate call in that
+test does, because the gate runs every check in the lane. Measured on one fixture:
+`language = "python"` is **9.9s** a run (36 checks, including pytest, mypy and ruff over
+the fixture) against **2.2s** for `language = "none"` (19 checks). So a test whose check
+lives in `checks/shared/` should declare `none` — six files that declared `python` for a
+lane-agnostic check cost 155s where 44s was enough (#253's tail).
+
 The gate and the Stop hook keep state outside the governed tree, under
 ``$XDG_STATE_HOME/borromeanrings`` (ADR-0079, ADR-0082): the retry count and the
 last-green record. Unisolated, every test that runs the gate writes that state into the

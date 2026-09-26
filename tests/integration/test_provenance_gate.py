@@ -41,8 +41,11 @@ COPIED_DOC = (
 )
 
 
+# `none`, not `python`: the check under test is lane-agnostic (checks/shared/), and a
+# python-lane fixture also runs pytest, mypy and ruff over it on EVERY gate call —
+# measured at 9.9s a run against 2.2s, for 17 checks this test says nothing about.
 def _config(provenance: str | None) -> str:
-    base = '[project]\nlanguage = "python"\n\n[checks]\nrequired = ["25_provenance"]\n\n'
+    base = '[project]\nlanguage = "none"\n\n[checks]\nrequired = ["25_provenance"]\n\n'
     base += "[hygiene]\nrequires = []\n\n"
     return base if provenance is None else base + provenance
 

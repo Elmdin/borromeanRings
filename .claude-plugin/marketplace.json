@@ -2,7 +2,7 @@
   "name": "borromeanrings",
   "description": "Self-hosted single-plugin marketplace for borromeanRings (the plugin lives at this repository's root).",
   "owner": {
-    "name": "3MagicLabs"
+    "name": "Elmdin"
   },
   "plugins": [
     {

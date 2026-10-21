@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Meta-harness that governs an AI coding agent with deterministic, fail-closed gates. Installs the six governance hooks and the skills; inert in any project without a borromeanrings.toml (per-project opt-in).",
   "author": {
-    "name": "3MagicLabs"
+    "name": "Elmdin"
   },
   "repository": "https://github.com/Elmdin/borromeanRings",
   "license": "Apache-2.0",

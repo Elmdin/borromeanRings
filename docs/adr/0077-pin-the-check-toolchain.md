@@ -95,7 +95,7 @@ not allowed.
   rejected on the evidence above: a frozen closure is a frozen set of vulnerabilities, and this
   repo has no mechanism that would ever refresh it. A lockfile is the right tool where something
   regenerates it on a schedule; nothing here does. That leaves
-  [PR #170](https://github.com/3MagicLabs/borromeanRings/pull/170)'s `[supply_chain].lockfile`
+  [PR #170](https://github.com/Elmdin/borromeanRings/pull/170)'s `[supply_chain].lockfile`
   correctly set to `""` and `76_lockfile` an honest `noop`, which is the accurate report.
 - **Let CI float and pin only locally** — rejected: it inverts QAS-2. The clean-runner verdict is
   the authoritative one, so it is the one that must be reproducible.
@@ -108,7 +108,7 @@ not allowed.
 - (+) A toolchain change can no longer arrive unannounced in an unrelated PR; it arrives as a pin
   bump with its fallout handled in the same change.
 - (+) `mutmut` is pinned at 3.6.0, the version whose `copy_src_dir` behaviour the stale-`mutants`
-  workaround ([PR #199](https://github.com/3MagicLabs/borromeanRings/pull/199)) was written and
+  workaround ([PR #199](https://github.com/Elmdin/borromeanRings/pull/199)) was written and
   verified against. CI had been running 3.7.0, so that workaround's justification and its runtime
   had silently come apart.
 - (−) Pins go stale, and nothing here bumps them. That is deliberate: an automated bump would

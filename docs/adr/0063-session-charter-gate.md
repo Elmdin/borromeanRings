@@ -10,7 +10,7 @@ but nothing records the *terms* — so a session that expanded scope, kept loopi
 irreversible step had violated nothing that was written down. AI-Fluency names this the
 Delegation competency (ADR-0020); borromeanRings had the vocabulary and no artifact.
 
-A sibling project of the maintainer's (the 4D fluency compact, `/3MagicLabs/4D`, licensed
+A sibling project of the maintainer's (the 4D fluency compact, `/Elmdin/4D`, licensed
 **CC BY-NC-SA**) has a working charter mechanism whose two load-bearing ideas are worth
 carrying over: the validator has no lenient path (an invalid charter is refused whole, with every problem listed), and the fields
 carrying over: a charter is never repaired, defaulted, or partially accepted, and the fields
